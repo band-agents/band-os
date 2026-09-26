@@ -1,0 +1,652 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>band. OS — stores, software, brands and media from Cairo</title>
+<meta name="description" content="band. is a studio in Cairo. We build online stores, write custom software, shape brands and buy the media — in English and Arabic. Explore the work on the studio’s own desktop.">
+<meta name="theme-color" content="#ECECE6">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="band.">
+<meta property="og:title" content="band. OS — stores, software, brands and media from Cairo">
+<meta property="og:description" content="band. is a studio in Cairo. We build online stores, write custom software, shape brands and buy the media — in English and Arabic. Explore the work on the studio’s own desktop.">
+<meta property="og:url" content="https://band-agents.github.io/band-os/">
+<meta property="og:image" content="https://band-agents.github.io/band-os/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@band_cairo">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* 06 · STUDIO OS — the portfolio is the studio's own desktop. It boots with the barcode, work lives in
+   folders and windows you can drag, and the assistant is the command bar: ⌘K, type anything, it answers and
+   opens the right windows for you. */
+:root{--desk:#ECECE6;--win:#FFFFFF;--ink:#0B0B0B;--mute:#83837C;--rule:#E2E2DB;--green:#10A862;color-scheme:light}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--desk);color:var(--ink);font:400 15px/1.5 'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;letter-spacing:.01em}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+a{color:inherit;text-decoration:none}
+
+/* boot */
+#boot{position:fixed;inset:0;z-index:100;background:#050505;color:#EDEDE6;display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .6s,visibility .6s}
+#boot.gone{opacity:0;visibility:hidden}
+#boot canvas{width:min(300px,64vw);height:min(220px,46vw);display:block}
+#boot .wm{width:min(140px,30vw);margin-top:18px}
+#boot pre{position:absolute;left:clamp(16px,4vw,40px);bottom:clamp(16px,4vw,40px);margin:0;color:#8C8C85;white-space:pre-wrap;max-width:calc(100vw - 32px)}
+#boot pre b{color:#10A862;font-weight:500}
+#boot .skip{position:absolute;right:clamp(16px,4vw,40px);bottom:clamp(16px,4vw,40px);color:#8C8C85;border:1px solid #2A2A27;padding:8px 12px;border-radius:6px}
+
+/* menu bar */
+.menubar{position:fixed;inset:0 0 auto;height:38px;z-index:50;display:flex;align-items:center;gap:18px;padding:0 14px;background:rgba(255,255,255,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--rule)}
+.menubar .lk{width:17px;display:block}
+.menubar b{font-weight:800}
+.menubar .m{color:#44443F;font-weight:500}
+.menubar .m:hover{color:var(--ink)}
+.menubar .sp{flex:1}
+.menubar .k{display:flex;align-items:center;gap:8px;background:var(--ink);color:#fff;padding:5px 10px;border-radius:6px}
+.menubar .k canvas{width:22px;height:13px}
+
+/* desktop */
+.desk{position:fixed;inset:38px 0 0;background-image:radial-gradient(#CFCFC7 1px,transparent 1px);background-size:22px 22px}
+.wall{position:absolute;right:6vw;bottom:14vh;width:min(46vw,620px);opacity:.9;pointer-events:none}
+.wall svg{width:100%;display:block}
+.icons{position:absolute;left:18px;top:22px;display:grid;grid-template-rows:repeat(5,auto);grid-auto-flow:column;gap:10px 8px}
+.ic{width:96px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border-radius:8px;text-align:center}
+.ic:hover,.ic:focus-visible{background:rgba(11,11,11,.06)}
+.ic .tile{width:58px;height:58px;border-radius:12px;background:#fff;border:1.5px solid var(--ink);display:flex;align-items:flex-end;justify-content:center;gap:2px;padding:10px;box-shadow:0 2px 0 var(--ink)}
+.ic .tile i{display:block;background:var(--ink)}
+.ic .tile.g i{background:var(--green)}
+.ic .tile.doc{flex-direction:column;align-items:stretch;justify-content:center;gap:5px}
+.ic .tile.doc i{height:2px}
+.ic span{font-size:12.5px;font-weight:600}
+
+/* windows */
+.win{position:absolute;background:var(--win);border:1.5px solid var(--ink);border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.14),0 3px 0 var(--ink);display:flex;flex-direction:column;overflow:hidden;min-width:260px}
+.win .tb{display:flex;align-items:center;gap:10px;height:40px;padding:0 6px 0 14px;border-bottom:1.5px solid var(--ink);cursor:grab;user-select:none;touch-action:none;flex:none}
+.win .tb .code{display:flex;gap:2px;height:12px;align-items:stretch}
+.win .tb .code i{display:block;background:var(--ink)}
+.win.front .tb .code i{background:var(--green)}
+.win .tb .ttl{flex:1;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.win .tb .x{width:32px;height:32px;border-radius:6px;font-size:18px}
+.win .tb .x:hover{background:var(--desk)}
+.win .in{flex:1;overflow:auto;min-height:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;padding:16px}
+.item{display:flex;flex-direction:column;gap:6px;text-align:left}
+.item img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;border:1px solid var(--rule);transition:transform .3s}
+.item:hover img{transform:translateY(-2px)}
+.item b{font-size:13.5px}
+.item small{color:var(--mute)}
+.viewer img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block;border-bottom:1.5px solid var(--ink)}
+.viewer .t{padding:16px 18px 18px}
+.viewer h3{margin:0 0 2px;font-size:22px;font-weight:800;letter-spacing:-.02em}
+.viewer p{margin:8px 0 14px;color:#3C3C38}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--ink);color:#fff;padding:10px 14px;border-radius:8px;font-weight:600;text-decoration:none}
+.btn.g{background:var(--green)}
+.readme{padding:22px 24px 26px}
+.readme h1{margin:0 0 10px;font-size:clamp(28px,3.2vw,42px);line-height:1;letter-spacing:-.04em;font-weight:800}
+.readme h1 em{font-style:normal;color:var(--green)}
+.readme ol{padding-left:18px;margin:14px 0 0}
+.readme li{margin-bottom:6px}
+.chart{padding:18px}
+.chart canvas{width:100%;height:170px;display:block}
+.chart .lab{display:flex;justify-content:space-between;margin-top:8px}
+.chart dl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0 0}
+.chart dt{color:var(--mute)}
+.chart dd{margin:0;font-size:24px;font-weight:800;letter-spacing:-.03em}
+.list{padding:8px 18px 18px}
+.list div{padding:12px 0;border-bottom:1px solid var(--rule)}
+.list b{display:block}
+.list span{color:var(--mute)}
+
+/* dock */
+.dock{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);transform:translateX(-50%);z-index:40;display:flex;gap:6px;align-items:center;padding:7px;background:rgba(255,255,255,.8);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1.5px solid var(--ink);border-radius:16px;max-width:calc(100vw - 24px);overflow-x:auto}
+.dock button{height:44px;padding:0 12px;border-radius:10px;font-weight:600;font-size:13px;white-space:nowrap}
+.dock button:hover{background:var(--desk)}
+.dock .ask{background:var(--ink);color:#fff;display:flex;gap:10px;align-items:center}
+.dock .ask:hover{background:#222}
+.dock .ask canvas{width:30px;height:18px}
+.dock hr{width:1px;height:26px;border:0;background:var(--rule);margin:0 2px}
+.toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:41;background:var(--ink);color:#fff;padding:10px 14px;border-radius:10px;font-size:13.5px;opacity:0;transition:opacity .4s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1}
+
+/* command bar = the assistant */
+#pal{position:fixed;inset:0;z-index:80;display:none;align-items:flex-start;justify-content:center;padding-top:14vh;background:rgba(236,236,230,.55);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+#pal.open{display:flex}
+.pbox{width:min(640px,calc(100vw - 24px));background:#fff;border:1.5px solid var(--ink);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.18),0 4px 0 var(--ink);overflow:hidden;display:flex;flex-direction:column;max-height:74vh}
+.phead{display:flex;align-items:center;gap:12px;padding:0 10px 0 16px;border-bottom:1.5px solid var(--ink)}
+.phead canvas{width:44px;height:26px;flex:none}
+.phead .bq-form{flex:1;display:flex}
+.bq-in{flex:1;min-width:0;border:0;padding:18px 0;font:inherit;font-size:18px;font-weight:500;background:transparent}
+.bq-in:focus{outline:none}
+.bq-send{display:none}
+.phead kbd{font:500 11px 'JetBrains Mono',monospace;color:var(--mute);border:1px solid var(--rule);padding:3px 6px;border-radius:5px}
+.cmds{padding:6px}
+.cmds:empty{display:none}
+.cmd{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:8px;text-align:left}
+.cmd.sel{background:var(--desk)}
+.cmd .ico{min-width:18px;display:flex;gap:1.5px;height:14px;align-items:stretch}
+.cmd .ico i{display:block;background:var(--ink)}
+.cmd.ask .ico i{background:var(--green)}
+.cmd b{font-weight:600}
+.cmd small{margin-left:auto;color:var(--mute)}
+.pbody{overflow:auto;border-top:1px solid var(--rule)}
+.pbody:empty{display:none}
+.bq-log{padding:16px 18px;display:flex;flex-direction:column;gap:12px}
+.bq-log:empty{display:none}
+.bq-msg.user{font:500 11.5px 'JetBrains Mono',monospace;color:var(--mute)}
+.bq-msg.user::before{content:"› "}
+.bq-msg.bot{font-size:17px;line-height:1.5;font-weight:500}
+.bq-chips{display:flex;flex-wrap:wrap;gap:6px;padding:12px 16px;border-top:1px solid var(--rule)}
+.bq-chip{border:1px solid var(--rule);padding:5px 10px;border-radius:999px;font-size:12.5px;font-weight:500}
+.bq-chip:hover{border-color:var(--ink)}
+.bq-note{margin:0;padding:0 16px 12px;color:var(--mute);font-size:11px}
+
+@media (max-width:760px){
+  .menubar .m{display:none}
+  .icons{grid-template-rows:none;grid-auto-flow:row;grid-template-columns:repeat(4,1fr);right:10px;left:10px;top:14px;gap:4px}
+  .ic{width:auto}
+  .wall{right:50%;transform:translateX(50%);bottom:20vh;width:72vw}
+  .win{left:8px !important;right:8px;top:8px !important;width:auto !important;height:calc(100% - 96px) !important}
+  .win .tb{cursor:default}
+  #pal{padding-top:52px}
+}
+</style>
+</head>
+<body>
+<noscript><p style="padding:60px 20px;font:16px/1.5 system-ui">band. is a studio in Cairo: online stores, custom software, brand design, media buying and AI content. This desktop needs JavaScript — or see <a href="https://band-agents.github.io/band/">our portfolio</a> and DM <a href="https://www.instagram.com/band.cairo/">@band.cairo</a>.</p></noscript>
+<div id="boot" aria-live="polite">
+  <canvas id="bootCode" aria-hidden="true"></canvas>
+  <span class="wm" id="bootWm"></span>
+  <pre class="mono" id="log"></pre>
+  <button class="skip mono" id="skip">Skip ↵</button>
+</div>
+
+<div class="menubar">
+  <span class="lk" id="lk"></span><b>band. OS</b>
+  <button class="m" data-open="stores">Stores</button><button class="m" data-open="brands">Brands</button><button class="m" data-open="software">Software</button><button class="m" data-open="results">Results</button><button class="m" data-open="contact">Contact</button>
+  <span class="sp"></span>
+  <span class="mono" id="clock">Cairo</span>
+  <button class="k mono" id="kbtn"><canvas id="kCode" aria-hidden="true"></canvas>Ask ⌘K</button>
+</div>
+
+<main class="desk" id="desk">
+  <div class="wall" id="wall" aria-hidden="true"></div>
+  <nav class="icons" id="icons" aria-label="Desktop"></nav>
+</main>
+
+<nav class="dock" id="dock" aria-label="Dock">
+  <button class="ask" id="dockAsk"><canvas id="dockCode" aria-hidden="true"></canvas>bqnd</button><hr><span id="dockWins" style="display:flex;gap:4px"></span>
+</nav>
+<div class="toast" id="toast">Press ⌘K — or just ask me anything.</div>
+
+<div id="pal" role="dialog" aria-label="Ask band.">
+  <div class="pbox">
+    <div class="phead"><canvas id="pCode" aria-hidden="true"></canvas><div id="palChat" style="flex:1;display:contents"></div><kbd>esc</kbd></div>
+    <div class="cmds" id="cmds" role="listbox"></div>
+    <div class="pbody" id="pbody"></div>
+  </div>
+</div>
+
+<script>
+/* bqnd core — shared by all six directions.
+   · The logo: the 11 bars and the stroked wordmark, geometry copied from brand/_src/pp-barcode.html.
+   · code(): an animated barcode on canvas — rest, breathe, think (a wave), speak (driven by the reply as it
+     streams), data (bars set to values) and scan.
+   · Assistant: asks Claude through the page's `sample` capability, can show work and move the page with tools,
+     and falls back to written answers when Claude isn't available. It only knows band.'s real facts. */
+const BQ = (() => {
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- logo ---------- */
+  const RAW = [7,3,3,11,4,3,7,3,11,3,4,7,3,3,11,4,7,3,3,7,11,3];
+  const bars = []; let x = 96;
+  RAW.forEach((b, i) => { if (i % 2 === 0) bars.push({ x, w: b }); x += b + (i % 3 === 0 ? 5 : 4); });
+  const X0 = 96, X1 = 301;                           // bars span 205 units, 150 tall
+  const BARS = bars.map(b => ({ x: (b.x - X0) / (X1 - X0), w: b.w / (X1 - X0) }));
+  const WM_PATHS = ['M2.944 2.944V32.448', 'C17.664 32.448 14.72', 'C73.797 32.512 14.72', 'M88.517 32.512V65.04',
+    'M116.919 47.104V17.92', 'M116.919 31.2A13.408 13.408 0 0 1 143.735 31.2', 'M143.735 31.2V47.104',
+    'C186.147 32.448 14.72', 'M200.867 2.944V32.448'];
+  function wmInner(color = 'currentColor', sw = 5.9) {
+    const els = WM_PATHS.map(p => p[0] === 'C'
+      ? (([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}"/>`)(p.slice(1).split(' '))
+      : `<path d="${p}"/>`).join('');
+    return `<g fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round">${els}</g>`;
+  }
+  function wordmark(color = 'currentColor', sw = 5.9, cls = '') {
+    return `<svg class="${cls}" viewBox="-4 -4 212 78" aria-label="band." role="img">${wmInner(color, sw)}</svg>`;
+  }
+  // The full lockup as SVG: bars + wordmark, in the logo's own proportions.
+  function lockup(color = 'currentColor') {
+    const r = bars.map(b => `<rect x="${b.x - X0}" y="0" width="${b.w}" height="150" fill="${color}"/>`).join('');
+    const s = 98 / 206.76, tx = (205 - 98) / 2 + 2.95 * s, ty = 170 + 2.95 * s;
+    const wm = wmInner(color);
+    return `<svg viewBox="0 0 205 206" role="img" aria-label="band.">${r}<g transform="translate(${tx} ${ty}) scale(${s})">${wm}</g></svg>`;
+  }
+  // Draw the wordmark stroke by stroke.
+  function drawIn(svg, { dur = 1400, delay = 0 } = {}) {
+    if (!svg || reduced) return;
+    svg.querySelectorAll('path,circle').forEach((el, i) => {
+      const L = el.getTotalLength ? el.getTotalLength() : 100;
+      el.style.strokeDasharray = L; el.style.strokeDashoffset = L;
+      el.animate([{ strokeDashoffset: L }, { strokeDashoffset: 0 }],
+        { duration: dur * 0.55, delay: delay + i * (dur * 0.05), easing: 'cubic-bezier(.6,0,.2,1)', fill: 'forwards' });
+    });
+  }
+
+  /* ---------- animated barcode ---------- */
+  function code(canvas, o = {}) {
+    const opt = Object.assign({ color: '#0B0B0B', accent: '#1FA35C', align: 'bottom', mode: 'breathe', scan: false, minH: 0.12 }, o);
+    const ctx = canvas.getContext('2d');
+    const st = BARS.map(() => ({ h: 1, v: 0, t: 1, hot: 0 }));
+    let mode = opt.mode, energy = 0, scanX = -0.2, hot = new Set(), raf = 0, W = 0, H = 0;
+    const t0 = performance.now();
+    function resize() {
+      const r = canvas.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);
+      W = r.width; H = r.height; canvas.width = Math.max(1, W * d); canvas.height = Math.max(1, H * d); ctx.setTransform(d, 0, 0, d, 0, 0);
+    }
+    const ro = new ResizeObserver(resize); ro.observe(canvas); resize();
+    const wob = (i, t) => 0.5 + 0.5 * Math.sin(t * 11 + i * 2.1) * Math.sin(t * 6.3 + i * 1.3);
+    function frame(now) {
+      const t = (now - t0) / 1000;
+      st.forEach((s, i) => {
+        let target = s.t;
+        if (mode === 'rest') target = 1;
+        else if (mode === 'breathe') target = 0.9 + 0.1 * Math.sin(t * 1.4 + i * 0.6);
+        else if (mode === 'think') target = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(t * 5.5 - i * 0.72));
+        else if (mode === 'speak') target = opt.minH + (1 - opt.minH) * Math.min(1, 0.25 + energy * wob(i, t));
+        if (reduced && mode !== 'data') target = 1;
+        s.v += (target - s.h) * 0.16; s.v *= 0.72; s.h += s.v;
+        s.hot += ((hot.has(i) ? 1 : 0) - s.hot) * 0.15;
+      });
+      energy *= 0.93;
+      if (opt.scan && !reduced) { scanX += 0.006; if (scanX > 1.25) scanX = -0.25; }
+      ctx.clearRect(0, 0, W, H);
+      BARS.forEach((b, i) => {
+        const s = st[i], h = Math.max(1, H * Math.max(0, Math.min(1.05, s.h)));
+        const bx = b.x * W, bw = Math.max(1, b.w * W);
+        const y = opt.align === 'bottom' ? H - h : opt.align === 'top' ? 0 : (H - h) / 2;
+        ctx.fillStyle = s.hot > 0.5 ? opt.accent : opt.color;
+        if (opt.scan) { const d = Math.abs(b.x + b.w / 2 - scanX); if (d < 0.05) ctx.fillStyle = opt.accent; }
+        ctx.fillRect(bx, y, bw, h);
+      });
+      if (opt.scan && !reduced && scanX > -0.05 && scanX < 1.05) {
+        ctx.fillStyle = opt.accent; ctx.globalAlpha = 0.9; ctx.fillRect(scanX * W - 1, -2, 2, H + 4); ctx.globalAlpha = 1;
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return {
+      mode(m) { mode = m; }, get currentMode() { return mode; },
+      set(values) { mode = 'data'; st.forEach((s, i) => { s.t = values[i % values.length]; }); },
+      kick(a = 0.6) { energy = Math.min(1.4, energy + a); },
+      hot(i) { hot = new Set([].concat(i).filter(n => n >= 0)); },
+      color(c, a) { opt.color = c; if (a) opt.accent = a; },
+      scan(on) { opt.scan = on; },
+      stop() { cancelAnimationFrame(raf); ro.disconnect(); },
+    };
+  }
+
+  /* ---------- band.'s real work and facts ---------- */
+  const WORK = [
+    { id: 'womensecret', name: 'Women’secret', kind: 'Store', img: 'ws-photo', shot: 'ws-home', line: 'Egypt, Jordan and Kuwait on one Shopify build. One design system; each country keeps its own currency, branches and delivery.' },
+    { id: 'alo', name: 'Alo Yoga', kind: 'Store', img: 'alo-cap', shot: 'alo-pdp', line: 'Shopify storefront, product pages and cross-selling, and the Alo Yoga Egypt store rebuilt to read right to left in Arabic.' },
+    { id: 'volcom', name: 'Volcom', kind: 'Store · Media', img: 'skate', shot: 'volcom', line: 'Collections and product pages, and paid media for Volcom Spain: €18,892 in ads became €63,034 in sales in 30 days.' },
+    { id: 'oshoplin', name: 'Oshoplin', kind: 'Store', img: 'oshoplin', shot: 'oshoplin', line: 'A multi-brand Shopify store.' },
+    { id: 'ayas', name: 'AYA-S', kind: 'Website', img: 'aya', shot: 'aya', line: 'A Scandinavian fashion brand. We designed and built aya-s.com.' },
+    { id: 'labesny', name: 'Labesny', kind: 'App', img: 'labesny', shot: 'labesny', line: 'Shopping app for Kuwait: eighteen brands in one bag, KNET checkout, club points and full Arabic.' },
+    { id: 'fig', name: 'FIG', kind: 'App', img: 'fig', shot: 'fig', line: 'Shopping app for Egypt, and figeg.com’s 6,730 products moving to Shopify.' },
+    { id: 'sloth', name: 'Sloth', kind: 'Brand', img: 'sloth', shot: 'sloth-p2', line: 'Visual identity guidelines for a furniture brand, page by page.' },
+    { id: 'handler', name: 'Handler', kind: 'Brand', img: 'handler', shot: 'handler', line: 'Identity and company profile for an auto service.' },
+    { id: 'end', name: 'end.', kind: 'Brand', img: 'end', shot: 'end', line: 'Brand guidelines.' },
+    { id: 'guesswhat', name: 'Guess What', kind: 'Brand', img: 'guesswhat', shot: 'guesswhat', line: 'Brand book.' },
+    { id: 'mas', name: 'MAS', kind: 'Design', img: 'mas', shot: 'mas', line: 'Mood, social and campaign design.' },
+    { id: 'thoth', name: 'THOTH', kind: 'Software', img: 'thoth', shot: 'thoth', line: 'Our own retail and garment ERP: POS, catalogue, branches, loyalty and two-way Shopify sync, in English and Arabic.' },
+    { id: 'studio', name: 'Studio', kind: 'Software', img: 'studio', shot: 'studio', line: 'Our agency OS: docs, tasks and client portals with live Meta, TikTok and Shopify numbers.' },
+  ];
+  const byId = Object.fromEntries(WORK.map(w => [w.id, w]));
+  const SECTIONS = ['top', 'work', 'stores', 'brands', 'software', 'results', 'services', 'contact'];
+
+  const RULES = `You are "bqnd", the assistant that lives in the barcode logo on the website of band., a studio in Cairo, Egypt. You help visitors while they browse the portfolio.
+
+FACTS — the only facts you may use:
+- band. builds online stores (Shopify and headless, one market or several, English and Arabic right to left), custom software (ERPs, client portals, dashboards, shopping apps), brand and design (identities, full guideline decks, campaign design), media buying (Meta and Google ads), AI content (product visuals, copy, video) and creative tech (campaign visuals that run live in the browser as GPU shaders).
+- Motto: "We don't overthink it. We ship it." Based in Cairo; works with brands in Egypt, the Gulf and Europe, in English and Arabic.
+- Work on this page (id: what): ${WORK.map(w => `${w.id}: ${w.name}, ${w.kind}. ${w.line}`).join(' | ')}
+- Results: Volcom Spain, 30 days: €18,892 ad spend, €63,034 sales, 788 orders, €23.98 per order, 3.34x return on ad spend. Women'secret: Egypt, Jordan and Kuwait on one Shopify build. FIG: 6,730 products, 26,829 sizes and colours, 1,706 customers and 246 categories moving to Shopify. Labesny: 18 brands, KNET, free delivery from KWD 20. Ashya Egypt: EGP 260K to EGP 4.2M a month in 18 months (media buying).
+- How a project starts: a 20-minute call; a written brief and quote within 48 hours; weekly previews while building; launch tested on real phones; then media, content and improvements reported monthly.
+- To start: the "Start a build" button on this page, or a DM to @band.cairo on Instagram.
+
+RULES:
+- Reply in the visitor's language: Arabic if they write in Arabic, otherwise English. Plain text only, no markdown, no lists, at most 55 words. Direct, warm, confident. No hype words.
+- Never invent anything that is not in FACTS: no prices, no timelines beyond the 48-hour quote, no team size, no other clients, no other numbers. If asked about price or time, say it depends on scope and that a written quote comes within 48 hours of a short call.
+- Whenever you mention specific work, call show_work with its ids so the page shows it. When the visitor asks to see a part of the site, call go_to.
+- If the visitor wants to start a project, ask what they sell, where they sell it, and what is in the way — one question at a time.`;
+
+  /* written answers for when Claude isn't available on this view */
+  const OFFLINE = [
+    [/price|cost|budget|how much|سعر|تكلف|ميزاني|بكام/i, { en: 'It depends on scope. After a 20-minute call you get a written brief and quote within 48 hours, so you know exactly what you are paying for.', ar: 'السعر يعتمد على حجم المشروع. بعد مكالمة قصيرة لمدة ٢٠ دقيقة يصلك عرض مكتوب خلال ٤٨ ساعة.', go: 'contact' }],
+    [/arab|rtl|right to left|عرب|يمين/i, { en: 'Arabic done properly, not translated labels. Alo Yoga Egypt reads right to left, Labesny is fully Arabic, and THOTH is bilingual from the ground up.', ar: 'عربي حقيقي وليس ترجمة. متجر ألو يوجا مصر يقرأ من اليمين لليسار، وتطبيق لابسني عربي بالكامل، ونظام THOTH ثنائي اللغة.', show: ['alo', 'labesny', 'thoth'] }],
+    [/app|ios|android|تطبيق|ابلكيشن/i, { en: 'We build shopping apps. Labesny puts eighteen brands in one bag for Kuwait, with KNET and club points. FIG and Labesny run on the same engine.', ar: 'نبني تطبيقات تسوّق. لابسني يجمع ١٨ علامة في حقيبة واحدة في الكويت، مع KNET ونقاط الولاء.', show: ['labesny', 'fig'] }],
+    [/ads|media|roas|result|number|sales|meta|google|campaign|اعلان|إعلان|ميديا/i, { en: 'Volcom Spain, 30 days: €18,892 in ads, €63,034 in sales, 788 orders, 3.34x return. The right audience, a message that sounds like the brand, and a lot of testing.', ar: 'فولكوم إسبانيا في ٣٠ يومًا: ١٨٬٨٩٢ يورو إعلانات و٦٣٬٠٣٤ يورو مبيعات و٧٨٨ طلبًا.', show: ['volcom'], go: 'results' }],
+    [/brand|logo|identity|design|هوي|شعار|تصميم/i, { en: 'We shape brands with full guideline decks: Sloth, Handler, end., Guess What and MAS. Essence, tone of voice, colour, type and how it all behaves.', ar: 'نصمّم الهويات مع أدلة استخدام كاملة: Sloth وHandler وend. وGuess What.', show: ['sloth', 'handler', 'end'], go: 'brands' }],
+    [/software|erp|system|portal|dashboard|نظام|برمج/i, { en: 'When the tool doesn’t exist, we write it. THOTH runs a retail business end to end, POS to loyalty to Shopify sync, in English and Arabic.', ar: 'عندما لا توجد الأداة نكتبها. نظام THOTH يدير متجر التجزئة من نقاط البيع إلى الولاء والمزامنة مع شوبيفاي.', show: ['thoth', 'studio'], go: 'software' }],
+    [/store|shop|shopify|ecom|متجر|شوبيفاي/i, { en: 'Stores for one market or several. Women’secret runs Egypt, Jordan and Kuwait on one Shopify build; improve it once and all three get better.', ar: 'متاجر لسوق واحد أو عدة أسواق. وومن سيكرت تعمل في مصر والأردن والكويت على متجر شوبيفاي واحد.', show: ['womensecret', 'alo'], go: 'stores' }],
+    [/start|build|project|hire|contact|ابدأ|مشروع|تواصل/i, { en: 'Let’s start. What do you sell, and where do your customers buy today?', ar: 'لنبدأ. ماذا تبيع، وأين يشتري عملاؤك اليوم؟', go: 'contact' }],
+    [/who|about|cairo|team|انتم|مين|القاهرة/i, { en: 'band. is a studio in Cairo. We build the store, shape the brand, write the software and buy the media. We don’t overthink it. We ship it.', ar: 'باند استوديو في القاهرة. نبني المتجر ونصمّم الهوية ونكتب البرمجيات ونشتري الإعلانات.' }],
+  ];
+  // other ways people write the project names
+  const ALIAS = { volcom: ['فولكوم'], labesny: ['لابسني'], alo: ['ألو يوجا', 'الو يوجا'], womensecret: ['women’secret', "women'secret", 'women secret', 'وومن سيكرت'], fig: ['فيج'], thoth: ['تحوت'], ayas: ['aya s', 'ayas'] };
+  const hasWord = (text, k) => /[؀-ۿ]/.test(k) ? text.includes(k) : new RegExp('(^|[^\\p{L}])' + k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^\\p{L}])', 'iu').test(text);
+  const FALLBACK = { en: 'I can show you stores, brands, software or results. Try: “show me Arabic stores” or “what did you do for Volcom?”', ar: 'أستطيع أن أريك المتاجر أو الهويات أو البرمجيات أو النتائج. جرّب: «أرني المتاجر العربية».' };
+
+  /* ---------- assistant ---------- */
+  class Assistant {
+    constructor({ onState = () => {}, onReply = () => {}, actions = {}, context = () => '' } = {}) {
+      Object.assign(this, { onState, onReply, actions, context });
+      this.turns = []; this.busy = false; this.live = null;
+      this.ready = (window.claude && claude.use) ? claude.use('sample').then(async s => {
+        this.sample = s; if (s) { try { this.tools = !!(await s.limits()).tools; } catch { this.tools = false; } }
+        return s;
+      }).catch(() => null) : Promise.resolve(null);
+    }
+    toolList() {
+      return [
+        { name: 'show_work', description: 'Shows these projects on the page (highlights, scrolls to or opens them). Returns what was shown.',
+          inputSchema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string', enum: WORK.map(w => w.id) } } }, required: ['ids'] },
+          execute: ({ ids }) => { const list = [].concat(ids || []).map(String).filter(i => byId[i]); this.actions.show?.(list); return list.length ? 'Shown: ' + list.join(', ') : 'Unknown ids'; } },
+        { name: 'go_to', description: 'Scrolls the page to a section. Returns the section name.',
+          inputSchema: { type: 'object', properties: { section: { type: 'string', enum: SECTIONS } }, required: ['section'] },
+          execute: ({ section }) => { this.actions.go?.(String(section)); return 'Moved to ' + section; } },
+      ];
+    }
+    async ask(text, again = false) {
+      text = String(text || '').trim(); if (!text || this.busy) return;
+      this.busy = true; this.turns.push({ role: 'user', content: text });
+      this.onState('think'); if (!again) this.onReply({ role: 'user', text });
+      const s = await this.ready;
+      if (s) {
+        this.ctl = new AbortController();
+        const ctx = this.context();
+        const lead = RULES + (ctx ? `\n\nThe visitor is currently looking at: ${ctx}` : '');
+        let spoke = false;
+        try {
+          const res = await s([{ role: 'user', content: lead }, ...this.turns.slice(-8)], {
+            modelTier: 'quick', cache: false, signal: this.ctl.signal, ...(this.tools ? { tools: this.toolList() } : {}),
+            onText: ({ text, delta }) => { spoke = true; this.onState('speak', delta.length); this.onReply({ role: 'bot', text, partial: true }); },
+          });
+          this.turns.push({ role: 'assistant', content: res.text });
+          this.onReply({ role: 'bot', text: res.text, done: true, live: true });
+          this.live = true;
+        } catch (e) {
+          const gone = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed', 'session_expired'];
+          if (gone.includes(e.code)) { this.sample = null; this.ready = Promise.resolve(null); this.live = false; this.busy = false; this.turns.pop(); return this.ask(text, true); }
+          const msg = e.text || (e.code === 'rate_limited' ? 'Too many questions at once — try again in a moment.' : e.code === 'cancelled' ? '' : 'That didn’t go through. Ask again?');
+          if (msg) this.onReply({ role: 'bot', text: msg, done: true, live: true });
+          if (!spoke) this.turns.pop();
+        }
+        this.busy = false; this.onState('idle'); return;
+      }
+      // written answers
+      this.live = false;
+      const ar = /[؀-ۿ]/.test(text);
+      const named = WORK.filter(w => [w.name, ...(w.id.length > 3 ? [w.id] : []), ...(ALIAS[w.id] || [])].some(k => hasWord(text, k)));
+      const hit = OFFLINE.find(([re]) => re.test(text));
+      const a = named.length ? { en: `${named[0].name}: ${named[0].line}`, ar: `${named[0].name}: ${named[0].line}`, show: named.map(w => w.id) } : hit ? hit[1] : FALLBACK;
+      const out = ar ? a.ar : a.en;
+      await new Promise(r => setTimeout(r, 450));
+      if (a.show) this.actions.show?.(a.show); if (a.go) this.actions.go?.(a.go);
+      let shown = '';
+      for (const word of out.split(/(\s+)/)) {
+        shown += word; this.onState('speak', word.length); this.onReply({ role: 'bot', text: shown, partial: true });
+        await new Promise(r => setTimeout(r, reduced ? 0 : 28));
+      }
+      this.turns.push({ role: 'assistant', content: out });
+      this.onReply({ role: 'bot', text: out, done: true, live: false });
+      this.busy = false; this.onState('idle');
+    }
+    stop() { this.ctl?.abort(); }
+  }
+
+  /* ---------- a chat panel any direction can dress ---------- */
+  function chat(root, asst, { placeholder = 'Ask about our work…', chips = [], note = true } = {}) {
+    root.innerHTML = `<div class="bq-log" aria-live="polite"></div>
+      <div class="bq-chips">${chips.map(c => `<button type="button" class="bq-chip">${c}</button>`).join('')}</div>
+      <form class="bq-form"><input class="bq-in" id="bq-in-${Math.random().toString(36).slice(2, 7)}" autocomplete="off" placeholder="${placeholder}" aria-label="Message the assistant"><button class="bq-send" type="submit" aria-label="Send">↵</button></form>
+      ${note ? `<p class="bq-note">${window.claude && claude.use ? 'Answers by Claude — asks once for permission. Only band.’s real facts.' : 'Quick answers from band.’s real work and numbers.'}</p>` : ''}`;
+    const log = root.querySelector('.bq-log'), form = root.querySelector('form'), input = root.querySelector('.bq-in');
+    let cur = null;
+    const add = (role, text) => { const d = document.createElement('div'); d.className = 'bq-msg ' + role; d.textContent = text; log.append(d); log.scrollTop = log.scrollHeight; return d; };
+    const prevReply = asst.onReply;
+    asst.onReply = (m) => {
+      if (m.role === 'user') { add('user', m.text); cur = null; }
+      else { if (!cur) cur = add('bot', ''); cur.textContent = m.text; log.scrollTop = log.scrollHeight; if (m.done) cur = null; }
+      prevReply(m);
+    };
+    form.addEventListener('submit', e => { e.preventDefault(); const v = input.value; input.value = ''; asst.ask(v); });
+    root.querySelectorAll('.bq-chip').forEach(b => b.addEventListener('click', () => asst.ask(b.textContent)));
+    return { input, log, ask: t => asst.ask(t) };
+  }
+
+  /* ---------- text decode ---------- */
+  const GLY = '▌▍▎▏|║▐';
+  // Scrambles the text of `el` into place, keeping its inner markup: only text nodes change.
+  function decode(el, { dur = 900, delay = 0 } = {}) {
+    if (reduced || !el) return;
+    if (!el._bqNodes) {
+      const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); const nodes = [];
+      while (w.nextNode()) if (w.currentNode.nodeValue.trim()) nodes.push([w.currentNode, w.currentNode.nodeValue]);
+      el._bqNodes = nodes;
+    }
+    const nodes = el._bqNodes, total = nodes.reduce((a, [, t]) => a + t.length, 0) || 1;
+    const start = performance.now() + delay;
+    const tick = now => {
+      if (now < start) return requestAnimationFrame(tick);   // stay readable until it's this element's turn
+      const p = Math.max(0, Math.min(1, (now - start) / dur));
+      let budget = Math.floor(total * p);
+      nodes.forEach(([n, t]) => {
+        const k = Math.max(0, Math.min(t.length, budget)); budget -= t.length;
+        n.nodeValue = t.slice(0, k) + [...t.slice(k)].map(c => /\s/.test(c) ? c : GLY[Math.floor(Math.random() * GLY.length)]).join('');
+      });
+      if (p < 1) requestAnimationFrame(tick); else nodes.forEach(([n, t]) => { n.nodeValue = t; });
+    };
+    requestAnimationFrame(tick);
+  }
+
+  return { reduced, BARS, bars, wordmark, lockup, drawIn, code, WORK, byId, SECTIONS, Assistant, chat, decode };
+})();
+
+(() => {
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const R = BQ.reduced, small = () => innerWidth <= 760;
+  $('#lk').innerHTML = BQ.lockup('#0B0B0B');
+  $('#wall').innerHTML = BQ.wordmark('#D9D9D1', 3.2);
+  $('#bootWm').innerHTML = BQ.wordmark('#EDEDE6', 5.9);
+  const glyph = (n, off = 0, k = 120) => BQ.BARS.slice(off, off + n).map(b => `<i style="width:${Math.max(1.5, b.w * k).toFixed(1)}px"></i>`).join('');
+
+  /* ---------- boot ---------- */
+  const bootCode = BQ.code($('#bootCode'), { color: '#EDEDE6', accent: '#10A862', mode: 'data', minH: .05 });
+  const rise = Array(11).fill(0); bootCode.set(rise);
+  const LOG = [['band. os', ' — cairo, egypt'], ['mounting /stores ', '5'], ['mounting /apps ', '2'], ['mounting /brands ', '5'], ['starting thoth ', 'ok'], ['bqnd, the assistant ', 'ready']];
+  let booted = false;
+  function finishBoot() {
+    if (booted) return; booted = true; $('#boot').classList.add('gone'); bootCode.stop();
+    $$('.ic').forEach((ic, i) => !R && ic.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 400, delay: 80 + i * 45, easing: 'ease-out', fill: 'backwards' }));
+    setTimeout(() => { openWin('readme'); if (!small()) openWin('stores'); }, R ? 0 : 450);
+    setTimeout(() => { $('#toast').classList.add('on'); setTimeout(() => $('#toast').classList.remove('on'), 4200); }, R ? 0 : 1600);
+  }
+  if (R) finishBoot();
+  else {
+    BQ.BARS.forEach((_, i) => setTimeout(() => { rise[i] = 1; bootCode.set(rise); bootCode.hot([i]); }, 150 + i * 90));
+    setTimeout(() => { bootCode.hot([]); BQ.drawIn($('#bootWm svg'), { dur: 1100 }); }, 1200);
+    LOG.forEach(([a, b], i) => setTimeout(() => { $('#log').innerHTML += `${a}${'.'.repeat(Math.max(2, 26 - a.length))} <b>${b}</b>\n`; }, 250 + i * 330));
+    setTimeout(finishBoot, 3000);
+  }
+  $('#skip').onclick = finishBoot;
+  addEventListener('keydown', e => { if (!booted && (e.key === 'Enter' || e.key === 'Escape')) finishBoot(); });
+
+  /* ---------- clock ---------- */
+  const clk = () => { try { $('#clock').textContent = 'Cairo ' + new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', hour: '2-digit', minute: '2-digit' }).format(new Date()); } catch {} };
+  clk(); setInterval(clk, 15000);
+
+  /* ---------- content ---------- */
+  const FOLDERS = {
+    stores: { title: 'Stores', ids: ['womensecret', 'alo', 'volcom', 'oshoplin', 'ayas'] },
+    apps: { title: 'Apps', ids: ['labesny', 'fig'] },
+    brands: { title: 'Brands', ids: ['sloth', 'handler', 'end', 'guesswhat', 'mas'] },
+    software: { title: 'Software', ids: ['thoth', 'studio'] },
+  };
+  const ICONS = [
+    ['stores', 'Stores', glyph(5)], ['apps', 'Apps', glyph(3, 4)], ['brands', 'Brands', glyph(5, 2)], ['software', 'Software', glyph(4, 7)],
+    ['results', 'Results', [.3, .3, 1, 1].map(h => `<i style="width:6px;height:${h * 100}%"></i>`).join(''), 'g'],
+    ['readme', 'Readme', '<i></i><i></i><i style="width:60%"></i><i></i>', 'doc'],
+    ['services', 'Services', '<i></i><i style="width:70%"></i><i></i><i style="width:50%"></i>', 'doc'],
+    ['contact', 'Start a build', glyph(11, 0, 50), 'g'],
+  ];
+  $('#icons').innerHTML = ICONS.map(([id, t, inner, cls = '']) => `<button class="ic" data-open="${id}"><span class="tile ${cls}">${inner}</span><span>${t}</span></button>`).join('');
+  $$('.ic .tile:not(.doc) i').forEach(i => { if (!i.style.height) i.style.height = '100%'; });
+
+  /* ---------- window manager ---------- */
+  const desk = $('#desk'); let z = 10, count = 0; const wins = {};
+  const SIZES = { readme: [460, 420], stores: [620, 460], apps: [460, 340], brands: [620, 460], software: [460, 340], results: [440, 470], services: [400, 440], contact: [420, 380] };
+  // the first two windows sit side by side; everything after cascades
+  const FIRST = { readme: (W, w) => [Math.max(236, W / 2 - 560), 28], stores: (W, w) => [Math.max(236, W / 2 - 560) + 490, 70] };
+  function place(el, w, h, id) {
+    const W = desk.clientWidth, H = desk.clientHeight - 80, n = count++ % 6;
+    let x = Math.min(W - w - 16, Math.max(130, W * .22 + n * 34 + (n % 2) * 90)), y = Math.min(H - h, 26 + n * 30);
+    if (FIRST[id] && count <= 2) { [x, y] = FIRST[id](W, w); x = Math.min(W - w - 16, x); }
+    Object.assign(el.style, { left: Math.max(8, x) + 'px', top: Math.max(8, y) + 'px', width: w + 'px', height: Math.min(h, H - 10) + 'px' });
+  }
+  function front(el) { $$('.win').forEach(w => w.classList.remove('front')); el.classList.add('front'); el.style.zIndex = ++z; }
+  function openWin(id, from) {
+    if (wins[id]) { front(wins[id]); pulse(wins[id]); return wins[id]; }
+    const spec = view(id); if (!spec) return;
+    const el = document.createElement('section'); el.className = 'win'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', spec.title);
+    el.innerHTML = `<div class="tb"><span class="code" aria-hidden="true">${glyph(4, (id.length * 3) % 7)}</span><span class="ttl">${spec.title}</span><button class="x" aria-label="Close ${spec.title}">×</button></div><div class="in"></div>`;
+    el.querySelectorAll('.code i').forEach(i => i.style.height = '100%');
+    const [w, h] = spec.size || SIZES[id] || [460, 420];
+    desk.append(el); place(el, w, h, id); front(el);
+    spec.render(el.querySelector('.in'));
+    wins[id] = el;
+    el.addEventListener('pointerdown', () => front(el));
+    el.querySelector('.x').onclick = () => closeWin(id);
+    drag(el);
+    if (from && !R) {
+      const a = from.getBoundingClientRect(), b = el.getBoundingClientRect(); el.style.transformOrigin = '0 0';
+      el.animate([{ transform: `translate(${a.left - b.left}px,${a.top - b.top}px) scale(${a.width / b.width},${a.height / b.height})`, opacity: .2 }, { transform: 'none', opacity: 1 }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    } else if (!R) el.animate([{ transform: 'scale(.96)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 260, easing: 'ease-out' });
+    dockSync(); return el;
+  }
+  function pulse(el) { if (!R) el.animate([{ transform: 'none' }, { transform: 'scale(1.015)' }, { transform: 'none' }], { duration: 300 }); }
+  function closeWin(id) {
+    const el = wins[id]; if (!el) return; delete wins[id]; el._stop?.();
+    if (R) el.remove(); else el.animate([{ opacity: 1 }, { opacity: 0, transform: 'translateY(30px) scale(.9)' }], { duration: 220, easing: 'ease-in' }).onfinish = () => el.remove();
+    dockSync();
+  }
+  function drag(el) {
+    const tb = el.querySelector('.tb'); let sx, sy, ox, oy, on = false;
+    tb.addEventListener('pointerdown', e => { if (small() || e.target.closest('.x')) return; on = true; sx = e.clientX; sy = e.clientY; ox = el.offsetLeft; oy = el.offsetTop; tb.setPointerCapture(e.pointerId); tb.style.cursor = 'grabbing'; });
+    tb.addEventListener('pointermove', e => { if (!on) return; el.style.left = Math.max(-el.offsetWidth + 80, Math.min(desk.clientWidth - 80, ox + e.clientX - sx)) + 'px'; el.style.top = Math.max(0, Math.min(desk.clientHeight - 60, oy + e.clientY - sy)) + 'px'; });
+    tb.addEventListener('pointerup', () => { on = false; tb.style.cursor = ''; });
+  }
+  function dockSync() {
+    $('#dockWins').innerHTML = Object.entries(wins).map(([id, el]) => `<button data-front="${id}">${el.getAttribute('aria-label')}</button>`).join('');
+    $$('[data-front]').forEach(b => b.onclick = () => front(wins[b.dataset.front]));
+  }
+  document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) openWin(o.dataset.open, o.querySelector('.tile') || o); });
+
+  /* ---------- window contents ---------- */
+  function view(id) {
+    if (FOLDERS[id]) return { title: FOLDERS[id].title, render: el => {
+      el.innerHTML = `<div class="grid">${FOLDERS[id].ids.map(i => { const w = BQ.byId[i]; return `<button class="item" data-item="${i}"><img src="img/${w.img}.jpg" alt="" loading="lazy"><b>${w.name}</b><small>${w.kind}</small></button>`; }).join('')}</div>`;
+      el.querySelectorAll('[data-item]').forEach(b => b.onclick = () => openWin('w:' + b.dataset.item, b.querySelector('img')));
+    } };
+    if (id.startsWith('w:')) { const w = BQ.byId[id.slice(2)]; if (!w) return; return { title: w.name, size: [480, 470], render: el => {
+      el.innerHTML = `<div class="viewer"><img src="img/${w.img}.jpg" alt="${w.name}"><div class="t"><span class="mono" style="color:var(--mute)">${w.kind}</span><h3>${w.name}</h3><p>${w.line}</p><button class="btn g">Ask bqnd about ${w.name}</button></div></div>`;
+      el.querySelector('.btn').onclick = () => { openPal(); asst.ask('Tell me about ' + w.name); };
+    } }; }
+    if (id === 'readme') return { title: 'Readme', render: el => {
+      el.innerHTML = `<div class="readme"><span class="mono" style="color:var(--mute)">band. — Cairo, Egypt</span><h1>We don’t overthink it. <em>We ship it.</em></h1>
+      <p>We build online stores, write the software businesses run on, shape brands and buy the media — for brands in Egypt, the Gulf and Europe, in English and Arabic.</p>
+      <b>How a build runs</b><ol><li>A 20-minute call.</li><li>A written brief and quote within 48 hours.</li><li>Weekly previews you can click.</li><li>Launch, tested on real phones.</li><li>Media, content and improvements, reported monthly.</li></ol></div>`;
+    } };
+    if (id === 'results') return { title: 'Results — Volcom Spain', render: el => {
+      el.innerHTML = `<div class="chart"><span class="mono" style="color:var(--mute)">30 days · spend against sales, to scale</span><canvas style="margin-top:12px"></canvas>
+      <div class="lab mono"><span>€18,892 ad spend</span><span style="color:var(--green)">€63,034 sales</span></div>
+      <dl><div><dt class="mono">Return on ad spend</dt><dd style="color:var(--green)">3.34×</dd></div><div><dt class="mono">Orders</dt><dd>788</dd></div><div><dt class="mono">Per order</dt><dd>€23.98</dd></div><div><dt class="mono">Markets on one build</dt><dd>EG · JO · KW</dd></div></dl></div>`;
+      const c = BQ.code(el.querySelector('canvas'), { color: '#0B0B0B', accent: '#10A862', mode: 'data' });
+      c.set(Array(11).fill(0)); setTimeout(() => { c.set([.3, .3, .3, .3, .3, 1, 1, 1, 1, 1, 1]); c.hot([5, 6, 7, 8, 9, 10]); }, 300);
+      el.closest('.win') ? (el.closest('.win')._stop = c.stop) : setTimeout(() => el.closest('.win') && (el.closest('.win')._stop = c.stop));
+    } };
+    if (id === 'services') return { title: 'Services', render: el => {
+      el.innerHTML = `<div class="list">${[['Ecommerce development', 'Shopify and headless, one market or many.'], ['Custom software', 'ERPs, portals, dashboards, apps.'], ['Design & brand', 'Identities and full guideline decks.'], ['Media buying', 'Meta and Google, on real numbers.'], ['AI content', 'Visuals, copy and video, faster.'], ['Creative tech', 'Campaign visuals that run live in the browser.']].map(([a, b]) => `<div><b>${a}</b><span>${b}</span></div>`).join('')}</div>`;
+    } };
+    if (id === 'contact') return { title: 'Start a build', render: el => {
+      el.innerHTML = `<div class="readme"><h1>Let’s build something that <em>ships.</em></h1><p>Tell bqnd what you sell and where. It asks two more questions, then we take it from there with a 20-minute call.</p>
+      <p style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn g" id="cStart">Start with bqnd</button><a class="btn" href="https://www.instagram.com/band.cairo/" target="_blank" rel="noopener">DM @band.cairo</a></p></div>`;
+      el.querySelector('#cStart').onclick = () => { openPal(); asst.ask('I want to start a build.'); };
+    } };
+  }
+
+  /* ---------- the assistant: a command bar ---------- */
+  const kCode = BQ.code($('#kCode'), { color: '#FFFFFF', accent: '#10A862', mode: 'breathe' });
+  const dCode = BQ.code($('#dockCode'), { color: '#FFFFFF', accent: '#10A862', mode: 'breathe' });
+  const pCode = BQ.code($('#pCode'), { color: '#0B0B0B', accent: '#10A862', mode: 'breathe', minH: .1 });
+  const pal = $('#pal');
+  const asst = new BQ.Assistant({
+    context: () => { const f = $('.win.front'); return f ? 'the "' + f.getAttribute('aria-label') + '" window on the band. OS desktop' : 'the band. OS desktop'; },
+    actions: {
+      show: ids => ids.slice(0, 3).forEach((i, n) => setTimeout(() => openWin('w:' + i), n * 160)),
+      go: s => { const m = { work: 'stores', stores: 'stores', brands: 'brands', software: 'software', results: 'results', services: 'services', contact: 'contact', top: 'readme' }[s]; if (m) openWin(m); },
+    },
+    onState: (s, n) => {
+      [kCode, dCode, pCode].forEach(c => { c.mode(s === 'think' ? 'think' : s === 'speak' ? 'speak' : 'breathe'); if (s === 'speak') c.kick(.15 + (n || 1) * .03); });
+    },
+  });
+  const ui = BQ.chat($('#palChat'), asst, { placeholder: 'Ask anything, or open a window…', chips: ['Show me your stores', 'What did Volcom get?', 'Do you build apps?', 'عايز أبدأ مشروع'] });
+  // move the log, chips and note under the command list
+  ['.bq-log', '.bq-chips', '.bq-note'].forEach(s => $('#pbody').append($('#palChat ' + s)));
+  const CMDS = [
+    ...Object.entries(FOLDERS).map(([id, f]) => ({ t: 'Open ' + f.title, k: 'folder', run: () => openWin(id) })),
+    ...BQ.WORK.map(w => ({ t: w.name, k: w.kind, run: () => openWin('w:' + w.id) })),
+    { t: 'Open Results', k: 'chart', run: () => openWin('results') }, { t: 'Open Readme', k: 'doc', run: () => openWin('readme') },
+    { t: 'Services', k: 'doc', run: () => openWin('services') }, { t: 'Start a build', k: 'action', run: () => openWin('contact') },
+  ];
+  let sel = 0, shown = [];
+  function renderCmds() {
+    const q = ui.input.value.trim().toLowerCase();
+    if (!q) { $('#cmds').innerHTML = ''; shown = []; return; }
+    shown = [{ t: `Ask bqnd — “${ui.input.value.trim()}”`, k: '↵', ask: true }, ...CMDS.filter(c => c.t.toLowerCase().includes(q)).slice(0, 5)];
+    sel = Math.min(sel, shown.length - 1);
+    $('#cmds').innerHTML = shown.map((c, i) => `<button class="cmd ${c.ask ? 'ask' : ''} ${i === sel ? 'sel' : ''}" data-i="${i}" role="option" aria-selected="${i === sel}"><span class="ico">${glyph(4, i)}</span><b></b><small class="mono">${c.k}</small></button>`).join('');
+    $$('.cmd').forEach((b, i) => { b.querySelector('b').textContent = shown[i].t; b.querySelectorAll('.ico i').forEach(x => x.style.height = '100%'); b.onclick = () => runCmd(i); });
+  }
+  function runCmd(i) {
+    const c = shown[i]; if (!c) return;
+    if (c.ask) { const v = ui.input.value; ui.input.value = ''; renderCmds(); asst.ask(v); }
+    else { c.run(); ui.input.value = ''; renderCmds(); closePal(); }
+  }
+  ui.input.addEventListener('input', () => { sel = 0; renderCmds(); pCode.kick(.2); });
+  ui.input.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!shown.length) return; sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + shown.length) % shown.length; renderCmds(); }
+    if (e.key === 'Enter' && shown.length && sel > 0) { e.preventDefault(); runCmd(sel); }
+  });
+  ui.input.form?.addEventListener('submit', () => setTimeout(renderCmds));
+  function openPal() { pal.classList.add('open'); setTimeout(() => ui.input.focus(), 30); }
+  function closePal() { pal.classList.remove('open'); }
+  pal.addEventListener('click', e => { if (e.target === pal) closePal(); });
+  $('#kbtn').onclick = openPal; $('#dockAsk').onclick = openPal;
+  addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.classList.contains('open') ? closePal() : openPal(); }
+    else if (e.key === 'Escape' && pal.classList.contains('open')) closePal();
+    else if (e.key === '/' && booted && !pal.classList.contains('open') && document.activeElement?.tagName !== 'INPUT') { e.preventDefault(); openPal(); }
+  });
+})();
+</script>
+</body>
+</html>
