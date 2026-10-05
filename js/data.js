@@ -21,7 +21,7 @@ const OS = (() => {
         'Alo Yoga’s cross-selling engine, Volcom’s collection and product pages, Oshoplin’s multi-brand store, Cole Haan, Pier 1, Koi Footwear.'],
       tags: ['Shopify', 'Headless', 'React', 'Platforms', 'WebGL'],
       stats: [['9+', 'Years in front-end'], ['8', 'Years in Shopify']],
-      work: ['alo', 'volcom', 'oshoplin'], service: 'ecommerce',
+      work: ['alo', 'volcom', 'colehaan', 'pier1', 'oshoplin'], service: 'ecommerce',
     },
     alaa: {
       id: 'alaa', name: 'Alaa', role: 'Head of Media Buying', img: 'img/team/alaa.webp', head: 'img/team/alaa-head.webp',
@@ -36,8 +36,14 @@ const OS = (() => {
   };
 
   const FOLDERS = [
-    ['all', 'All work'], ['stores', 'Stores'], ['apps', 'Apps'], ['brands', 'Brands'], ['software', 'Software'], ['media', 'Media'], ['lab', 'Lab'],
+    ['all', 'All work'], ['stores', 'Stores'], ['web', 'Websites'], ['apps', 'Apps'], ['brands', 'Brands'], ['social', 'Social design'], ['software', 'Software'], ['media', 'Media'], ['lab', 'Lab'],
   ];
+  // A live store: home, collection and product, on desktop and phone (full-page shots you can scroll).
+  const shots = (id, pages) => {
+    const cap = { home: 'Homepage', collection: 'Collection', product: 'Product page', arabic: 'Arabic, right to left', search: 'Search', cart: 'Cart drawer' };
+    return pages.flatMap(n => [im(`${id}/${n}-d`, `${cap[n]}, desktop`, 'd'), ...(['home', 'collection', 'product', 'arabic'].includes(n) ? [im(`${id}/${n}-m`, `${cap[n]}, phone`, 'p')] : [])]);
+  };
+  const store = (id, pages) => ({ cover: im(id + '/cover', 'Homepage', 'd'), gallery: shots(id, pages) });
 
   const PROJECTS = [
     {
@@ -61,6 +67,54 @@ const OS = (() => {
         im('womensecret/swim', 'Swimwear, phone', 'p'), im('womensecret/swim-kw', 'Swimwear, Kuwait', 'p'), im('womensecret/product-desktop', 'Product page', 'd'), im('womensecret/product', 'Product, phone', 'p'),
         im('womensecret/bras-jo', 'Bras, Jordan', 'p'), im('womensecret/sleep', 'Sleep & homewear', 'p'), im('womensecret/club', 'Club WOW', 'p'), im('womensecret/stores', 'Store finder', 'p'), im('womensecret/tile-swim', 'Swim tile', 'f')],
       people: [], service: 'ecommerce',
+    },
+    {
+      id: 'colehaan', name: 'Cole Haan', folder: 'stores', kind: 'Store', market: 'USA',
+      cover: im('colehaan/cover', 'Cole Haan homepage', 'd'),
+      gallery: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home2-d', 'Homepage, men’s and women’s', 'd'), im('colehaan/collection-d', 'Men’s sneakers', 'd'), im('colehaan/product-d', 'Product page', 'd')],
+      tagline: 'The New York brand, on Shopify.',
+      about: ['Shopify development for Cole Haan at colehaan.com: the New York brand’s shoes, bags, outerwear and accessories for men and women, sold in US dollars.',
+        'An editorial store: campaign film and photography up front, men’s and women’s side by side, then collections you can filter by size and width, and product pages built to decide fast.'],
+      facts: [['Market', 'USA'], ['Platform', 'Shopify'], ['Live', 'colehaan.com'], ['Currency', 'US dollars']],
+      features: [
+        { t: 'Campaign first', x: '“Comfortable Anywhere”, then men’s and women’s side by side. The menu goes straight to new, men, women, bags, collections, outerwear and sale.', imgs: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home2-d', 'Men’s and women’s', 'd')] },
+        { t: 'Filter by the thing that matters', x: 'Men’s sneakers, 150 styles: sub-categories, then size and width as buttons, not a long dropdown. Every card shows its colours.', imgs: [im('colehaan/collection-d', 'Men’s sneakers', 'd')] },
+        { t: 'The product page', x: 'Size and width, add to bag, an estimated delivery date and free shipping from $99, all above the fold.', imgs: [im('colehaan/product-d', 'Product page', 'd')] },
+      ],
+      links: [['Visit colehaan.com', 'https://www.colehaan.com/']],
+      people: ['mamdouh'], service: 'ecommerce',
+    },
+    {
+      id: 'fig-web', name: 'FIG website', folder: 'web', kind: 'Website · Shopify theme', market: 'Egypt',
+      cover: im('fig-web/cover', 'FIG Couture homepage', 'd'),
+      tagline: 'The Evening Edit. FIG’s new store on Shopify.',
+      about: ['The new website for FIG (Fashion International Group), Egypt’s fashion franchise group: FIG Couture, a custom Shopify theme, replacing figeg.com. Twenty houses under one roof, from Women’secret and Benetton to BCBGMAXAZRIA, shopped in Egyptian pounds.',
+        'It reads like a fashion magazine and sells like a marketplace: a seasonal edit up front, the wardrobe by category, a rail of brand logos, new in, then brand collections and product pages built on FIG’s real catalogue. Free delivery over LE 2,000 and cash on delivery across Egypt, stated in the first line.'],
+      facts: [['Market', 'Egypt'], ['Platform', 'Shopify, custom theme'], ['Theme', 'FIG Couture'], ['Replaces', 'figeg.com']],
+      features: [
+        { t: 'A magazine on the homepage', x: '“The Evening Edit” for autumn/winter 2026, then the wardrobe by category, the brands as a rail of logos, and what’s new in.', imgs: [im('fig-web/home-d', 'Homepage, desktop', 'd'), im('fig-web/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Every brand gets its own page', x: 'BCBGMAXAZRIA womenswear: the brand’s name set large, its categories as tiles, then the products with filter and sort.', imgs: [im('fig-web/collection-d', 'Brand collection, desktop', 'd'), im('fig-web/collection-m', 'Brand collection, phone', 'p')] },
+        { t: 'The product page', x: 'A tall gallery, colours and sizes, add to bag and express checkout, the delivery promise right under it.', imgs: [im('fig-web/product-d', 'Product page, desktop', 'd'), im('fig-web/product-m', 'Product page, phone', 'p')] },
+      ],
+      gallery: shots('fig-web', ['home', 'collection', 'product']),
+      links: [['See the FIG app', 'https://band-agents.github.io/fig-app-preview/']], see: ['fig', 'labesny-web'],
+      people: ['mamdouh'], service: 'ecommerce',
+    },
+    {
+      id: 'labesny-web', name: 'Labesny website', folder: 'web', kind: 'Website · Shopify theme', market: 'Kuwait',
+      cover: im('labesny-web/cover', 'Labesny Couture homepage', 'd'),
+      tagline: 'The Evening Edit, in Kuwait. Labesny’s new store.',
+      about: ['The new website for Labesny, the multi-brand fashion store in Kuwait: Labesny Couture, a custom Shopify theme for labesny.com. Women, men, kids and lingerie from brands like Women’secret, La vie en rose and Tom Tailor, priced in Kuwaiti dinars.',
+        'It shares FIG Couture’s design and runs on Labesny’s own catalogue: the seasonal edit, the wardrobe by category, brand logos and new in, then collections and product pages. Free delivery over KWD 20 and delivery across Kuwait in 48 hours, up front.'],
+      facts: [['Market', 'Kuwait'], ['Platform', 'Shopify, custom theme'], ['Theme', 'Labesny Couture'], ['Free delivery', 'Over KWD 20']],
+      features: [
+        { t: 'One design, two stores', x: 'The same editorial homepage as FIG, set up for Kuwait: the edit, the wardrobe, the brands and new in.', imgs: [im('labesny-web/home-d', 'Homepage, desktop', 'd'), im('labesny-web/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Collections', x: 'Womenswear: categories as tiles up top, then the products, with filter and sort on desktop and phone.', imgs: [im('labesny-web/collection-d', 'Womenswear, desktop', 'd'), im('labesny-web/collection-m', 'Womenswear, phone', 'p')] },
+        { t: 'The product page', x: 'Gallery, sizes, add to bag, and the 48-hour delivery promise where you decide.', imgs: [im('labesny-web/product-d', 'Product page, desktop', 'd'), im('labesny-web/product-m', 'Product page, phone', 'p')] },
+      ],
+      gallery: shots('labesny-web', ['home', 'collection', 'product']),
+      links: [['See the Labesny app', 'https://band-agents.github.io/labesny-app-preview/']], see: ['labesny', 'fig-web'],
+      people: ['mamdouh'], service: 'ecommerce',
     },
     {
       id: 'labesny', name: 'Labesny', folder: 'apps', kind: 'App', market: 'Kuwait',
@@ -158,6 +212,63 @@ const OS = (() => {
       people: [], service: 'ecommerce',
     },
     {
+      id: 'pier1', name: 'Pier 1', folder: 'stores', kind: 'Store', market: 'USA',
+      ...store('pier1', ['home', 'collection', 'product']),
+      tagline: 'America’s home-décor name, on Shopify.',
+      about: ['Shopify development for Pier 1, the American home-décor brand, at pier1.com: seasonal edits, deep collections and product pages that sell the set, not just the piece.'],
+      facts: [['Market', 'USA'], ['Platform', 'Shopify'], ['Live', 'pier1.com'], ['Category', 'Home décor']],
+      features: [
+        { t: 'A season on the homepage', x: '“The Merry Edit”: the season leads, with gift and décor rails right under it and free shipping over $99 in the bar.', imgs: [im('pier1/home-d', 'Homepage, desktop', 'd'), im('pier1/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Collections', x: 'Product grids with ratings, filter and sort, the same on desktop and phone.', imgs: [im('pier1/collection-d', 'Collection, desktop', 'd'), im('pier1/collection-m', 'Collection, phone', 'p')] },
+        { t: 'Product pages', x: 'A big gallery, the details, and “You may also like” to keep the basket growing.', imgs: [im('pier1/product-d', 'Product page, desktop', 'd'), im('pier1/product-m', 'Product page, phone', 'p')] },
+      ],
+      links: [['Visit pier1.com', 'https://www.pier1.com/']],
+      people: ['mamdouh'], service: 'ecommerce',
+    },
+    {
+      id: 'steinmart', name: 'Stein Mart', folder: 'stores', kind: 'Store', market: 'USA',
+      ...store('steinmart', ['home', 'collection', 'product']),
+      tagline: 'Designer brands for less, on Shopify.',
+      about: ['Shopify development for Stein Mart, the American off-price retailer selling designer brands for less, at steinmart.com.'],
+      facts: [['Market', 'USA'], ['Platform', 'Shopify'], ['Live', 'steinmart.com'], ['Category', 'Fashion, home and accessories']],
+      features: [
+        { t: 'Brands up front', x: 'Designer drops lead the homepage, with shop-by-category and a search that lets you pick the department first.', imgs: [im('steinmart/home-d', 'Homepage, desktop', 'd'), im('steinmart/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Collections', x: 'Women’s activewear, 212 products: filters down the side on desktop, one tap away on the phone.', imgs: [im('steinmart/collection-d', 'Collection, desktop', 'd'), im('steinmart/collection-m', 'Collection, phone', 'p')] },
+        { t: 'Product pages', x: 'Gallery, colours, add to bag and express checkout above the fold.', imgs: [im('steinmart/product-d', 'Product page, desktop', 'd'), im('steinmart/product-m', 'Product page, phone', 'p')] },
+      ],
+      links: [['Visit steinmart.com', 'https://steinmart.com/']],
+      people: ['mamdouh'], service: 'ecommerce',
+    },
+    {
+      id: 'dressbarn', name: 'Dressbarn', folder: 'stores', kind: 'Store', market: 'USA',
+      ...store('dressbarn', ['home', 'collection', 'product']),
+      tagline: 'Women’s fashion, offers that add up, on Shopify.',
+      about: ['Shopify development for Dressbarn, the American women’s fashion brand, at dressbarn.com: dresses, denim and plus sizes, with offers that stack the way the customer expects.'],
+      facts: [['Market', 'USA'], ['Platform', 'Shopify'], ['Live', 'dressbarn.com'], ['Category', 'Women’s fashion']],
+      features: [
+        { t: 'Offers that read at a glance', x: '“Petite week”, “Buy 2 pairs of jeans, get a knit top free”, “Buy 3, save an extra 20%”: each offer gets its own block.', imgs: [im('dressbarn/home-d', 'Homepage, desktop', 'd'), im('dressbarn/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Collections', x: 'Big product photography, colours on every card, filters and sort.', imgs: [im('dressbarn/collection-d', 'Collection, desktop', 'd'), im('dressbarn/collection-m', 'Collection, phone', 'p')] },
+        { t: 'Product pages', x: 'Sizes, colours and add to bag up top, with more like it underneath.', imgs: [im('dressbarn/product-d', 'Product page, desktop', 'd'), im('dressbarn/product-m', 'Product page, phone', 'p')] },
+      ],
+      links: [['Visit dressbarn.com', 'https://dressbarn.com/']],
+      people: ['mamdouh'], service: 'ecommerce',
+    },
+    {
+      id: 'radioshack', name: 'RadioShack', folder: 'stores', kind: 'Store', market: 'USA',
+      cover: im('radioshack/cover', 'RadioShack homepage', 'd'),
+      gallery: [im('radioshack/home-d', 'Homepage', 'd'), im('radioshack/collection-d', 'Radios', 'd'), im('radioshack/product-d', 'Product page', 'd')],
+      tagline: 'The electronics name everyone knows.',
+      about: ['Store development for RadioShack, the American electronics brand, at radioshack.com: trending tech and fresh drops up front, then radios, weather stations, speakers, turntables and batteries, each a click away.'],
+      facts: [['Market', 'USA'], ['Platform', 'Magento'], ['Live', 'radioshack.com'], ['Category', 'Electronics']],
+      features: [
+        { t: 'Trending, then everything else', x: 'Four trending products with their prices, “Fresh drops” and deals, and free shipping above $49.99 in the bar.', imgs: [im('radioshack/home-d', 'Homepage', 'd')] },
+        { t: 'Categories with real filters', x: 'Radios: 14 results, filtered by price, colour, connectivity, brand, size, power source and AM/FM.', imgs: [im('radioshack/collection-d', 'Radios', 'd')] },
+        { t: 'Product pages that add on', x: 'Price against MSRP, stock status, and “Other customers bought” add-ons right next to the buy button.', imgs: [im('radioshack/product-d', 'Product page', 'd')] },
+      ],
+      links: [['Visit radioshack.com', 'https://www.radioshack.com/']],
+      people: ['mamdouh'], service: 'ecommerce',
+    },
+    {
       id: 'sloth', name: 'Sloth', folder: 'brands', kind: 'Brand identity', market: 'Soft furniture',
       cover: im('sloth/cover', 'Sloth brand guidelines', 'g'),
       tagline: 'A soft-spoken world, page by page.',
@@ -205,7 +316,7 @@ const OS = (() => {
       facts: [['Delivered', 'Mood board, social and campaign design']],
       features: [{ t: 'One look across the feed', x: 'The mood board, then the posts it became.', imgs: [im('mas/mood', 'Mood board', 'g'), im('mas/social', 'Social', 'g')] }],
       gallery: [im('mas/mood', 'Mood board', 'g'), im('mas/social', 'Social', 'g')],
-      people: [], service: 'brand',
+      people: ['alerta'], service: 'brand',
     },
     {
       id: 'thoth', name: 'THOTH', folder: 'software', kind: 'Business OS · EN/AR', market: 'Retail & garment',
@@ -272,19 +383,41 @@ const OS = (() => {
       people: [], service: 'lab',
     },
   ];
+  // Social design: Instagram feeds (posts, carousels, highlight covers), from js/social.js
+  const IG = {
+    '1pass': ['Fitness app', 'Your move, your gear, your rules.'], capital: ['Office furniture', 'Engineered for you.'], elsafwa: ['Serviced residences, New Cairo', 'Wake up inspired.'],
+    handler: ['Auto service', 'Where icons meet.'], hunna: ['Lifestyle brand', 'A soft world for you.'], mas: ['Sofa beds', 'Small space, big relaxation.'],
+    menna: ['Fashion store', 'The new era of Menna Elsonny Store.'], yqn: ['Eyewear', 'Where light meets pattern.'],
+  };
+  const SEE = { handler: 'handler', mas: 'mas', capital: 'capital' };
+  for (const [k, s] of Object.entries(window.SOCIAL || {})) {
+    const [market, tagline] = IG[k] || ['', ''], slides = s.posts.reduce((t, p) => t + p.slides.length, 0), car = s.posts.filter(p => p.slides.length > 1).length;
+    PROJECTS.push({
+      id: 'ig-' + k, name: s.name, folder: 'social', kind: 'Instagram feed', market,
+      cover: { src: s.posts[0].thumb, cap: s.name + ' on Instagram', k: 'f' },
+      tagline,
+      about: [`Instagram design for ${s.name}: ${s.posts.length} posts${car ? `, ${car} of them carousels,` : ''} and ${s.highlights.length} story highlight covers, planned as one grid so the profile reads like the brand.`,
+        'Every post is written and designed for the feed: the image, the type on it and the caption under it. Click any post to see it full size, swipe through the carousels.'],
+      facts: [['Handle', '@' + s.handle], ['Followers', s.stats?.followers || '—'], ['Posts', String(s.posts.length)], ['Highlights', String(s.highlights.length)], ['Category', market]],
+      feed: s, features: [],
+      gallery: s.posts.flatMap((p, i) => p.slides.map((src, j) => ({ src, thumb: j ? src : p.thumb, cap: p.cap || `Post ${i + 1}`, k: 'f', post: i + 1, n: j + 1, of: p.slides.length }))),
+      see: SEE[k] ? [SEE[k]] : [], people: ['alerta'], service: 'brand',
+    });
+    const t = SEE[k] && PROJECTS.find(p => p.id === SEE[k]); if (t) (t.see ||= []).push('ig-' + k);
+  }
   const byId = Object.fromEntries(PROJECTS.map(p => [p.id, p]));
   for (const p of Object.values(PEOPLE)) p.work.forEach(id => byId[id] && !byId[id].people.includes(p.id) && byId[id].people.push(p.id));
 
   const SERVICES = [
     { id: 'ecommerce', name: 'Ecommerce development', sub: 'Think → Innovate → Execute', lead: 'We sit with your team, study your customer, stress-test your UX, and build a Shopify store or headless setup that actually converts.',
       get: ['Shopify or headless storefronts', 'One build for several countries: currency, branches and delivery per market', 'Arabic done properly, right to left', 'Product pages and cross-selling that grow the basket', 'Migrations that lose nothing (FIG: 6,730 products)'],
-      work: ['womensecret', 'alo', 'volcom', 'oshoplin', 'ayas', 'fig'], person: 'mamdouh' },
+      work: ['womensecret', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'], person: 'mamdouh' },
     { id: 'software', name: 'Custom software', sub: 'The tool that doesn’t exist yet', lead: 'Business systems, client portals, internal tools and shopping apps. Built from scratch, owned by you, documented so anyone after us can continue.',
       get: ['Systems that run a business: orders, inventory, bookings, production, accounts', 'Client-facing portals: customers see their own numbers', 'Real-time data plumbing: Meta, TikTok, Google and Shopify in one place', 'Shopping apps in English and Arabic'],
       work: ['thoth', 'studio', 'labesny', 'fig'], person: null },
     { id: 'brand', name: 'Design & brand', sub: 'Your vision → Our execution', lead: 'From social creatives to full brand guidelines, packaging to campaign visuals. Fast, and at the quality your brand demands.',
-      get: ['Visual identities', 'Full guideline decks: essence, tone of voice, colour, type, application', 'Website visual systems', 'Mood boards, social and campaign design'],
-      work: ['sloth', 'handler', 'end', 'guesswhat', 'mas'], person: 'alerta' },
+      get: ['Visual identities', 'Full guideline decks: essence, tone of voice, colour, type, application', 'Website visual systems', 'Instagram feeds: posts, carousels and highlight covers, planned as one grid', 'Mood boards and campaign design'],
+      work: ['sloth', 'handler', 'end', 'guesswhat', 'mas', 'ig-yqn', 'ig-elsafwa', 'ig-hunna', 'ig-1pass'], person: 'alerta' },
     { id: 'media', name: 'Media buying', sub: 'Your strategy → Our scale', lead: 'Meta, TikTok, Google, Snapchat. Budget treated as a hypothesis and read at 48 hours, not at month end.',
       get: ['Paid social and search', '48-hour reads, not month-end post-mortems', 'Live numbers your team can see', 'Creative tested, not guessed'],
       work: ['volcom', 'ashya', 'capital'], person: 'alaa' },
@@ -295,9 +428,9 @@ const OS = (() => {
   ];
 
   const CLIENTS = [
-    ['Ecommerce — International', ['Alo Yoga', 'Cole Haan', 'Pier 1', 'Koi Footwear', 'Volcom', 'The Brandery']],
-    ['Ecommerce — Middle East', ['Women’secret', 'Labesny', 'FIG', 'Skechers', 'ECCO', 'Umbro', 'ANT', 'Cizaro', 'Oshoplin']],
-    ['Design, software & media', ['AYA-S', 'Capital Office Furniture', 'MAS SofaBed', 'Handler Auto', 'Guess What', 'Ashya Egypt', 'Be Glowy', 'WOW Sewing', 'UNSTMPD', 'am:pm Coffee']],
+    ['Ecommerce — International', ['Alo Yoga', 'Pier 1', 'Stein Mart', 'Dressbarn', 'RadioShack', 'Koi Footwear', 'Volcom', 'The Brandery']],
+    ['Ecommerce — Middle East', ['Women’secret', 'Cole Haan', 'Labesny', 'FIG', 'Skechers', 'ECCO', 'Umbro', 'ANT', 'Cizaro', 'Oshoplin']],
+    ['Design, software & media', ['AYA-S', 'Capital Office Furniture', 'MAS SofaBed', 'Handler Auto', 'El Safwa Resort', 'YQN Eyewear', 'Hunna World', 'Menna Elsonny Store', '1Pass', 'Guess What', 'Ashya Egypt', 'Be Glowy', 'WOW Sewing', 'UNSTMPD', 'am:pm Coffee']],
   ];
 
   const RESULTS = [
