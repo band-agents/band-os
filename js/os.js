@@ -11,12 +11,12 @@
   const tileBars = (n, off = 0, k = 120) => BQ.glyph(n, off, k);
   const desk = $('#desk');
   const P = D.PEOPLE, byId = D.byId;
-  let lastPointer = 'mouse';
+  let lastPointer = 'mouse', ios = null;                 // ios: the iPhone shell on phones (js/ios.js)
   addEventListener('pointerdown', e => { lastPointer = e.pointerType || 'mouse'; }, true);
 
   /* ---------- small helpers ---------- */
   let toastT;
-  function toast(t, ms = 3200) { const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), ms); }
+  function toast(t, ms = 3200) { if (ios) return ios.toast(t, ms); const el = $('#toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), ms); }
   const gen = (vals, hot = []) => `<div class="gen" aria-hidden="true">${vals.map((v, i) => `<i class="${hot.includes(i) ? 'g' : ''}" style="height:${Math.max(3, v * 100)}%;flex-grow:${(BQ.BARS[i % 11].w * 100).toFixed(1)}"></i>`).join('')}</div>`;
   const CH = {
     volcom: { v: [.3, .3, .3, .3, .3, 1, 1, 1, 1, 1, 1], hot: [5, 6, 7, 8, 9, 10], lab: [['€18,892', 'ad spend'], ['€63,034', 'sales · 30 days']], note: 'To scale.' },
@@ -64,6 +64,7 @@
   }
   const topWin = () => Object.values(W).filter(w => !w.min).sort((a, b) => b.el.style.zIndex - a.el.style.zIndex)[0];
   function openWin(id, opts = {}) {
+    if (ios) return ios.open(id, opts);
     if (W[id]) {
       const w = W[id]; if (w.min) restore(w); front(w); w.def.update?.(w, opts);
       if (!R && !opts.quiet) w.el.animate([{ transform: 'none' }, { transform: 'scale(1.012)' }, { transform: 'none' }], { duration: 260 });
@@ -93,6 +94,7 @@
     return win;
   }
   function closeWin(win) {
+    if (win?.ios) return ios.close(win);
     if (!W[win.id] || W[win.id] !== win) return;
     delete W[win.id]; win.cleanup.forEach(f => { try { f(); } catch { } });
     const done = () => { win.el.remove(); dockSync(); front(topWin()); };
@@ -280,11 +282,11 @@
   /* A project: the same page inside Work and in its own window */
   function caseHTML(p, prev, next) {
     const hasNum = p.numbers?.length || p.chart, split = p.cover && (p.cover.k === 'f' || p.cover.k === 'p');
-    const unit = p.feed ? 'images' : 'screens';
+    const deck = p.gallery.length && p.gallery.every(g => g.k === 'g'), unit = p.feed ? 'images' : deck ? 'slides' : 'screens';
     return `<article class="case">
-      <div class="hero ${split ? 'split' : ''}">${split ? `<img class="bg" src="${p.cover.src}" alt=""><img class="fg" src="${p.cover.src}" alt="${esc(p.cover.cap)}">` : cover(p)}<div class="cap"><div><span class="chip k">${esc(p.kind)} · ${esc(p.market)}</span><h1>${esc(p.name)}</h1><p>${esc(p.tagline)}</p></div>
+      <div class="hero ${split ? 'split' : ''}">${split ? `<img class="bg" src="${p.cover.src}" alt=""><img class="fg" src="${p.cover.src}" alt="${esc(p.cover.cap)}">` : cover(p).replace('loading="lazy"', 'fetchpriority="high"')}<div class="cap"><div><span class="chip k">${esc(p.kind)} · ${esc(p.market)}</span><h1>${esc(p.name)}</h1><p>${esc(p.tagline)}</p></div>
         <div class="acts">${p.gallery.length ? `<button class="btn o" data-tab="screens">▦ ${p.gallery.length} ${unit}</button>` : ''}<button class="btn g" data-ask>Ask bqnd</button></div></div></div>
-      <nav class="tabs" role="tablist"><button data-tab="overview" role="tab">Overview</button>${p.gallery.length ? `<button data-tab="screens" role="tab">${p.feed ? 'All images' : 'Screens'}<em>${p.gallery.length}</em></button>` : ''}${hasNum ? '<button data-tab="numbers" role="tab">Numbers</button>' : ''}</nav>
+      <nav class="tabs" role="tablist"><button data-tab="overview" role="tab">Overview</button>${p.gallery.length ? `<button data-tab="screens" role="tab">${p.feed ? 'All images' : deck ? 'Slides' : 'Screens'}<em>${p.gallery.length}</em></button>` : ''}${hasNum ? '<button data-tab="numbers" role="tab">Numbers</button>' : ''}</nav>
       <div class="pad" data-panel="overview">
         <div class="meta">${p.facts.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}</div>
         <div class="cols"><div class="about">${p.about.map(x => `<p>${esc(x)}</p>`).join('')}</div>
@@ -294,10 +296,10 @@
             <div><h6>Next step</h6><div class="links">${(p.links || []).map(([t, h]) => `<a class="btn o" href="${h}" target="_blank" rel="noopener">${esc(t)} ↗</a>`).join('')}<button class="btn" data-similar>Start a similar build</button></div></div></aside></div>
         ${p.feed ? feedHTML(p) : ''}
         ${p.chart && !p.features.length ? `<div style="margin-top:26px">${chart(p.chart.k)}</div>` : ''}
-        ${p.features.length ? `<h6 class="sech" style="margin-top:34px">What’s in it</h6>` : ''}<div class="feats">${p.features.map((f, n) => `<section class="feat"><div class="vis">${frames(f.imgs)}</div><div class="txt"><small>${String(n + 1).padStart(2, '0')}</small><h3>${esc(f.t)}</h3><p>${esc(f.x)}</p></div></section>`).join('')}</div>
+        ${p.features.length ? `<h6 class="sech" style="margin-top:34px">What’s in it</h6>` : ''}<div class="feats">${p.features.map((f, n) => `<section class="feat ${f.imgs.every(m => m.k === 'g') ? 'deck' : ''}"><div class="vis">${frames(f.imgs)}</div><div class="txt"><small>${String(n + 1).padStart(2, '0')}</small><h3>${esc(f.t)}</h3><p>${esc(f.x)}</p></div></section>`).join('')}</div>
         <nav class="next" aria-label="More work"><button data-go="${prev.id}">${cover(prev)}<span><small>‹ Previous</small><b>${esc(prev.name)}</b></span></button><button data-go="${next.id}"><span><small>Next ›</small><b>${esc(next.name)}</b></span>${cover(next)}</button></nav>
       </div>
-      <div class="pad" data-panel="screens" hidden><p class="hint2">Click any ${p.feed ? 'image' : 'screen'} to open it big. Use ← → to flip through.</p><div class="shots">${p.gallery.map(shot).join('')}</div></div>
+      <div class="pad" data-panel="screens" hidden><p class="hint2">Click any ${p.feed ? 'image' : deck ? 'slide' : 'screen'} to open it big. Use ← → to flip through.</p><div class="shots">${p.gallery.map(shot).join('')}</div></div>
       ${hasNum ? `<div class="pad" data-panel="numbers" hidden>${p.numbers ? `<div class="nums" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">${p.numbers.map(([v, l]) => `<div><b>${esc(v)}</b><small>${esc(l)}</small></div>`).join('')}</div>` : ''}${p.chart ? chart(p.chart.k) : ''}
         <p class="mono" style="color:var(--mute);margin-top:14px">Real figures from the work. Nothing rounded up.</p>${p.people.length ? `<div class="whos" style="display:flex;gap:6px;margin-top:10px">${p.people.map(whoChip).join('')}</div>` : ''}</div>` : ''}
     </article>`;
@@ -337,9 +339,9 @@
     const phones = imgs.filter(m => m.k === 'p').length;
     return imgs.map(m => m.k === 'p'
       ? `<figure class="frame p ${phones === 1 ? 'one' : ''}" data-src="${m.src}" title="Scroll inside, or click to open big"><div class="sc"><img src="${m.src}" alt="${esc(m.cap)}" loading="lazy"></div><figcaption>${esc(m.cap)}</figcaption></figure>`
-      : `<figure class="frame ${m.k}" data-src="${m.src}" title="Scroll inside, or click to open big">${m.k === 'd' ? '<div class="fb"><i></i><i></i><i></i></div>' : ''}<div class="sc"><img src="${m.src}" alt="${esc(m.cap)}" loading="lazy"></div><figcaption>${esc(m.cap)}</figcaption></figure>`).join('');
+      : `<figure class="frame ${m.k}" data-src="${m.src}" title="Scroll inside, or click to open big">${m.k === 'd' ? '<div class="fb"><i></i><i></i><i></i></div>' : ''}<div class="sc">${m.v ? `<video src="${m.v}" poster="${m.src}" muted loop autoplay playsinline preload="metadata" aria-label="${esc(m.cap)}"></video>` : `<img src="${m.src}" alt="${esc(m.cap)}" loading="lazy">`}</div><figcaption>${m.v ? '▶ ' : ''}${esc(m.cap)}</figcaption></figure>`).join('');
   }
-  const shot = g => `<button class="shot ${g.k === 'p' ? '' : g.post ? 'sq' : 'w'}" data-src="${g.src}"><span class="i"><img src="${g.thumb || g.src}" alt="${esc(g.cap)}" loading="lazy">${g.of > 1 ? `<i class="car">${g.n}/${g.of}</i>` : ''}</span><span>${esc(g.cap)}</span></button>`;
+  const shot = g => `<button class="shot ${g.k === 'p' ? '' : g.post ? 'sq' : 'w'}" data-src="${g.src}"><span class="i"><img src="${g.thumb || g.src}" alt="${esc(g.cap)}" loading="lazy">${g.of > 1 ? `<i class="car">${g.n}/${g.of}</i>` : ''}${g.v ? '<i class="car">▶ Motion</i>' : ''}</span><span>${esc(g.cap)}</span></button>`;
   function setTab(root, tab, quiet) {
     if (!root) return; if (!$(`[data-panel="${tab}"]`, root)) tab = 'overview';
     $$('[data-panel]', root).forEach(x => x.hidden = x.dataset.panel !== tab);
@@ -357,7 +359,7 @@
     Object.assign(win.state, { list: o.list, i: o.i || 0, pid: o.pid, fit: null });
     win.body.innerHTML = `<div class="pv"><div class="tools"><button class="tbtn pr" aria-label="Previous">‹</button><button class="tbtn nx" aria-label="Next">›</button><span class="cap"></span>
       <button class="tbtn ft">Fit</button><button class="tbtn op">Open project</button></div>
-      <div class="sw"><div class="stage"><img alt=""></div><button class="arw l" aria-label="Previous">‹</button><button class="arw r" aria-label="Next">›</button></div>
+      <div class="sw"><div class="stage"><img alt=""><video muted loop playsinline controls hidden></video></div><button class="arw l" aria-label="Previous">‹</button><button class="arw r" aria-label="Next">›</button></div>
       <p class="long"></p><div class="strip" role="listbox" aria-label="All images"></div></div>`;
     const b = win.body;
     $$('.pr,.arw.l', b).forEach(x => x.onclick = () => stepPreview(win, -1)); $$('.nx,.arw.r', b).forEach(x => x.onclick = () => stepPreview(win, 1));
@@ -369,7 +371,8 @@
   function stepPreview(win, d) { const s = win.state; s.i = (s.i + d + s.list.length) % s.list.length; s.fit = null; drawPreview(win); }
   function drawPreview(win, keep) {
     const s = win.state, b = win.body, m = s.list[s.i], p = byId[s.pid];
-    const img = $('.stage img', b); img.src = m.src; img.alt = m.cap;
+    const img = $('.stage img', b), vid = $('.stage video', b); img.alt = m.cap; img.hidden = !!m.v; vid.hidden = !m.v;
+    if (m.v) { if (vid.getAttribute('src') !== m.v) { vid.poster = m.src; vid.src = m.v; } vid.play().catch(() => { }); img.removeAttribute('src'); } else { vid.pause(); vid.removeAttribute('src'); img.src = m.src; }
     const short = m.cap.length > 70 ? m.cap.slice(0, 68).replace(/\s+\S*$/, '') + '…' : m.cap;
     $('.cap', b).innerHTML = `${esc(m.of > 1 ? `Post ${m.post}, ${m.n} of ${m.of}` : short)} <span>${p ? '— ' + esc(p.name) + ' · ' : ''}${s.i + 1} / ${s.list.length}</span>`;
     const long = $('.long', b); long.hidden = !(m.cap.length > 70 || m.of > 1); long.textContent = m.cap;
@@ -378,12 +381,12 @@
     const strip = $('.strip', b); strip.hidden = s.list.length < 2;
     if (strip.dataset.for !== s.list.map(x => x.src).join('|').length + ':' + s.list.length) {
       strip.dataset.for = s.list.map(x => x.src).join('|').length + ':' + s.list.length;
-      strip.innerHTML = s.list.map((g, i) => `<button data-i="${i}" class="${g.k === 'p' ? 'p' : g.k === 'd' ? 'd' : 'f'}" aria-label="${esc(g.cap)}"><img src="${g.thumb || g.src}" alt="" loading="lazy"></button>`).join('');
+      strip.innerHTML = s.list.map((g, i) => `<button data-i="${i}" class="${g.k === 'p' ? 'p' : g.k === 'd' || g.k === 'g' ? 'd' : 'f'}${g.v ? ' vid' : ''}" aria-label="${esc(g.cap)}"><img src="${g.thumb || g.src}" alt="" loading="lazy"></button>`).join('');
     }
     $$('.strip [data-i]', b).forEach(x => x.classList.toggle('on', +x.dataset.i === s.i));
     $('.strip .on', b)?.scrollIntoView({ block: 'nearest', inline: 'center', behavior: keep || R ? 'auto' : 'smooth' });
     const apply = () => { const tall = img.naturalHeight / Math.max(1, img.naturalWidth) > 1.5; const fit = s.fit == null ? !tall : s.fit; $('.pv', b).classList.toggle('fit', fit); $('.ft', b).textContent = fit ? 'Actual size' : 'Fit'; $('.stage', b).scrollTop = 0; };
-    if (img.complete && img.naturalWidth) apply(); else img.onload = apply;
+    if (m.v) { $('.pv', b).classList.add('fit'); $('.ft', b).textContent = 'Fit'; } else if (img.complete && img.naturalWidth) apply(); else img.onload = apply;
   }
 
   /* Gallery */
@@ -821,6 +824,7 @@
   $('#bootWm').innerHTML = BQ.wordmark('#EDEDE6', 5.9);
   document.body.dataset.wall = store.get('wall', 'dots');
   buildIcons(); buildWidgets(); buildDock(); buildCrew();
+  if (small() && window.IOS) ios = IOS.start({ D, P, byId, caseHTML, wireCase, setTab, cover, folderName, inFolder, def: APP, openApp, openPal });
   if (!small()) desk.append($('#crew'), $('#bubble'));             // on desktop the crew stands behind open windows
   dCode = BQ.code($('#dockCode'), { color: '#FFFFFF', accent: '#10A862', mode: 'breathe' });
   let booted = false, again = false;
@@ -832,6 +836,7 @@
     if (!R) $$('.ic').forEach((ic, i) => ic.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 380, delay: 60 + i * 35, easing: 'ease-out', fill: 'backwards' }));
     if (!R) $$('.mate').forEach((m, i) => m.animate([{ opacity: 0, transform: 'translateY(30px)' }, { opacity: 1, transform: 'none' }], { duration: 500, delay: 500 + i * 140, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' }));
     const hash = decodeURIComponent(location.hash.slice(1));
+    if (ios) { ios.ready(hash); return; }
     setTimeout(() => {
       if (hash && (byId[hash] || P[hash])) byId[hash] ? openCase(hash) : openWin('team', { person: hash });
       else if (hash) openApp(hash) || (!small() && openWin('work', { folder: 'all' }));

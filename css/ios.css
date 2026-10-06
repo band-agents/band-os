@@ -1,0 +1,191 @@
+/* band. OS on a phone: an iPhone. SF Pro where the phone has it, iOS materials, iOS motion. */
+body.ios{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue','Manrope',system-ui,sans-serif;background:#000;letter-spacing:-.01em}
+body.ios .menubar,body.ios .desk,body.ios .dock,body.ios .crew,body.ios .bubble,body.ios .toast{display:none !important}
+#ios{position:fixed;inset:0;overflow:hidden;color:#fff;--sb:47px;--hi:max(env(safe-area-inset-bottom,0px),12px);--blue:#007AFF;--ease:cubic-bezier(.2,.9,.22,1);-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#ios button{-webkit-tap-highlight-color:transparent}
+
+/* wallpaper: the barcode, huge and soft, on graphite and green */
+#ios .wall{position:absolute;inset:0;left:0;bottom:0;width:auto;transform:none;pointer-events:none;background:radial-gradient(90% 55% at 50% 0%,rgba(48,209,88,.35) 0%,transparent 70%),radial-gradient(80% 50% at 0% 100%,rgba(16,120,80,.45) 0%,transparent 70%),radial-gradient(70% 45% at 100% 70%,rgba(10,90,130,.35) 0%,transparent 70%),linear-gradient(170deg,#0e1512 0%,#0a0f0d 50%,#050807 100%)}
+#ios .wall .bc{position:absolute;left:16%;right:16%;top:30%;height:36%;display:flex;gap:3.2%;align-items:stretch;opacity:.13;filter:blur(.5px)}
+#ios .wall .bc i{display:block;background:#fff;border-radius:3px}
+#ios .wall .bc i.g{background:#30d158;opacity:1}
+/* status bar */
+#ios .sb{position:absolute;top:0;left:0;right:0;height:var(--sb);display:flex;align-items:center;justify-content:space-between;padding:6px 26px 0 34px;font-weight:600;font-size:16px;z-index:80;pointer-events:none;color:#fff;transition:color .25s}
+#ios .sb .sys{display:flex;align-items:center;gap:6px}
+#ios.lightui .sb{color:#000}
+
+/* Dynamic Island: appears only to say something */
+#ios .island{position:absolute;top:11px;left:50%;transform:translateX(-50%) scale(.6);opacity:0;width:126px;height:36px;border-radius:22px;background:#000;z-index:90;display:flex;align-items:center;gap:10px;padding:0 16px;color:#fff;font-size:13.5px;font-weight:600;line-height:1.3;overflow:hidden;transition:transform .5s var(--ease),opacity .3s,width .5s var(--ease),height .5s var(--ease),border-radius .5s;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+#ios .island.on{opacity:1;transform:translateX(-50%) scale(1);width:min(calc(100vw - 24px),370px);height:auto;min-height:58px;border-radius:30px;padding:12px 18px}
+#ios .island .ii{display:flex;align-items:flex-end;gap:2px;height:18px;width:26px;flex:none;color:#30d158}
+#ios .island .ii i{display:block;background:currentColor;height:100%;border-radius:1px}
+#ios .island .it{flex:1}
+
+/* home screen */
+#ios .home{position:absolute;inset:0;padding-top:calc(var(--sb) + 14px);transition:transform .5s var(--ease),filter .5s,opacity .5s}
+#ios.in-app .home{transform:scale(.88);filter:blur(10px) brightness(.6);opacity:.9}
+#ios .hp{display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;height:calc(100% - 190px - var(--hi))}
+#ios .hp::-webkit-scrollbar{display:none}
+#ios .hpage{flex:none;width:100%;scroll-snap-align:start;scroll-snap-stop:always;padding:4px 22px 0;display:grid;grid-template-columns:repeat(4,1fr);align-content:start;gap:20px 0;overflow-y:auto;scrollbar-width:none}
+#ios .ic2{display:flex;flex-direction:column;align-items:center;gap:6px;color:#fff;transition:transform .15s}
+#ios .ic2:active{transform:scale(.92)}
+#ios .sq{width:62px;height:62px;border-radius:15px;display:grid;place-items:center;overflow:hidden;position:relative;box-shadow:0 3px 10px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(255,255,255,.12)}
+#ios .sq img{width:100%;height:100%;object-fit:cover}
+#ios .sq .gl{display:flex;align-items:flex-end;gap:2px;height:30px;width:34px}
+#ios .sq .gl i{display:block;height:100%;background:currentColor;border-radius:1px}
+#ios .sq .tx{font-size:22px;font-weight:700;color:#fff;letter-spacing:-.02em}
+#ios .sq .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:19px}
+#ios .sq .rb{display:flex;align-items:flex-end;gap:3px;height:30px;width:38px}
+#ios .sq .rb i{display:block;flex:1;border-radius:2px}
+#ios .sq .heads{display:flex;width:100%;height:100%}
+#ios .sq .heads img{width:33.4%;object-fit:cover}
+#ios .sq .ln{display:flex;flex-direction:column;gap:5px;width:36px;margin-top:16px}
+#ios .sq .ln i{display:block;height:2.5px;background:#c7c7cc;border-radius:2px}
+#ios .ic2 .lb{font-size:11.5px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,.5);white-space:nowrap;max-width:76px;overflow:hidden;text-overflow:ellipsis}
+#ios .wd{grid-column:span 4;height:158px;border-radius:24px;background:rgba(255,255,255,.14);-webkit-backdrop-filter:blur(30px) saturate(1.6);backdrop-filter:blur(30px) saturate(1.6);padding:16px 18px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;color:#fff;position:relative;overflow:hidden;margin-bottom:4px}
+#ios .wd.sm{grid-column:span 2;height:150px}
+#ios .wd.crew{height:150px}
+#ios .wd .wh{font-size:13px;font-weight:600;opacity:.75}
+#ios .wd b{font-size:40px;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-top:4px}
+#ios .wd .wl{font-size:13.5px;opacity:.85;max-width:60%}
+#ios .wd .wsp{position:absolute;right:16px;bottom:16px;display:flex;align-items:flex-end;gap:3px;height:70px;width:38%}
+#ios .wd .wsp i{flex:1;display:block;background:rgba(255,255,255,.35);border-radius:2px}
+#ios .wd .wsp i.g{background:#30d158}
+#ios .wd .whs{display:flex;gap:10px;margin-top:12px;width:100%}
+#ios .wd .whs span{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+#ios .wd .whs img{width:54px;height:54px;border-radius:50%;object-fit:cover;background:rgba(255,255,255,.2)}
+#ios .wd .whs b{font-size:13px;margin:0;line-height:1.2}
+#ios .wd .whs small{font-size:10.5px;opacity:.7;line-height:1.2}
+#ios .dots{display:flex;justify-content:center;gap:8px;margin:6px 0 10px}
+#ios .dots i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.35)}
+#ios .dots i.on{background:#fff}
+#ios .spot{display:flex;align-items:center;gap:6px;margin:0 auto;padding:7px 14px;border-radius:18px;background:rgba(255,255,255,.18);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);color:#fff;font-size:13.5px;font-weight:500}
+#ios .dockbar{position:absolute;left:12px;right:12px;bottom:calc(var(--hi) + 12px);height:92px;border-radius:34px;background:rgba(255,255,255,.2);-webkit-backdrop-filter:blur(34px) saturate(1.7);backdrop-filter:blur(34px) saturate(1.7);display:flex;justify-content:space-around;align-items:center;padding:0 10px}
+
+/* home indicator */
+#ios .hind{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:200px;height:calc(var(--hi) + 18px);z-index:85;display:flex;align-items:flex-end;justify-content:center;padding-bottom:max(calc(var(--hi) - 6px),6px)}
+#ios .hind i{display:block;width:136px;height:5px;border-radius:3px;background:#fff;transition:background .25s}
+#ios.lightui .hind i{background:#000}
+
+/* apps: zoom open from the icon */
+#ios .apps{position:absolute;inset:0;pointer-events:none}
+#ios .app{position:absolute;inset:0;pointer-events:auto;overflow:hidden;background:#F2F2F7;color:#000}
+#ios .app.launch{animation:iosLaunch .5s var(--ease)}
+#ios .app.closing{animation:iosClose .38s cubic-bezier(.4,0,.7,.2) forwards}
+@keyframes iosLaunch{from{clip-path:circle(31px at var(--ox) var(--oy));opacity:.6}to{clip-path:circle(150% at var(--ox) var(--oy));opacity:1}}
+@keyframes iosClose{to{transform:scale(.25);opacity:0;border-radius:48px}}
+#ios .stack{position:absolute;inset:0}
+
+/* pages slide in from the right; the one underneath moves a third */
+#ios .pg{position:absolute;inset:0;background:#F2F2F7;display:flex;flex-direction:column;transition:transform .48s var(--ease),filter .48s;will-change:transform;box-shadow:-12px 0 30px rgba(0,0,0,.08)}
+#ios .pg.enter{transform:translateX(100%)}
+#ios .pg.under{transform:translateX(-28%);filter:brightness(.9)}
+#ios .pg.leave{transform:translateX(100%)}
+#ios .pg .sc{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;padding:calc(var(--sb) + 44px) 0 calc(var(--hi) + 40px)}
+#ios .pg.hero .sc{padding-top:0}
+
+/* the navigation bar: transparent over large titles and heroes, frosted once you scroll */
+#ios .nav{position:absolute;top:0;left:0;right:0;z-index:6;height:calc(var(--sb) + 44px);padding-top:var(--sb);display:flex;align-items:center;border-bottom:.5px solid transparent;transition:background .25s,border-color .25s,-webkit-backdrop-filter .25s}
+#ios .nav.solid{background:rgba(249,249,249,.84);-webkit-backdrop-filter:saturate(1.8) blur(20px);backdrop-filter:saturate(1.8) blur(20px);border-color:rgba(0,0,0,.18)}
+#ios .nav .back{display:flex;align-items:center;gap:5px;color:var(--blue);font-size:17px;padding:0 10px 0 8px;height:44px;max-width:45%;position:relative;z-index:2}
+#ios .nav .back span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ios .nav .t{position:absolute;left:50%;transform:translateX(-50%);bottom:0;height:44px;line-height:44px;font-weight:600;font-size:17px;opacity:0;transition:opacity .2s;max-width:52%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#ios .nav.solid .t{opacity:1}
+#ios .pg.appg .nav{background:rgba(249,249,249,.84);-webkit-backdrop-filter:saturate(1.8) blur(20px);backdrop-filter:saturate(1.8) blur(20px);border-color:rgba(0,0,0,.18)}
+#ios .pg.appg .nav .t{opacity:1}
+#ios .pg.hero .nav:not(.solid) .back{color:#fff}
+#ios .pg.hero .nav:not(.solid) .back::before{content:"";position:absolute;left:4px;top:7px;bottom:7px;right:2px;border-radius:15px;background:rgba(0,0,0,.28);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);z-index:-1}
+
+/* large titles, search, grouped lists */
+#ios .lt{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.2;margin:0;padding:0 18px 8px}
+#ios .sub{margin:-4px 18px 14px;color:#8e8e93;font-size:15px}
+#ios .srch{display:flex;align-items:center;gap:7px;margin:4px 16px 8px;height:38px;border-radius:11px;background:rgba(118,118,128,.12);padding:0 9px;color:#8e8e93}
+#ios .srch input{flex:1;border:0;background:none;outline:none;font-size:17px;color:#000;min-width:0;-webkit-appearance:none}
+#ios .gh2{margin:22px 0 7px;padding:0 34px;font:400 13px -apple-system,system-ui,sans-serif;color:#6d6d72;text-transform:uppercase;letter-spacing:0}
+#ios .grp2{margin:0 16px;background:#fff;border-radius:12px;overflow:hidden}
+#ios .row{display:flex;align-items:center;gap:13px;width:100%;min-height:46px;padding:7px 16px;text-align:left;font-size:17px;color:#000;position:relative;background:#fff;transition:background .15s}
+#ios .row:active{background:#d1d1d6}
+#ios .row+.row::before{content:"";position:absolute;top:0;left:59px;right:0;border-top:.5px solid rgba(60,60,67,.29)}
+#ios .row .ico{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;flex:none;color:#fff;font-weight:700;font-size:17px;overflow:hidden}
+#ios .row .ico .gl{height:17px;width:20px}
+#ios .row .ico .tx{font-size:13px}
+#ios .row .ico .mono{font-size:11px}
+#ios .row .av{width:30px;height:30px;border-radius:50%;object-fit:cover;flex:none;background:#e5e5ea}
+#ios .row .nm{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}
+#ios .row .nm small{color:#8e8e93;font-size:13px}
+#ios .row .meta{color:#8e8e93;font-size:17px}
+#ios .row .chev{color:#c4c4c7;flex:none;margin-left:2px}
+
+/* project cards, App Store style */
+#ios .cards{display:flex;flex-direction:column;gap:18px;padding:4px 16px 10px}
+#ios .card{display:block;width:100%;text-align:left;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.08);transition:transform .25s var(--ease)}
+#ios .card:active{transform:scale(.97)}
+#ios .card .cimg{display:block;position:relative;aspect-ratio:16/10;background:#e5e5ea;overflow:hidden}
+#ios .card .cimg img,#ios .card .cimg .gen{width:100%;height:100%;object-fit:cover;object-position:top}
+#ios .card .kk{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:12px}
+#ios .card .ct{display:flex;flex-direction:column;gap:2px;padding:12px 16px 14px}
+#ios .card b{font-size:20px;letter-spacing:-.02em}
+#ios .card small{font-size:15px;color:#3c3c43;line-height:1.35}
+#ios .card em{font-style:normal;font-size:13px;color:#8e8e93;margin-top:4px;text-transform:uppercase;letter-spacing:.02em}
+#ios .none{text-align:center;color:#8e8e93;padding:30px}
+
+/* a project inside the phone */
+#ios .case{background:#fff;min-height:100%}
+#ios .case .hero{height:min(62vh,460px)}
+#ios .case .hero .cap{bottom:18px;left:18px;right:18px}
+#ios .case .hero h1{font-size:34px}
+#ios .case .tabs{top:calc(var(--sb) + 44px);padding:6px 12px 0;overflow-x:auto;scrollbar-width:none}
+#ios .case .pad{padding:20px 16px 30px}
+#ios .case .about p{font-size:17px}
+#ios .case .about p:first-child{font-size:19px}
+#ios .frame.d .sc,#ios .frame.f .sc,#ios .frame.g .sc{max-height:min(56vh,420px)}
+#ios .frame.p .sc{height:min(62vh,440px)}
+#ios .next{gap:10px}
+
+/* apps that were windows: one column, chips on top */
+#ios .pg .sc.flex{display:flex;flex-direction:column;overflow:hidden;padding-bottom:0}
+#ios .pg .sc.flex>.side{flex:none}
+#ios .pg .sc.flex>.main{flex:1;min-height:0;display:flex;flex-direction:column}
+#ios .pg .sc.flex .scroll{padding-bottom:calc(var(--hi) + 30px)}
+#ios .pg .sc .tools{position:sticky;top:0;z-index:2}
+#ios .pg .sc .term{min-height:100%}
+
+/* Photos-style viewer */
+.qv{position:fixed;inset:0;z-index:150;background:#000;color:#fff;animation:qvIn .32s var(--ease,ease-out);font-family:-apple-system,BlinkMacSystemFont,'Manrope',sans-serif}
+.qv.out{animation:qvOut .26s ease-in forwards}
+@keyframes qvIn{from{opacity:0;transform:scale(.94)}}
+@keyframes qvOut{to{opacity:0;transform:scale(.96)}}
+.qv .top{position:absolute;top:0;left:0;right:0;z-index:3;height:calc(47px + 44px);padding:47px 8px 0;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(rgba(0,0,0,.7),rgba(0,0,0,0));transition:opacity .25s}
+.qv .top button{color:#0a84ff;font-size:17px;padding:0 10px;height:44px;min-width:70px;text-align:left}
+.qv .top .pj{text-align:right}
+.qv .ttl{display:flex;flex-direction:column;align-items:center;line-height:1.2}
+.qv .ttl b{font-size:15px}
+.qv .ttl small{font-size:12px;opacity:.7}
+.qv .slides{position:absolute;inset:0;display:flex;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;overscroll-behavior:contain}
+.qv .slides::-webkit-scrollbar{display:none}
+.qv .sl{flex:none;width:100%;height:100%;scroll-snap-align:center;scroll-snap-stop:always;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;padding:92px 0 150px;transition:transform .25s}
+.qv .sl.tall{justify-content:flex-start}
+.qv .sl img{width:100%;height:auto;flex:none}
+.qv .bot{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:14px 16px calc(max(env(safe-area-inset-bottom,0px),12px) + 14px);background:linear-gradient(rgba(0,0,0,0),rgba(0,0,0,.82) 35%);transition:opacity .25s}
+.qv .cap{margin:0 0 10px;font-size:14.5px;line-height:1.4;max-height:4.3em;overflow:auto}
+.qv .film{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.qv .film::-webkit-scrollbar{display:none}
+.qv .film button{flex:none;width:34px;height:46px;opacity:.55;border-radius:3px;overflow:hidden;transition:width .2s,opacity .2s}
+.qv .film button.on{width:56px;opacity:1}
+.qv .film img{width:100%;height:100%;object-fit:cover;object-position:top}
+.qv.bare .top,.qv.bare .bot{opacity:0;pointer-events:none}
+.qv.bare{background:#000}
+
+/* bqnd as an iOS sheet */
+body.ios #pal{align-items:flex-end;padding:0;background:rgba(0,0,0,.4);-webkit-backdrop-filter:none;backdrop-filter:none}
+body.ios #pal.open .pbox{animation:iosSheet .42s var(--ease,cubic-bezier(.2,.9,.22,1))}
+body.ios .pbox{width:100%;max-height:90vh;border:0;border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.25);padding:8px 0 max(env(safe-area-inset-bottom,0px),12px)}
+body.ios .pbox::before{content:"";display:block;width:38px;height:5px;border-radius:3px;background:#c7c7cc;margin:0 auto 4px}
+body.ios .phead{border-bottom:.5px solid rgba(60,60,67,.29)}
+body.ios .phead kbd{display:none}
+body.ios .bq-in{font-size:17px}
+@keyframes iosSheet{from{transform:translateY(100%)}}
+@media (prefers-reduced-motion:reduce){#ios .pg,#ios .home,#ios .island{transition:none}#ios .app.launch,.qv{animation:none}}
+/* Motion loops in the Photos viewer */
+.qv .sl video{width:100%;height:auto;flex:none;background:#000}
+.qv .film button.vid{position:relative}

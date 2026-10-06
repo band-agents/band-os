@@ -2,16 +2,19 @@
    Images: kind p = phone screen, d = desktop screen, f = photo, g = page from a deck. */
 const OS = (() => {
   const im = (src, cap, k) => ({ src: 'img/' + src + '.jpg', cap, k });
+  // A case study by Alerta: slides (g) and motion loops (v = the mp4, src = its poster)
+  const cs = id => (n, cap) => im(id + '/case/' + n, cap, 'g');
+  const mv = id => (n, cap) => ({ src: 'img/' + id + '/case/' + n + '-poster.jpg', v: 'img/' + id + '/case/' + n + '.mp4', cap, k: 'g' });
 
   const PEOPLE = {
     alerta: {
       id: 'alerta', name: 'Alerta', role: 'Art Director', img: 'img/team/alerta.webp', head: 'img/team/alerta-head.webp',
       lead: 'Brand, identity and every visual decision in between.',
-      quotes: ['I find the visual language a brand is hiding.', 'Typeface, whitespace, the exact warmth of a colour.', 'Sloth, Handler, end., Guess What. Ask me.', 'Click me. I’ll show you the decks.'],
+      quotes: ['I find the visual language a brand is hiding.', 'Typeface, whitespace, the exact warmth of a colour.', 'MES, end., Sloth, Handler. Ask me.', 'Click me. I’ll show you the decks.'],
       bio: ['Every brand has a visual language waiting to be uncovered: in the tension between a typeface and whitespace, in the exact warmth of a colour that makes a brand feel lived-in rather than manufactured.',
         'From Handler’s industrial honesty to end.’s quiet sophistication, Sloth’s soft-spoken world and Guess What’s editorial energy.'],
       tags: ['Art Direction', 'Visual Identity', 'Brand Systems', 'Typography', 'Packaging'],
-      work: ['sloth', 'handler', 'end', 'guesswhat'], service: 'brand',
+      work: ['mes-brand', 'end', 'sloth', 'handler', 'guesswhat'], service: 'brand',
     },
     mamdouh: {
       id: 'mamdouh', name: 'Mamdouh', role: 'Head of Development', img: 'img/team/mamdouh.webp', head: 'img/team/mamdouh-head.webp',
@@ -71,13 +74,13 @@ const OS = (() => {
     {
       id: 'colehaan', name: 'Cole Haan', folder: 'stores', kind: 'Store', market: 'USA',
       cover: im('colehaan/cover', 'Cole Haan homepage', 'd'),
-      gallery: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home2-d', 'Homepage, men’s and women’s', 'd'), im('colehaan/collection-d', 'Men’s sneakers', 'd'), im('colehaan/product-d', 'Product page', 'd')],
+      gallery: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home-m', 'Homepage, phone', 'p'), im('colehaan/home2-d', 'Homepage, men’s and women’s', 'd'), im('colehaan/collection-d', 'Men’s sneakers', 'd'), im('colehaan/product-d', 'Product page', 'd')],
       tagline: 'The New York brand, on Shopify.',
       about: ['Shopify development for Cole Haan at colehaan.com: the New York brand’s shoes, bags, outerwear and accessories for men and women, sold in US dollars.',
         'An editorial store: campaign film and photography up front, men’s and women’s side by side, then collections you can filter by size and width, and product pages built to decide fast.'],
       facts: [['Market', 'USA'], ['Platform', 'Shopify'], ['Live', 'colehaan.com'], ['Currency', 'US dollars']],
       features: [
-        { t: 'Campaign first', x: '“Comfortable Anywhere”, then men’s and women’s side by side. The menu goes straight to new, men, women, bags, collections, outerwear and sale.', imgs: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home2-d', 'Men’s and women’s', 'd')] },
+        { t: 'Campaign first', x: '“Comfortable Anywhere”, then men’s and women’s side by side. The menu goes straight to new, men, women, bags, collections, outerwear and sale.', imgs: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home-m', 'Homepage, phone', 'p')] },
         { t: 'Filter by the thing that matters', x: 'Men’s sneakers, 150 styles: sub-categories, then size and width as buttons, not a long dropdown. Every card shows its colours.', imgs: [im('colehaan/collection-d', 'Men’s sneakers', 'd')] },
         { t: 'The product page', x: 'Size and width, add to bag, an estimated delivery date and free shipping from $99, all above the fold.', imgs: [im('colehaan/product-d', 'Product page', 'd')] },
       ],
@@ -269,14 +272,59 @@ const OS = (() => {
       people: ['mamdouh'], service: 'ecommerce',
     },
     {
+      id: 'mes-brand', name: 'MES · Menna Elsonny Store', folder: 'brands', kind: 'Brand identity', market: 'Modest-luxury fashion',
+      cover: im('mes-brand/case/cover', 'MES: the mark', 'g'),
+      tagline: 'Instead of hiding the founder, we multiplied her.',
+      about: ['Brand identity and creative direction for MES, the fashion store of Egyptian lifestyle blogger Menna Elsonny. The audience didn’t follow a store; they followed a woman they related to.',
+        'So instead of hiding the founder, we multiplied her: a mark that ties a bow, a letter and a heart into one shape, a ribbon system that runs through every touchpoint, and five digital Muses that carry the brand beyond one face.',
+        'Launched in July 2026: 80+ orders on launch day, and the first drop sold out in 30 days.'],
+      facts: [['Client', 'Menna Elsonny Store, Cairo'], ['Delivered', 'Brand identity, creative direction'], ['Launched', 'July 2026'], ['Credits', 'Art Direction & Brand Identity: Alerta']],
+      numbers: [['80+', 'orders on launch day'], ['30 days', 'first drop sold out']],
+      features: (() => { const g = cs('mes-brand'), v = mv('mes-brand'); return [
+        { t: 'A founder, not a brand', x: 'No logo, no packaging, no brand beyond the founder’s face. The ambition: a modest-luxury fashion house.', imgs: [v('motion-01-cover', 'Cover pattern and mark'), g('02-overview', 'Overview'), g('03-soul', 'The soul of the brand'), g('04-challenge', 'The challenge')] },
+        { t: 'The Modern Muse Club', x: 'A sisterhood of women who share one aesthetic and wear it their own way. The brand keeps its personal soul, but no longer depends on a single face.', imgs: [g('05-insight', 'The insight')] },
+        { t: 'A bow, a letter and a heart', x: 'One mark ties all three into one shape, and a ribbon repeats it everywhere until it becomes the signature.', imgs: [v('motion-02-logo-construction', 'Logo construction: bow, M, heart'), g('06-logo', 'The logo'), g('07-ribbon', 'The ribbon')] },
+        { t: 'Visual DNA', x: 'The palette and the type of a modest-luxury house.', imgs: [v('motion-03-palette', 'Visual DNA: the palette'), g('08-dna', 'Visual DNA')] },
+        { t: 'Five digital Muses', x: 'Aya, Tota, Dody, Habiba and Elena: one for each part of the audience, from hijabi to international. Built with AI, they keep content and campaigns running without waiting on the founder’s calendar.', imgs: [g('09-ambassadors', 'The digital ambassadors'), v('motion-04-instagram', 'Instagram: the profile assembles'), g('10-instagram', 'Instagram')] },
+        { t: 'Store, packaging and content', x: 'The storefront where the Muses bridge inspiration and purchase, the packaging, and content for the whole club.', imgs: [g('11-storefront', 'The storefront'), g('12-heritage', 'Packaging'), g('13-content', 'Content'), g('14-content-club', 'Content for the club')] },
+        { t: 'The launch', x: 'Launched in July 2026: 80+ orders on launch day, the first drop sold out in 30 days.', imgs: [v('motion-05-outcome', 'The outcome'), g('15-outcome', 'Outcome'), g('16-closing', 'Closing')] },
+      ]; })(),
+      gallery: [], people: ['alerta'], service: 'brand',
+    },
+    {
+      id: 'end', name: 'end.', folder: 'brands', kind: 'Brand identity', market: 'Online sneaker store',
+      cover: im('end/case/cover', 'end.: the logo over the maze', 'g'),
+      tagline: 'end. of your search.',
+      about: ['Brand identity, art direction and tagline for end., a curated online store for sneakers. The brief: be memorable on its own, yet quiet enough to let every brand on its shelves stand out.',
+        'The answer is a single rule, the square: modular letterforms, a full stop as the final square, a monogram, pixel icons and a maze pattern, all from one grid, with a tagline that turns the name into a promise: end. of your search.'],
+      facts: [['Category', 'Online sneaker store'], ['Delivered', 'Brand identity, art direction, tagline'], ['Type', 'Monda, Work Sans, Squaredance'], ['Credits', 'Brand Identity, Art Direction & Tagline: Alerta']],
+      features: (() => { const g = cs('end'), v = mv('end'); return [
+        { t: 'The brief', x: 'Be memorable on its own, yet quiet enough to let every brand on the shelves stand out.', imgs: [g('02-intro', 'Intro'), g('03-overview', 'Overview'), g('04-insight', 'The insight')] },
+        { t: 'One rule: the square', x: 'Modular letterforms and a full stop as the final square. The logo assembles square by square; the full stop lands last.', imgs: [v('motion-01-logo-assembly', 'The logo assembles square by square'), g('05-exploration', 'Exploration'), g('06-system', 'The system')] },
+        { t: 'Monogram and maze', x: 'The monogram stacks e, n and d. In the maze the search line finds its way through, and the logo is the exit.', imgs: [v('motion-02-monogram', 'The monogram stacks e, n, d'), g('07-monogram', 'Monogram'), v('motion-03-maze', 'The search line finds its way out'), g('08-maze', 'The maze')] },
+        { t: 'Type, colour and icons', x: 'Monda, Work Sans and Squaredance; ivory, sand, clay and charcoal; pixel icons drawn on the same grid.', imgs: [v('motion-05-divider-the-logo', 'A chapter word in Squaredance'), g('09-typography', 'Typography'), g('10-color', 'Colour'), v('motion-04-icons', 'The pixel icons on their grid'), g('11-icons', 'Pixel icons')] },
+        { t: 'From a shoebox to a favicon', x: 'The box, city banners, the app and the site, Instagram, social and photography.', imgs: [g('12-touchpoints', 'Touchpoints'), g('13-city', 'In the city'), g('14-applications', 'App and website'), g('15-logo-use', 'Logo use'), g('16-instagram', 'Instagram'), g('17-social', 'Social'), g('18-photos', 'Photography')] },
+        { t: 'A name that became a promise', x: 'A complete identity built from a single rule, with a voice that turns the store’s name into a promise.', imgs: [g('19-outcome', 'Outcome'), g('20-closing', 'end. of your search.')] },
+      ]; })(),
+      gallery: [], people: ['alerta'], service: 'brand',
+    },
+    {
       id: 'sloth', name: 'Sloth', folder: 'brands', kind: 'Brand identity', market: 'Soft furniture',
-      cover: im('sloth/cover', 'Sloth brand guidelines', 'g'),
-      tagline: 'A soft-spoken world, page by page.',
-      about: ['Visual identity guidelines for a furniture brand: essence, tone of voice, colour, type and how it all behaves, page by page.'],
-      facts: [['Category', 'Soft furniture'], ['Delivered', 'Full guideline deck'], ['Covers', 'Essence, voice, colour, type, application']],
-      features: [{ t: 'The deck', x: 'Every rule the brand needs to stay itself, wherever it shows up.', imgs: [im('sloth/p2', 'Guidelines', 'g'), im('sloth/photo', 'Fabric', 'f')] }],
-      gallery: [1, 2, 3, 4, 5, 6, 7, 8].map(n => im('sloth/p' + n, 'Page ' + n, 'g')).concat(im('sloth/photo', 'Fabric', 'f')),
-      people: ['alerta'], service: 'brand',
+      cover: im('sloth/case/cover', 'Sloth: the mascot and the wordmark', 'g'),
+      tagline: 'Slow down. Feel home.',
+      about: ['Art direction and brand identity for Sloth, a new brand of soft furniture and home textiles. In a market that sells on price, size and speed of delivery, Sloth needed to sell something else: the feeling of finally sitting down at the end of the day.',
+        'The name most brands would avoid became the idea: slowness is not a weakness here, it is the product. A sleeping mascot, a rounded wordmark with an H drawn as a stroke and a dot, a quilted stitch pattern and a palette taken from driftwood, leaves, sand, wool and suede.'],
+      facts: [['Category', 'Soft furniture, home textiles'], ['Delivered', 'Art direction, brand identity'], ['System', 'Mascot, wordmark, quilted pattern, palette'], ['Credits', 'Art Direction & Brand Identity: Alerta']],
+      features: (() => { const g = cs('sloth'), v = mv('sloth'); return [
+        { t: 'Slowness is the product', x: 'The insight and the mood: soft fabric, warm wood, the end of the day.', imgs: [v('motion-01-cover', 'The cover: the pattern stitches in, the mascot breathes'), g('02-overview', 'Overview'), g('03-insight', 'The insight'), g('04-mood', 'Moodboard')] },
+        { t: 'A mascot that sleeps', x: 'The sloth fades in and breathes, slowly. A mascot people want to keep.', imgs: [v('motion-02-mascot-breathing', 'The mascot breathes'), g('05-mascot', 'The mascot')] },
+        { t: 'The wordmark', x: 'Rounded letters, and an H drawn as a stroke and a dot. The dot comes down last.', imgs: [v('motion-03-wordmark', 'The wordmark settles'), g('06-wordmark', 'The wordmark')] },
+        { t: 'A pattern that feels like fabric', x: 'The quilted pattern stitches itself, line by line, in four colourways.', imgs: [v('motion-04-stitching', 'The pattern stitches itself'), g('07-pattern', 'The quilted pattern')] },
+        { t: 'Colour and type', x: 'A palette that rises out of its materials: driftwood, leaves, sand, wool and suede.', imgs: [v('motion-05-palette', 'The palette rises out of its materials'), g('08-palette', 'Colour'), g('09-typography', 'Typography')] },
+        { t: 'Everywhere it lives', x: 'Cards and tags, cushions and totes, the box it ships in, the feed and the website.', imgs: [g('10-touchpoints', 'Touchpoints'), g('11-textiles', 'Textiles'), g('12-packaging', 'Packaging'), g('13-digital', 'Digital'), g('14-website', 'Website')] },
+        { t: 'Ready for launch', x: 'A mascot people want to keep, a pattern that feels like fabric, and a voice that sells comfort instead of furniture.', imgs: [g('15-outcome', 'Outcome'), g('16-closing', 'Slow down. Feel home.')] },
+      ]; })(),
+      gallery: [], people: ['alerta'], service: 'brand',
     },
     {
       id: 'handler', name: 'Handler Auto Service', folder: 'brands', kind: 'Identity · Profile', market: 'Auto service',
@@ -286,16 +334,6 @@ const OS = (() => {
       facts: [['Category', 'Auto service'], ['Delivered', 'Identity and company profile']],
       features: [{ t: 'Profile, page by page', x: 'The identity at work, from signage to spreads.', imgs: [im('handler/p1', 'Profile', 'g'), im('handler/photo', 'On the building', 'f')] }],
       gallery: [1, 2, 3, 4, 5, 6, 7, 8].map(n => im('handler/p' + n, 'Page ' + n, 'g')).concat(im('handler/photo', 'On the building', 'f')),
-      people: ['alerta'], service: 'brand',
-    },
-    {
-      id: 'end', name: 'end.', folder: 'brands', kind: 'Brand guidelines', market: 'Fashion',
-      cover: im('end/page', 'end. guidelines', 'g'),
-      tagline: 'Quiet sophistication.',
-      about: ['Brand guidelines and a visual system for end.: restraint as a rule, written down so it stays that way.'],
-      facts: [['Delivered', 'Brand guidelines, visual system']],
-      features: [{ t: 'The system', x: 'Type, colour and space doing the talking.', imgs: [im('end/p3', 'Guidelines', 'g'), im('end/photo', 'In use', 'f')] }],
-      gallery: [im('end/cover', 'Cover', 'g'), ...[2, 3, 5, 6, 8].map(n => im('end/p' + n, 'Page ' + n, 'g')), im('end/photo', 'In use', 'f')],
       people: ['alerta'], service: 'brand',
     },
     {
@@ -383,13 +421,14 @@ const OS = (() => {
       people: [], service: 'lab',
     },
   ];
+  for (const p of PROJECTS) if (!p.gallery.length && p.features.length) p.gallery = p.features.flatMap(f => f.imgs);
   // Social design: Instagram feeds (posts, carousels, highlight covers), from js/social.js
   const IG = {
     '1pass': ['Fitness app', 'Your move, your gear, your rules.'], capital: ['Office furniture', 'Engineered for you.'], elsafwa: ['Serviced residences, New Cairo', 'Wake up inspired.'],
     handler: ['Auto service', 'Where icons meet.'], hunna: ['Lifestyle brand', 'A soft world for you.'], mas: ['Sofa beds', 'Small space, big relaxation.'],
     menna: ['Fashion store', 'The new era of Menna Elsonny Store.'], yqn: ['Eyewear', 'Where light meets pattern.'],
   };
-  const SEE = { handler: 'handler', mas: 'mas', capital: 'capital' };
+  const SEE = { handler: 'handler', mas: 'mas', capital: 'capital', menna: 'mes-brand' };
   for (const [k, s] of Object.entries(window.SOCIAL || {})) {
     const [market, tagline] = IG[k] || ['', ''], slides = s.posts.reduce((t, p) => t + p.slides.length, 0), car = s.posts.filter(p => p.slides.length > 1).length;
     PROJECTS.push({
@@ -417,7 +456,7 @@ const OS = (() => {
       work: ['thoth', 'studio', 'labesny', 'fig'], person: null },
     { id: 'brand', name: 'Design & brand', sub: 'Your vision → Our execution', lead: 'From social creatives to full brand guidelines, packaging to campaign visuals. Fast, and at the quality your brand demands.',
       get: ['Visual identities', 'Full guideline decks: essence, tone of voice, colour, type, application', 'Website visual systems', 'Instagram feeds: posts, carousels and highlight covers, planned as one grid', 'Mood boards and campaign design'],
-      work: ['sloth', 'handler', 'end', 'guesswhat', 'mas', 'ig-yqn', 'ig-elsafwa', 'ig-hunna', 'ig-1pass'], person: 'alerta' },
+      work: ['mes-brand', 'end', 'sloth', 'handler', 'guesswhat', 'mas', 'ig-yqn', 'ig-elsafwa', 'ig-hunna', 'ig-1pass'], person: 'alerta' },
     { id: 'media', name: 'Media buying', sub: 'Your strategy → Our scale', lead: 'Meta, TikTok, Google, Snapchat. Budget treated as a hypothesis and read at 48 hours, not at month end.',
       get: ['Paid social and search', '48-hour reads, not month-end post-mortems', 'Live numbers your team can see', 'Creative tested, not guessed'],
       work: ['volcom', 'ashya', 'capital'], person: 'alaa' },

@@ -546,3 +546,18 @@ body[data-wall="night"] .ic .it.term{background:#1B1B18}
 .post .pc{position:absolute;inset:auto 0 0;padding:22px 8px 7px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font-size:11.5px;line-height:1.3;text-align:left;opacity:0;transition:opacity .2s;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .post:hover .pc,.post:focus-visible .pc{opacity:1}
 .tile.ig .cv img{object-position:center 30%}
+/* Motion loops (Alerta's case studies) */
+.frame video{display:block;width:100%;height:auto}
+.frame.g .sc:has(video){max-height:none}
+.pv .stage video{max-width:calc(100% - 144px);max-height:calc(100% - 40px);margin:auto;box-shadow:0 10px 40px rgba(0,0,0,.4);background:#000}
+.pv .strip button.f.vid,.pv .strip button.vid{width:96px;position:relative}
+.pv .strip button.vid::after,.qv .film button.vid::after{content:'▶';position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:12px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+@media (max-width:760px){.pv .stage video{max-width:100%}}
+/* A case-study chapter: text first, then the slides full width */
+.feat.deck,.feat.deck:nth-child(even){grid-template-columns:minmax(0,1fr);gap:14px}
+.feat.deck .txt{order:-1;max-width:680px}
+.feat.deck .vis{order:2;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.feat.deck .vis .frame:first-child{grid-column:1/-1}
+.feat.deck .frame.g .sc{max-height:none}
+@media (max-width:760px){.feat.deck .vis{grid-template-columns:minmax(0,1fr)}}
+.frame.g img[src*="/case/"],.frame video{width:100%;aspect-ratio:16/9;height:auto}
