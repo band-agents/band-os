@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>band. OS — stores, software, brands and media from Cairo</title>
-<meta name="description" content="band. is a studio in Cairo. We build online stores, write custom software, shape brands and buy the media — in English and Arabic. Explore the work on the studio’s own desktop.">
+<meta name="description" content="band. is a studio in Cairo. We build online stores, write custom software, shape brands and buy the media — in English and Arabic. All the work, sorted by category.">
 <meta name="theme-color" content="#ECECE6">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="band.">
 <meta property="og:title" content="band. OS — stores, software, brands and media from Cairo">
-<meta property="og:description" content="band. is a studio in Cairo. We build online stores, write custom software, shape brands and buy the media — in English and Arabic. Explore the work on the studio’s own desktop.">
+<meta property="og:description" content="band. is a studio in Cairo. We build online stores, write custom software, shape brands and buy the media — in English and Arabic. All the work, sorted by category.">
 <meta property="og:url" content="https://band-agents.github.io/band-os/">
 <meta property="og:image" content="https://band-agents.github.io/band-os/og.jpg">
 <meta property="og:image:width" content="1200">
@@ -21,48 +21,46 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/os.css">
-<link rel="stylesheet" href="css/ios.css">
 </head>
-<body data-wall="dots">
+<body>
 
-<div id="boot" aria-live="polite">
-  <canvas id="bootCode" aria-hidden="true"></canvas>
+<div id="boot" aria-hidden="true">
+  <canvas id="bootCode"></canvas>
   <span class="wm" id="bootWm"></span>
-  <pre class="mono" id="log"></pre>
-  <button class="skip mono" id="skip">Skip ↵</button>
 </div>
 
-<header class="menubar" id="menubar">
-  <button class="mbtn" data-menu="band" aria-haspopup="true" aria-expanded="false"><span class="lk" id="lk"></span><span class="brand">band. OS</span></button>
-  <button class="mbtn mn" data-menu="go" aria-haspopup="true" aria-expanded="false">Go</button>
-  <button class="mbtn mn" data-menu="window" aria-haspopup="true" aria-expanded="false">Window</button>
-  <button class="mbtn mn" data-menu="help" aria-haspopup="true" aria-expanded="false">Help</button>
+<header class="bar" id="bar">
+  <a class="logo" href="#" aria-label="band. — home"><span class="lk" id="lk"></span><b>band.</b><span class="os mono">OS</span></a>
+  <nav class="topnav" id="top" aria-label="Sections"></nav>
   <span class="sp"></span>
   <span class="mono clock" id="clock">Cairo</span>
-  <button class="k mono" id="kbtn" aria-label="Ask bqnd"><canvas id="kCode" aria-hidden="true"></canvas>Ask ⌘K</button>
+  <button class="ask" id="askBtn" aria-label="Search or ask"><canvas id="kCode" aria-hidden="true"></canvas><span>Search</span><kbd class="mono">⌘K</kbd></button>
 </header>
-<div class="menu" id="menu" role="menu"></div>
 
-<main class="desk" id="desk">
-  <div class="wall" id="wall" aria-hidden="true"></div>
-  <nav class="icons" id="icons" aria-label="Desktop"></nav>
-  <div class="widgets" id="widgets"></div>
-  <noscript><div style="position:absolute;inset:40px 20px;max-width:640px;font-size:16px;line-height:1.6">
-    <h1>band. — a studio in Cairo</h1>
-    <p>We build online stores (Women’secret in Egypt, Jordan and Kuwait on one Shopify build; Alo Yoga; Volcom Spain; Cole Haan, Pier 1, Stein Mart, Dressbarn and RadioShack in the USA; Oshoplin; AYA-S), websites (the new FIG and Labesny sites), shopping apps (Labesny, FIG), custom software (THOTH, Studio), brands (Sloth, Handler, end., Guess What), Instagram feeds (YQN Eyewear, El Safwa Resort, MAS SofaBed, Capital Office Furniture, Hunna World, Menna Elsonny Store, 1Pass) and media (Volcom Spain: €18,892 in ads, €63,034 in sales in 30 days).</p>
-    <p>This desktop needs JavaScript. See <a href="https://band-agents.github.io/band/">our portfolio</a>, email <a href="mailto:hello@band.agency">hello@band.agency</a> or DM <a href="https://www.instagram.com/band.cairo/">@band.cairo</a>.</p>
-  </div></noscript>
-</main>
+<div class="app" id="app">
+  <aside class="side" id="side" aria-label="Categories"></aside>
+  <section class="main">
+    <div class="tool" id="tool">
+      <button class="nav-b" id="backBtn" aria-label="Back">‹</button>
+      <nav class="crumbs" id="crumbs" aria-label="You are here"></nav>
+    </div>
+    <div class="view" id="view" tabindex="-1">
+      <noscript><div style="padding:40px 24px;max-width:640px;font-size:16px;line-height:1.6">
+        <h1>band. — a studio in Cairo</h1>
+        <p>We build online stores (Women’secret in Egypt, Jordan and Kuwait on one Shopify build; Alo Yoga; Volcom Spain; Cole Haan, Pier 1, Stein Mart, Dressbarn and RadioShack in the USA; Oshoplin; AYA-S), websites (the new FIG and Labesny sites), shopping apps (Labesny, FIG), custom software (THOTH, Studio), brands (MES, Sloth, Handler, end., Guess What), Instagram feeds (YQN Eyewear, El Safwa Resort, MAS SofaBed, Capital Office Furniture, Hunna World, Menna Elsonny Store, 1Pass) and media (Volcom Spain: €18,892 in ads, €63,034 in sales in 30 days).</p>
+        <p>This site needs JavaScript. Email <a href="mailto:hello@band.agency">hello@band.agency</a> or DM <a href="https://www.instagram.com/band.cairo/">@band.cairo</a>.</p>
+      </div></noscript>
+    </div>
+  </section>
+</div>
 
-<div class="crew" id="crew" aria-label="The crew"></div>
-<div class="bubble" id="bubble" aria-live="polite"></div>
+<nav class="tabs" id="tabs" aria-label="Sections"></nav>
 
-<nav class="dock" id="dock" aria-label="Dock"></nav>
-<div class="toast" id="toast" role="status"></div>
+<div class="ql" id="ql" role="dialog" aria-modal="true" aria-label="Viewer" hidden></div>
 
-<div id="pal" role="dialog" aria-label="Ask bqnd">
+<div id="pal" role="dialog" aria-label="Search or ask">
   <div class="pbox">
-    <div class="phead"><canvas id="pCode" aria-hidden="true"></canvas><div id="palChat" style="display:contents"></div><kbd>esc</kbd></div>
+    <div class="phead"><canvas id="pCode" aria-hidden="true"></canvas><div id="palChat" style="display:contents"></div><button class="pclose mono" id="palX" aria-label="Close">esc</button></div>
     <div class="cmds" id="cmds" role="listbox"></div>
     <div class="pbody" id="pbody"></div>
   </div>
@@ -71,7 +69,6 @@
 <script src="js/social.js"></script>
 <script src="js/data.js"></script>
 <script src="js/core.js"></script>
-<script src="js/ios.js"></script>
 <script src="js/os.js"></script>
 </body>
 </html>

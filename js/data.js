@@ -2,44 +2,20 @@
    Images: kind p = phone screen, d = desktop screen, f = photo, g = page from a deck. */
 const OS = (() => {
   const im = (src, cap, k) => ({ src: 'img/' + src + '.jpg', cap, k });
-  // A case study by Alerta: slides (g) and motion loops (v = the mp4, src = its poster)
+  // A brand case study: slides (g) and motion loops (v = the mp4, src = its poster)
   const cs = id => (n, cap) => im(id + '/case/' + n, cap, 'g');
   const mv = id => (n, cap) => ({ src: 'img/' + id + '/case/' + n + '-poster.jpg', v: 'img/' + id + '/case/' + n + '.mp4', cap, k: 'g' });
 
-  const PEOPLE = {
-    alerta: {
-      id: 'alerta', name: 'Alerta', role: 'Art Director', img: 'img/team/alerta.webp', head: 'img/team/alerta-head.webp',
-      lead: 'Brand, identity and every visual decision in between.',
-      quotes: ['I find the visual language a brand is hiding.', 'Typeface, whitespace, the exact warmth of a colour.', 'MES, end., Sloth, Handler. Ask me.', 'Click me. I’ll show you the decks.'],
-      bio: ['Every brand has a visual language waiting to be uncovered: in the tension between a typeface and whitespace, in the exact warmth of a colour that makes a brand feel lived-in rather than manufactured.',
-        'From Handler’s industrial honesty to end.’s quiet sophistication, Sloth’s soft-spoken world and Guess What’s editorial energy.'],
-      tags: ['Art Direction', 'Visual Identity', 'Brand Systems', 'Typography', 'Packaging'],
-      work: ['mes-brand', 'end', 'sloth', 'handler', 'guesswhat'], service: 'brand',
-    },
-    mamdouh: {
-      id: 'mamdouh', name: 'Mamdouh', role: 'Head of Development', img: 'img/team/mamdouh.webp', head: 'img/team/mamdouh-head.webp',
-      lead: 'Stores, platforms and the code under them.',
-      quotes: ['I build stores that turn browsers into buyers.', '8 years deep in Shopify. Still curious.', 'No tool for it? I’ll write one.', 'Open the Terminal. Type ship.'],
-      bio: ['9+ years in front-end, 8 deep in Shopify, now building full platforms. Thinks in conversion funnels, builds in clean code, ships stores that turn browsers into buyers.',
-        'Alo Yoga’s cross-selling engine, Volcom’s collection and product pages, Oshoplin’s multi-brand store, Cole Haan, Pier 1, Koi Footwear.'],
-      tags: ['Shopify', 'Headless', 'React', 'Platforms', 'WebGL'],
-      stats: [['9+', 'Years in front-end'], ['8', 'Years in Shopify']],
-      work: ['alo', 'volcom', 'colehaan', 'pier1', 'oshoplin'], service: 'ecommerce',
-    },
-    alaa: {
-      id: 'alaa', name: 'Alaa', role: 'Head of Media Buying', img: 'img/team/alaa.webp', head: 'img/team/alaa-head.webp',
-      lead: 'Budgets treated as a hypothesis, read at 48 hours.',
-      quotes: ['I don’t run ads. I build revenue machines.', 'Ashya Egypt: 16× in 18 months.', '16× ROAS for Capital Office Furniture.', 'Numbers? Open Results.'],
-      bio: ['7 years engineering high-ROAS campaigns across Egypt, Kuwait, Saudi Arabia and the UAE. Alaa doesn’t run ads — he builds revenue machines.',
-        'Scaling Ashya Egypt 16× in 18 months, 16× ROAS for Capital Office Furniture, app install costs down 80%.'],
-      tags: ['Meta Ads', 'Google Ads', 'TikTok', 'Snapchat', 'Programmatic'],
-      stats: [['16×', 'Peak ROAS'], ['7+', 'Years'], ['4', 'Markets'], ['20+', 'Brands']],
-      work: ['ashya', 'capital'], service: 'media',
-    },
-  };
-
+  // The categories, in the order the site shows them: [id, name, one line]
   const FOLDERS = [
-    ['all', 'All work'], ['stores', 'Stores'], ['web', 'Websites'], ['apps', 'Apps'], ['brands', 'Brands'], ['social', 'Social design'], ['software', 'Software'], ['media', 'Media'], ['lab', 'Lab'],
+    ['stores', 'Stores', 'Shopify stores for one market or several, in English and Arabic.'],
+    ['web', 'Websites', 'Custom Shopify themes that read like a magazine and sell like a marketplace.'],
+    ['apps', 'Apps', 'Shopping apps with checkout, loyalty and full right-to-left Arabic.'],
+    ['software', 'Software', 'Business systems and client portals, built from scratch and owned by you.'],
+    ['brands', 'Brands', 'Identities, guideline decks and the motion that brings them to life.'],
+    ['social', 'Social', 'Instagram feeds planned as one grid: posts, carousels and highlight covers.'],
+    ['media', 'Media', 'Paid social and search, read at 48 hours, reported live.'],
+    ['lab', 'Lab', 'Campaign visuals that run live in the browser.'],
   ];
   // A live store: home, collection and product, on desktop and phone (full-page shots you can scroll).
   const shots = (id, pages) => {
@@ -68,8 +44,7 @@ const OS = (() => {
       gallery: [im('womensecret/home-desktop', 'Homepage', 'd'), im('womensecret/campaign-1', 'Campaign', 'f'), im('womensecret/campaign-2', 'Campaign', 'f'), im('womensecret/campaign-3', 'Campaign', 'f'),
         im('womensecret/home-eg', 'Egypt homepage', 'p'), im('womensecret/home-jo', 'Jordan homepage', 'p'), im('womensecret/home-kw', 'Kuwait homepage', 'p'), im('womensecret/swim-desktop', 'Swimwear', 'd'),
         im('womensecret/swim', 'Swimwear, phone', 'p'), im('womensecret/swim-kw', 'Swimwear, Kuwait', 'p'), im('womensecret/product-desktop', 'Product page', 'd'), im('womensecret/product', 'Product, phone', 'p'),
-        im('womensecret/bras-jo', 'Bras, Jordan', 'p'), im('womensecret/sleep', 'Sleep & homewear', 'p'), im('womensecret/club', 'Club WOW', 'p'), im('womensecret/stores', 'Store finder', 'p'), im('womensecret/tile-swim', 'Swim tile', 'f')],
-      people: [], service: 'ecommerce',
+        im('womensecret/bras-jo', 'Bras, Jordan', 'p'), im('womensecret/sleep', 'Sleep & homewear', 'p'), im('womensecret/club', 'Club WOW', 'p'), im('womensecret/stores', 'Store finder', 'p'), im('womensecret/tile-swim', 'Swim tile', 'f')], service: 'ecommerce',
     },
     {
       id: 'colehaan', name: 'Cole Haan', folder: 'stores', kind: 'Store', market: 'USA',
@@ -84,8 +59,7 @@ const OS = (() => {
         { t: 'Filter by the thing that matters', x: 'Men’s sneakers, 150 styles: sub-categories, then size and width as buttons, not a long dropdown. Every card shows its colours.', imgs: [im('colehaan/collection-d', 'Men’s sneakers', 'd')] },
         { t: 'The product page', x: 'Size and width, add to bag, an estimated delivery date and free shipping from $99, all above the fold.', imgs: [im('colehaan/product-d', 'Product page', 'd')] },
       ],
-      links: [['Visit colehaan.com', 'https://www.colehaan.com/']],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['Visit colehaan.com', 'https://www.colehaan.com/']], service: 'ecommerce',
     },
     {
       id: 'fig-web', name: 'FIG website', folder: 'web', kind: 'Website · Shopify theme', market: 'Egypt',
@@ -100,8 +74,7 @@ const OS = (() => {
         { t: 'The product page', x: 'A tall gallery, colours and sizes, add to bag and express checkout, the delivery promise right under it.', imgs: [im('fig-web/product-d', 'Product page, desktop', 'd'), im('fig-web/product-m', 'Product page, phone', 'p')] },
       ],
       gallery: shots('fig-web', ['home', 'collection', 'product']),
-      links: [['See the FIG app', 'https://band-agents.github.io/fig-app-preview/']], see: ['fig', 'labesny-web'],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['See the FIG app', 'https://band-agents.github.io/fig-app-preview/']], see: ['fig', 'labesny-web'], service: 'ecommerce',
     },
     {
       id: 'labesny-web', name: 'Labesny website', folder: 'web', kind: 'Website · Shopify theme', market: 'Kuwait',
@@ -116,8 +89,7 @@ const OS = (() => {
         { t: 'The product page', x: 'Gallery, sizes, add to bag, and the 48-hour delivery promise where you decide.', imgs: [im('labesny-web/product-d', 'Product page, desktop', 'd'), im('labesny-web/product-m', 'Product page, phone', 'p')] },
       ],
       gallery: shots('labesny-web', ['home', 'collection', 'product']),
-      links: [['See the Labesny app', 'https://band-agents.github.io/labesny-app-preview/']], see: ['labesny', 'fig-web'],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['See the Labesny app', 'https://band-agents.github.io/labesny-app-preview/']], see: ['labesny', 'fig-web'], service: 'ecommerce',
     },
     {
       id: 'labesny', name: 'Labesny', folder: 'apps', kind: 'App', market: 'Kuwait',
@@ -138,8 +110,7 @@ const OS = (() => {
       ],
       gallery: ['home', 'home-in-arabic', 'brands', 'collection', 'filter-and-sort', 'product-page', 'quick-add', 'bag', 'free-delivery-nudge', 'checkout', 'order-placed', 'labesny-club', 'account', 'search', 'nothing-found', 'saved', 'still-deciding', 'welcome', 'returns', 'questions']
         .map(n => im('labesny/' + n, n.replace(/-/g, ' ').replace(/^./, c => c.toUpperCase()), 'p')),
-      links: [['Open the app preview', 'https://band-agents.github.io/labesny-app-preview/']],
-      people: [], service: 'software',
+      links: [['Open the app preview', 'https://band-agents.github.io/labesny-app-preview/']], service: 'software',
     },
     {
       id: 'fig', name: 'FIG', folder: 'apps', kind: 'App · Migration', market: 'Egypt',
@@ -155,8 +126,7 @@ const OS = (() => {
         { t: 'Two brands, one engine', x: 'Each app has its own brand, catalogue, currency and country. Every improvement ships to both.', imgs: [im('fig/app', 'FIG app', 'p'), im('fig/labesny-app', 'Labesny app', 'p')] },
       ],
       gallery: [im('fig/home-desktop', 'Homepage', 'd'), im('fig/home-mobile', 'Homepage, phone', 'p'), im('fig/app', 'FIG app', 'p'), im('fig/labesny-app', 'Same engine: Labesny', 'p')],
-      links: [['Open the app preview', 'https://band-agents.github.io/fig-app-preview/']],
-      people: [], service: 'ecommerce',
+      links: [['Open the app preview', 'https://band-agents.github.io/fig-app-preview/']], service: 'ecommerce',
     },
     {
       id: 'alo', name: 'Alo Yoga', folder: 'stores', kind: 'Store', market: 'Egypt region',
@@ -170,11 +140,10 @@ const OS = (() => {
         { t: 'Cross-selling engine', x: '“Complete the look” and “Style inspiration, styled by you” keep the basket growing.', imgs: [im('alo/complete', 'Shop the look', 'd'), im('alo/style', 'Style inspiration', 'p')] },
         { t: 'Right to left', x: 'The Egypt store in Arabic, mirrored properly, not translated labels on an English layout.', imgs: [im('alo/arabic', 'Arabic, right to left', 'p'), im('alo/mobile', 'Phone', 'p')] },
       ],
-      gallery: [im('alo/photo-1', 'Campaign', 'f'), im('alo/photo-2', 'Campaign', 'f'), im('alo/product', 'Product page', 'd'), im('alo/complete', 'Shop the look', 'd'), im('alo/style', 'Style inspiration', 'p'), im('alo/mobile', 'Phone', 'p'), im('alo/arabic', 'Arabic', 'p')],
-      people: ['mamdouh'], service: 'ecommerce',
+      gallery: [im('alo/photo-1', 'Campaign', 'f'), im('alo/photo-2', 'Campaign', 'f'), im('alo/product', 'Product page', 'd'), im('alo/complete', 'Shop the look', 'd'), im('alo/style', 'Style inspiration', 'p'), im('alo/mobile', 'Phone', 'p'), im('alo/arabic', 'Arabic', 'p')], service: 'ecommerce',
     },
     {
-      id: 'volcom', name: 'Volcom Spain', folder: 'stores', kind: 'Store · Media', market: 'Spain',
+      id: 'volcom', name: 'Volcom Spain', folder: 'stores', also: ['media'], kind: 'Store · Media', market: 'Spain',
       cover: im('volcom/photo-1', 'Volcom', 'f'),
       tagline: '€18,892 in ads. €63,034 in sales. 30 days.',
       about: ['Collection and product pages for Volcom Spain, and the paid media that fills them: €18,892 in ads became €63,034 in sales in 30 days, across 788 orders.',
@@ -188,8 +157,7 @@ const OS = (() => {
         { t: 'The numbers, live', x: 'Spend, sales and orders in Studio, next to the board of the people spending it.', imgs: [im('volcom/studio', 'Volcom in Studio', 'd')] },
       ],
       gallery: [im('volcom/photo-1', 'Campaign', 'f'), im('volcom/photo-2', 'Campaign', 'f'), im('volcom/collection', 'Collection', 'd'), im('volcom/grid', 'Grid', 'd'), im('volcom/product', 'Product page', 'd'),
-        im('volcom/live-collection', 'Live collection', 'd'), im('volcom/live-product', 'Live product page', 'd'), im('volcom/mobile', 'Phone', 'p'), im('volcom/product-mobile', 'Product, phone', 'p'), im('volcom/studio', 'Numbers in Studio', 'd')],
-      people: ['mamdouh'], service: 'ecommerce',
+        im('volcom/live-collection', 'Live collection', 'd'), im('volcom/live-product', 'Live product page', 'd'), im('volcom/mobile', 'Phone', 'p'), im('volcom/product-mobile', 'Product, phone', 'p'), im('volcom/studio', 'Numbers in Studio', 'd')], service: 'ecommerce',
     },
     {
       id: 'oshoplin', name: 'Oshoplin', folder: 'stores', kind: 'Store', market: 'Egypt',
@@ -200,8 +168,7 @@ const OS = (() => {
       features: [
         { t: 'Many brands, one basket', x: 'Brands side by side, offers visible on every card.', imgs: [im('oshoplin/grid', 'Collection grid', 'd'), im('oshoplin/mobile', 'Phone', 'p')] },
       ],
-      gallery: [im('oshoplin/home', 'Homepage', 'd'), im('oshoplin/grid', 'Collection', 'd'), im('oshoplin/mobile', 'Phone', 'p')],
-      people: ['mamdouh'], service: 'ecommerce',
+      gallery: [im('oshoplin/home', 'Homepage', 'd'), im('oshoplin/grid', 'Collection', 'd'), im('oshoplin/mobile', 'Phone', 'p')], service: 'ecommerce',
     },
     {
       id: 'ayas', name: 'AYA-S', folder: 'stores', kind: 'Website', market: 'Scandinavia',
@@ -211,8 +178,7 @@ const OS = (() => {
       facts: [['Brand', 'Scandinavian fashion'], ['Built', 'Design and development'], ['Live', 'aya-s.com']],
       features: [{ t: 'From the first scroll to checkout', x: 'A hero that lets the collection speak, then a store that stays out of the way.', imgs: [im('ayas/mobile', 'aya-s.com on a phone', 'p')] }],
       gallery: [im('ayas/hero', 'Hero', 'f'), im('ayas/mobile', 'Phone', 'p')],
-      links: [['Visit aya-s.com', 'https://aya-s.com/']],
-      people: [], service: 'ecommerce',
+      links: [['Visit aya-s.com', 'https://aya-s.com/']], service: 'ecommerce',
     },
     {
       id: 'pier1', name: 'Pier 1', folder: 'stores', kind: 'Store', market: 'USA',
@@ -225,8 +191,7 @@ const OS = (() => {
         { t: 'Collections', x: 'Product grids with ratings, filter and sort, the same on desktop and phone.', imgs: [im('pier1/collection-d', 'Collection, desktop', 'd'), im('pier1/collection-m', 'Collection, phone', 'p')] },
         { t: 'Product pages', x: 'A big gallery, the details, and “You may also like” to keep the basket growing.', imgs: [im('pier1/product-d', 'Product page, desktop', 'd'), im('pier1/product-m', 'Product page, phone', 'p')] },
       ],
-      links: [['Visit pier1.com', 'https://www.pier1.com/']],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['Visit pier1.com', 'https://www.pier1.com/']], service: 'ecommerce',
     },
     {
       id: 'steinmart', name: 'Stein Mart', folder: 'stores', kind: 'Store', market: 'USA',
@@ -239,8 +204,7 @@ const OS = (() => {
         { t: 'Collections', x: 'Women’s activewear, 212 products: filters down the side on desktop, one tap away on the phone.', imgs: [im('steinmart/collection-d', 'Collection, desktop', 'd'), im('steinmart/collection-m', 'Collection, phone', 'p')] },
         { t: 'Product pages', x: 'Gallery, colours, add to bag and express checkout above the fold.', imgs: [im('steinmart/product-d', 'Product page, desktop', 'd'), im('steinmart/product-m', 'Product page, phone', 'p')] },
       ],
-      links: [['Visit steinmart.com', 'https://steinmart.com/']],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['Visit steinmart.com', 'https://steinmart.com/']], service: 'ecommerce',
     },
     {
       id: 'dressbarn', name: 'Dressbarn', folder: 'stores', kind: 'Store', market: 'USA',
@@ -253,8 +217,7 @@ const OS = (() => {
         { t: 'Collections', x: 'Big product photography, colours on every card, filters and sort.', imgs: [im('dressbarn/collection-d', 'Collection, desktop', 'd'), im('dressbarn/collection-m', 'Collection, phone', 'p')] },
         { t: 'Product pages', x: 'Sizes, colours and add to bag up top, with more like it underneath.', imgs: [im('dressbarn/product-d', 'Product page, desktop', 'd'), im('dressbarn/product-m', 'Product page, phone', 'p')] },
       ],
-      links: [['Visit dressbarn.com', 'https://dressbarn.com/']],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['Visit dressbarn.com', 'https://dressbarn.com/']], service: 'ecommerce',
     },
     {
       id: 'radioshack', name: 'RadioShack', folder: 'stores', kind: 'Store', market: 'USA',
@@ -268,8 +231,7 @@ const OS = (() => {
         { t: 'Categories with real filters', x: 'Radios: 14 results, filtered by price, colour, connectivity, brand, size, power source and AM/FM.', imgs: [im('radioshack/collection-d', 'Radios', 'd')] },
         { t: 'Product pages that add on', x: 'Price against MSRP, stock status, and “Other customers bought” add-ons right next to the buy button.', imgs: [im('radioshack/product-d', 'Product page', 'd')] },
       ],
-      links: [['Visit radioshack.com', 'https://www.radioshack.com/']],
-      people: ['mamdouh'], service: 'ecommerce',
+      links: [['Visit radioshack.com', 'https://www.radioshack.com/']], service: 'ecommerce',
     },
     {
       id: 'mes-brand', name: 'MES · Menna Elsonny Store', folder: 'brands', kind: 'Brand identity', market: 'Modest-luxury fashion',
@@ -278,7 +240,7 @@ const OS = (() => {
       about: ['Brand identity and creative direction for MES, the fashion store of Egyptian lifestyle blogger Menna Elsonny. The audience didn’t follow a store; they followed a woman they related to.',
         'So instead of hiding the founder, we multiplied her: a mark that ties a bow, a letter and a heart into one shape, a ribbon system that runs through every touchpoint, and five digital Muses that carry the brand beyond one face.',
         'Launched in July 2026: 80+ orders on launch day, and the first drop sold out in 30 days.'],
-      facts: [['Client', 'Menna Elsonny Store, Cairo'], ['Delivered', 'Brand identity, creative direction'], ['Launched', 'July 2026'], ['Credits', 'Art Direction & Brand Identity: Alerta']],
+      facts: [['Client', 'Menna Elsonny Store, Cairo'], ['Delivered', 'Brand identity, creative direction'], ['Launched', 'July 2026']],
       numbers: [['80+', 'orders on launch day'], ['30 days', 'first drop sold out']],
       features: (() => { const g = cs('mes-brand'), v = mv('mes-brand'); return [
         { t: 'A founder, not a brand', x: 'No logo, no packaging, no brand beyond the founder’s face. The ambition: a modest-luxury fashion house.', imgs: [v('motion-01-cover', 'Cover pattern and mark'), g('02-overview', 'Overview'), g('03-soul', 'The soul of the brand'), g('04-challenge', 'The challenge')] },
@@ -289,7 +251,7 @@ const OS = (() => {
         { t: 'Store, packaging and content', x: 'The storefront where the Muses bridge inspiration and purchase, the packaging, and content for the whole club.', imgs: [g('11-storefront', 'The storefront'), g('12-heritage', 'Packaging'), g('13-content', 'Content'), g('14-content-club', 'Content for the club')] },
         { t: 'The launch', x: 'Launched in July 2026: 80+ orders on launch day, the first drop sold out in 30 days.', imgs: [v('motion-05-outcome', 'The outcome'), g('15-outcome', 'Outcome'), g('16-closing', 'Closing')] },
       ]; })(),
-      gallery: [], people: ['alerta'], service: 'brand',
+      gallery: [], service: 'brand',
     },
     {
       id: 'end', name: 'end.', folder: 'brands', kind: 'Brand identity', market: 'Online sneaker store',
@@ -297,7 +259,7 @@ const OS = (() => {
       tagline: 'end. of your search.',
       about: ['Brand identity, art direction and tagline for end., a curated online store for sneakers. The brief: be memorable on its own, yet quiet enough to let every brand on its shelves stand out.',
         'The answer is a single rule, the square: modular letterforms, a full stop as the final square, a monogram, pixel icons and a maze pattern, all from one grid, with a tagline that turns the name into a promise: end. of your search.'],
-      facts: [['Category', 'Online sneaker store'], ['Delivered', 'Brand identity, art direction, tagline'], ['Type', 'Monda, Work Sans, Squaredance'], ['Credits', 'Brand Identity, Art Direction & Tagline: Alerta']],
+      facts: [['Category', 'Online sneaker store'], ['Delivered', 'Brand identity, art direction, tagline'], ['Type', 'Monda, Work Sans, Squaredance']],
       features: (() => { const g = cs('end'), v = mv('end'); return [
         { t: 'The brief', x: 'Be memorable on its own, yet quiet enough to let every brand on the shelves stand out.', imgs: [g('02-intro', 'Intro'), g('03-overview', 'Overview'), g('04-insight', 'The insight')] },
         { t: 'One rule: the square', x: 'Modular letterforms and a full stop as the final square. The logo assembles square by square; the full stop lands last.', imgs: [v('motion-01-logo-assembly', 'The logo assembles square by square'), g('05-exploration', 'Exploration'), g('06-system', 'The system')] },
@@ -306,7 +268,7 @@ const OS = (() => {
         { t: 'From a shoebox to a favicon', x: 'The box, city banners, the app and the site, Instagram, social and photography.', imgs: [g('12-touchpoints', 'Touchpoints'), g('13-city', 'In the city'), g('14-applications', 'App and website'), g('15-logo-use', 'Logo use'), g('16-instagram', 'Instagram'), g('17-social', 'Social'), g('18-photos', 'Photography')] },
         { t: 'A name that became a promise', x: 'A complete identity built from a single rule, with a voice that turns the store’s name into a promise.', imgs: [g('19-outcome', 'Outcome'), g('20-closing', 'end. of your search.')] },
       ]; })(),
-      gallery: [], people: ['alerta'], service: 'brand',
+      gallery: [], service: 'brand',
     },
     {
       id: 'sloth', name: 'Sloth', folder: 'brands', kind: 'Brand identity', market: 'Soft furniture',
@@ -314,7 +276,7 @@ const OS = (() => {
       tagline: 'Slow down. Feel home.',
       about: ['Art direction and brand identity for Sloth, a new brand of soft furniture and home textiles. In a market that sells on price, size and speed of delivery, Sloth needed to sell something else: the feeling of finally sitting down at the end of the day.',
         'The name most brands would avoid became the idea: slowness is not a weakness here, it is the product. A sleeping mascot, a rounded wordmark with an H drawn as a stroke and a dot, a quilted stitch pattern and a palette taken from driftwood, leaves, sand, wool and suede.'],
-      facts: [['Category', 'Soft furniture, home textiles'], ['Delivered', 'Art direction, brand identity'], ['System', 'Mascot, wordmark, quilted pattern, palette'], ['Credits', 'Art Direction & Brand Identity: Alerta']],
+      facts: [['Category', 'Soft furniture, home textiles'], ['Delivered', 'Art direction, brand identity'], ['System', 'Mascot, wordmark, quilted pattern, palette']],
       features: (() => { const g = cs('sloth'), v = mv('sloth'); return [
         { t: 'Slowness is the product', x: 'The insight and the mood: soft fabric, warm wood, the end of the day.', imgs: [v('motion-01-cover', 'The cover: the pattern stitches in, the mascot breathes'), g('02-overview', 'Overview'), g('03-insight', 'The insight'), g('04-mood', 'Moodboard')] },
         { t: 'A mascot that sleeps', x: 'The sloth fades in and breathes, slowly. A mascot people want to keep.', imgs: [v('motion-02-mascot-breathing', 'The mascot breathes'), g('05-mascot', 'The mascot')] },
@@ -324,7 +286,7 @@ const OS = (() => {
         { t: 'Everywhere it lives', x: 'Cards and tags, cushions and totes, the box it ships in, the feed and the website.', imgs: [g('10-touchpoints', 'Touchpoints'), g('11-textiles', 'Textiles'), g('12-packaging', 'Packaging'), g('13-digital', 'Digital'), g('14-website', 'Website')] },
         { t: 'Ready for launch', x: 'A mascot people want to keep, a pattern that feels like fabric, and a voice that sells comfort instead of furniture.', imgs: [g('15-outcome', 'Outcome'), g('16-closing', 'Slow down. Feel home.')] },
       ]; })(),
-      gallery: [], people: ['alerta'], service: 'brand',
+      gallery: [], service: 'brand',
     },
     {
       id: 'handler', name: 'Handler Auto Service', folder: 'brands', kind: 'Identity · Profile', market: 'Auto service',
@@ -333,8 +295,7 @@ const OS = (() => {
       about: ['Identity and company profile for an auto service: a mark you can put on a building, a car and a page, and a profile that reads like the workshop feels.'],
       facts: [['Category', 'Auto service'], ['Delivered', 'Identity and company profile']],
       features: [{ t: 'Profile, page by page', x: 'The identity at work, from signage to spreads.', imgs: [im('handler/p1', 'Profile', 'g'), im('handler/photo', 'On the building', 'f')] }],
-      gallery: [1, 2, 3, 4, 5, 6, 7, 8].map(n => im('handler/p' + n, 'Page ' + n, 'g')).concat(im('handler/photo', 'On the building', 'f')),
-      people: ['alerta'], service: 'brand',
+      gallery: [1, 2, 3, 4, 5, 6, 7, 8].map(n => im('handler/p' + n, 'Page ' + n, 'g')).concat(im('handler/photo', 'On the building', 'f')), service: 'brand',
     },
     {
       id: 'guesswhat', name: 'Guess What', folder: 'brands', kind: 'Website visual system', market: 'Fashion',
@@ -343,8 +304,7 @@ const OS = (() => {
       about: ['A website visual system for a fashion brand: how the pages look and hold together, written down so the site stays itself.'],
       facts: [['Category', 'Fashion'], ['Delivered', 'Website visual system, brand book']],
       features: [{ t: 'The visual system', x: 'Layouts, type and image rules for the site.', imgs: [im('guesswhat/system', 'Visual system', 'g'), im('guesswhat/photo-2', 'Campaign', 'f')] }],
-      gallery: [im('guesswhat/system', 'Visual system', 'g'), im('guesswhat/site', 'Website', 'g'), im('guesswhat/photo-1', 'Campaign', 'f'), im('guesswhat/photo-2', 'Campaign', 'f')],
-      people: ['alerta'], service: 'brand',
+      gallery: [im('guesswhat/system', 'Visual system', 'g'), im('guesswhat/site', 'Website', 'g'), im('guesswhat/photo-1', 'Campaign', 'f'), im('guesswhat/photo-2', 'Campaign', 'f')], service: 'brand',
     },
     {
       id: 'mas', name: 'MAS SofaBed', folder: 'brands', kind: 'Mood · Content', market: 'Furniture',
@@ -353,8 +313,7 @@ const OS = (() => {
       about: ['Mood board and content design for MAS SofaBed: one look across the feed and the campaign.'],
       facts: [['Delivered', 'Mood board, social and campaign design']],
       features: [{ t: 'One look across the feed', x: 'The mood board, then the posts it became.', imgs: [im('mas/mood', 'Mood board', 'g'), im('mas/social', 'Social', 'g')] }],
-      gallery: [im('mas/mood', 'Mood board', 'g'), im('mas/social', 'Social', 'g')],
-      people: ['alerta'], service: 'brand',
+      gallery: [im('mas/mood', 'Mood board', 'g'), im('mas/social', 'Social', 'g')], service: 'brand',
     },
     {
       id: 'thoth', name: 'THOTH', folder: 'software', kind: 'Business OS · EN/AR', market: 'Retail & garment',
@@ -374,8 +333,7 @@ const OS = (() => {
         ['branches', 'Branches', 'Each location reporting the same way, so comparison is possible at all.'],
         ['data', 'Data', 'Import, export and audit. Your data stays yours and stays portable.'],
       ].map(([n, t, x]) => ({ t, x, imgs: [im('thoth/' + n, t, 'd')] })),
-      gallery: ['home', 'intelligence', 'analytics', 'loyalty', 'catalog', 'pos', 'branches', 'data'].map(n => im('thoth/' + n, n[0].toUpperCase() + n.slice(1), 'd')),
-      people: [], service: 'software',
+      gallery: ['home', 'intelligence', 'analytics', 'loyalty', 'catalog', 'pos', 'branches', 'data'].map(n => im('thoth/' + n, n[0].toUpperCase() + n.slice(1), 'd')), service: 'software',
     },
     {
       id: 'studio', name: 'Studio', folder: 'software', kind: 'Agency OS · Portals', market: 'Our own',
@@ -386,8 +344,7 @@ const OS = (() => {
       numbers: [['3.34×', 'live ROAS tracked'], ['€63k', 'tracked in 30 days'], ['788', 'orders']],
       features: [['volcom', 'Client portal', 'Clients log in and see their own numbers instead of emailing for a status.'], ['feed', 'Feed', 'What happened today, across every client.'], ['inbox', 'Inbox', 'Every message in one place.'], ['chat', 'Chat', 'The conversation next to the work.']]
         .map(([n, t, x]) => ({ t, x, imgs: [im('studio/' + n, t, 'd')] })),
-      gallery: ['volcom', 'feed', 'inbox', 'chat'].map(n => im('studio/' + n, n[0].toUpperCase() + n.slice(1), 'd')),
-      people: [], service: 'software',
+      gallery: ['volcom', 'feed', 'inbox', 'chat'].map(n => im('studio/' + n, n[0].toUpperCase() + n.slice(1), 'd')), service: 'software',
     },
     {
       id: 'ashya', name: 'Ashya Egypt', folder: 'media', kind: 'Media buying', market: 'Egypt',
@@ -395,7 +352,7 @@ const OS = (() => {
       about: ['Media buying for Ashya Egypt: from EGP 260K to EGP 4.2M a month in 18 months. Sixteen times, in a year and a half.'],
       facts: [['Market', 'Egypt'], ['Service', 'Media buying'], ['Period', '18 months']],
       numbers: [['16×', 'growth'], ['EGP 4.2M', 'a month'], ['18', 'months']],
-      chart: { k: 'ashya' }, features: [], gallery: [], people: ['alaa'], service: 'media',
+      chart: { k: 'ashya' }, features: [], gallery: [], service: 'media',
     },
     {
       id: 'capital', name: 'Capital Office Furniture', folder: 'media', kind: 'Media buying', market: 'Office furniture',
@@ -403,7 +360,7 @@ const OS = (() => {
       about: ['Media buying for Capital Office Furniture, at a peak return of 16× on ad spend.'],
       facts: [['Category', 'Office furniture'], ['Peak ROAS', '16×']],
       numbers: [['16×', 'peak ROAS']],
-      chart: { k: 'roas16' }, features: [], gallery: [], people: ['alaa'], service: 'media',
+      chart: { k: 'roas16' }, features: [], gallery: [], service: 'media',
     },
     {
       id: 'lab', name: 'Live shader', folder: 'lab', kind: 'Creative tech', market: 'In the browser',
@@ -417,8 +374,7 @@ const OS = (() => {
         { t: 'Interactive lookbooks, social cutdowns', x: 'The same pipeline over campaign photography, tuned per drop. Record the canvas straight to a reel: one build, every format.', imgs: [] },
       ],
       gallery: [im('lab/shader', 'Live shader', 'd')],
-      links: [['Play with the live shader', 'https://band-agents.github.io/band/#lab']],
-      people: [], service: 'lab',
+      links: [['Play with the live shader', 'https://band-agents.github.io/band/#lab']], service: 'lab',
     },
   ];
   for (const p of PROJECTS) if (!p.gallery.length && p.features.length) p.gallery = p.features.flatMap(f => f.imgs);
@@ -440,30 +396,29 @@ const OS = (() => {
       facts: [['Handle', '@' + s.handle], ['Followers', s.stats?.followers || '—'], ['Posts', String(s.posts.length)], ['Highlights', String(s.highlights.length)], ['Category', market]],
       feed: s, features: [],
       gallery: s.posts.flatMap((p, i) => p.slides.map((src, j) => ({ src, thumb: j ? src : p.thumb, cap: p.cap || `Post ${i + 1}`, k: 'f', post: i + 1, n: j + 1, of: p.slides.length }))),
-      see: SEE[k] ? [SEE[k]] : [], people: ['alerta'], service: 'brand',
+      see: SEE[k] ? [SEE[k]] : [], service: 'brand',
     });
     const t = SEE[k] && PROJECTS.find(p => p.id === SEE[k]); if (t) (t.see ||= []).push('ig-' + k);
   }
   const byId = Object.fromEntries(PROJECTS.map(p => [p.id, p]));
-  for (const p of Object.values(PEOPLE)) p.work.forEach(id => byId[id] && !byId[id].people.includes(p.id) && byId[id].people.push(p.id));
 
   const SERVICES = [
     { id: 'ecommerce', name: 'Ecommerce development', sub: 'Think → Innovate → Execute', lead: 'We sit with your team, study your customer, stress-test your UX, and build a Shopify store or headless setup that actually converts.',
       get: ['Shopify or headless storefronts', 'One build for several countries: currency, branches and delivery per market', 'Arabic done properly, right to left', 'Product pages and cross-selling that grow the basket', 'Migrations that lose nothing (FIG: 6,730 products)'],
-      work: ['womensecret', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'], person: 'mamdouh' },
+      work: ['womensecret', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'] },
     { id: 'software', name: 'Custom software', sub: 'The tool that doesn’t exist yet', lead: 'Business systems, client portals, internal tools and shopping apps. Built from scratch, owned by you, documented so anyone after us can continue.',
       get: ['Systems that run a business: orders, inventory, bookings, production, accounts', 'Client-facing portals: customers see their own numbers', 'Real-time data plumbing: Meta, TikTok, Google and Shopify in one place', 'Shopping apps in English and Arabic'],
-      work: ['thoth', 'studio', 'labesny', 'fig'], person: null },
+      work: ['thoth', 'studio', 'labesny', 'fig'] },
     { id: 'brand', name: 'Design & brand', sub: 'Your vision → Our execution', lead: 'From social creatives to full brand guidelines, packaging to campaign visuals. Fast, and at the quality your brand demands.',
       get: ['Visual identities', 'Full guideline decks: essence, tone of voice, colour, type, application', 'Website visual systems', 'Instagram feeds: posts, carousels and highlight covers, planned as one grid', 'Mood boards and campaign design'],
-      work: ['mes-brand', 'end', 'sloth', 'handler', 'guesswhat', 'mas', 'ig-yqn', 'ig-elsafwa', 'ig-hunna', 'ig-1pass'], person: 'alerta' },
+      work: ['mes-brand', 'end', 'sloth', 'handler', 'guesswhat', 'mas', 'ig-yqn', 'ig-elsafwa', 'ig-hunna', 'ig-1pass'] },
     { id: 'media', name: 'Media buying', sub: 'Your strategy → Our scale', lead: 'Meta, TikTok, Google, Snapchat. Budget treated as a hypothesis and read at 48 hours, not at month end.',
       get: ['Paid social and search', '48-hour reads, not month-end post-mortems', 'Live numbers your team can see', 'Creative tested, not guessed'],
-      work: ['volcom', 'ashya', 'capital'], person: 'alaa' },
+      work: ['volcom', 'ashya', 'capital'] },
     { id: 'ai', name: 'AI content', sub: 'Faster, still on brand', lead: 'Product visuals, copy and video, made faster with AI and finished by people who know the brand.',
-      get: ['Product visuals', 'Copy in English and Arabic', 'Video cutdowns for every format'], work: [], person: null },
+      get: ['Product visuals', 'Copy in English and Arabic', 'Video cutdowns for every format'], work: [] },
     { id: 'lab', name: 'Creative tech', sub: 'Visuals that run live', lead: 'Campaign visuals that run in the browser as GPU shaders: launch heroes, interactive lookbooks and social cutdowns from one build.',
-      get: ['Launch heroes with no video file', 'Interactive lookbooks', 'Social cutdowns recorded from the canvas'], work: ['lab'], person: null },
+      get: ['Launch heroes with no video file', 'Interactive lookbooks', 'Social cutdowns recorded from the canvas'], work: ['lab'] },
   ];
 
   const CLIENTS = [
@@ -474,9 +429,9 @@ const OS = (() => {
 
   const RESULTS = [
     { id: 'volcom', t: 'Volcom Spain · 30 days', big: '3.34×', l: 'return on ad spend', chart: 'volcom', rows: [['Ad spend', '€18,892'], ['Sales', '€63,034'], ['Orders', '788'], ['Per order', '€23.98']] },
-    { id: 'ashya', t: 'Ashya Egypt · 18 months', big: '16×', l: 'EGP 260K → EGP 4.2M a month', chart: 'ashya', person: 'alaa' },
-    { id: 'capital', t: 'Capital Office Furniture', big: '16×', l: 'peak return on ad spend', chart: 'roas16', person: 'alaa' },
-    { id: null, t: 'App installs', big: '−80%', l: 'cost per install', chart: 'installs', person: 'alaa' },
+    { id: 'ashya', t: 'Ashya Egypt · 18 months', big: '16×', l: 'EGP 260K → EGP 4.2M a month', chart: 'ashya' },
+    { id: 'capital', t: 'Capital Office Furniture', big: '16×', l: 'peak return on ad spend', chart: 'roas16' },
+    { id: null, t: 'App installs', big: '−80%', l: 'cost per install', chart: 'installs' },
     { id: 'womensecret', t: 'Women’secret', big: '3 → 1', l: 'countries on one Shopify build', chart: 'markets' },
     { id: 'fig', t: 'FIG → Shopify', big: '6,730', l: 'products moving, zero lost', chart: 'fig' },
     { id: 'labesny', t: 'Labesny', big: '18', l: 'brands in one bag · 1,755 products', chart: null },
@@ -487,5 +442,5 @@ const OS = (() => {
     ['LinkedIn', 'band.', 'https://www.linkedin.com/company/104876648/'], ['Portfolio', 'band-agents.github.io/band', 'https://band-agents.github.io/band/']];
   const EMAIL = 'hello@band.agency';
 
-  return { PEOPLE, FOLDERS, PROJECTS, byId, SERVICES, CLIENTS, RESULTS, LINKS, EMAIL };
+  return { FOLDERS, PROJECTS, byId, SERVICES, CLIENTS, RESULTS, LINKS, EMAIL };
 })();
