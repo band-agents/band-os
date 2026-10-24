@@ -21,6 +21,8 @@ const OS = (() => {
     const cap = { home: 'Homepage', collection: 'Collection', product: 'Product page', arabic: 'Arabic, right to left', search: 'Search', cart: 'Cart drawer' };
     return pages.flatMap(n => [im(`${id}/${n}-d`, `${cap[n]}, desktop`, 'd'), ...(['home', 'collection', 'product', 'arabic'].includes(n) ? [im(`${id}/${n}-m`, `${cap[n]}, phone`, 'p')] : [])]);
   };
+  // App Store screens come already framed: show them as tall cards
+  const appShots = (dir, caps, pre = 's') => caps.map((c, i) => im(`${dir}/${pre}${i + 1}`, c, 't'));
   const store = (id, pages) => ({ cover: im(id + '/cover', 'Homepage', 'd'), gallery: shots(id, pages) });
 
   const PROJECTS = [
@@ -67,6 +69,51 @@ const OS = (() => {
         ] },
       ],
       gallery: shots('odds', ['home', 'collection', 'product']).concat(im('odds/finder-d', 'Find your pack', 'd'), im('odds/arabic-d', 'Arabic, desktop', 'd'), im('odds/arabic-m', 'Arabic, phone', 'p')),
+      service: 'ecommerce',
+    },
+    {
+      id: 'vestiaire', name: 'Vestiaire Collective', folder: 'stores', kind: 'Website · Marketplace', market: 'Global',
+      cover: im('vestiaire/cover', 'Vestiaire Collective homepage', 'd'),
+      tagline: 'Pre-loved designer fashion, bought and sold worldwide.',
+      about: ['Web work for Vestiaire Collective, the global marketplace for pre-loved designer fashion: thousands of pieces from Chanel to Celine, each checked by experts before it ships.',
+        'A marketplace lives on browsing, so the pages have to scan fast: fresh finds by category up front, trending pieces, and collections that filter by designer, size and condition.'],
+      facts: [['Market', 'Global'], ['Type', 'Designer resale marketplace'], ['Live', 'vestiairecollective.com']],
+      features: [
+        { t: 'Fresh finds, first', x: 'Bags, clothing, shoes, accessories and jewellery as the first thing you see, then what’s trending.', imgs: [im('vestiaire/home-d', 'Homepage, desktop', 'd'), im('vestiaire/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Collections on the phone', x: 'Handbags by designer, size and condition, with every piece’s price and its likes.', imgs: [im('vestiaire/collection-m', 'Handbags, phone', 'p')] },
+      ],
+      gallery: [im('vestiaire/home-d', 'Homepage', 'd'), im('vestiaire/home-m', 'Homepage, phone', 'p'), im('vestiaire/collection-m', 'Handbags, phone', 'p')],
+      links: [['Visit vestiairecollective.com', 'https://www.vestiairecollective.com/']],
+      service: 'ecommerce',
+    },
+    {
+      id: 'bradery', name: 'The Bradery', folder: 'stores', kind: 'Store · Private sales', market: 'France',
+      ...store('bradery', ['home', 'collection', 'product']),
+      tagline: 'Private sales from premium brands, in Paris.',
+      about: ['Shopify work for The Bradery, the Paris private-sales store: a new sale every day from premium brands in fashion, beauty, home and sport, up to −80%, in French.',
+        'Each sale is a brand’s own page with a countdown, so the homepage reads like a magazine of what’s on now, and each product page has to make the case before the sale ends.'],
+      facts: [['Market', 'France'], ['Platform', 'Shopify'], ['Type', 'Private sales'], ['Live', 'thebradery.com']],
+      features: [
+        { t: 'Today’s sales, as a magazine', x: 'Every live sale gets a full-bleed tile with the brand’s own photography: SVR, Vanessa Bruno, Hindbag, K-Way.', imgs: [im('bradery/home-d', 'Homepage, desktop', 'd'), im('bradery/home-m', 'Homepage, phone', 'p')] },
+        { t: 'A brand’s sale', x: 'Vanessa Bruno’s sale as its own page: the products, the discounts and the filters.', imgs: [im('bradery/collection-d', 'A brand sale, desktop', 'd'), im('bradery/collection-m', 'A brand sale, phone', 'p')] },
+        { t: 'The product page', x: 'The price against the original, sizes, and add to bag before the sale closes.', imgs: [im('bradery/product-d', 'Product page, desktop', 'd'), im('bradery/product-m', 'Product page, phone', 'p')] },
+      ],
+      links: [['Visit thebradery.com', 'https://thebradery.com/']],
+      service: 'ecommerce',
+    },
+    {
+      id: 'koi', name: 'KOI Footwear', folder: 'stores', kind: 'Store', market: 'UK · Worldwide',
+      ...store('koi', ['home', 'collection', 'product']),
+      tagline: 'Alternative footwear from Manchester, shipped worldwide.',
+      about: ['Shopify development for KOI, the independent British footwear brand born in Manchester in 2016: chunky boots, platforms, Mary Janes and collaborations like Junji Ito × KOI, sold worldwide.',
+        'Drops sell out, so the store is built around them: the newest collab leads the homepage, collections filter by style and size, and product pages carry the story of the drop.'],
+      facts: [['Market', 'UK and worldwide'], ['Platform', 'Shopify'], ['Category', 'Alternative footwear'], ['Live', 'koifootwear.com']],
+      features: [
+        { t: 'The drop leads', x: 'The latest collab takes the homepage, fresh in comes right under it, and the next collab after that.', imgs: [im('koi/home-d', 'Homepage, desktop', 'd'), im('koi/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Collections', x: 'Mary Janes, boots, heels and trainers, filtered by size and style on desktop and phone.', imgs: [im('koi/collection-d', 'Mary Janes, desktop', 'd'), im('koi/collection-m', 'Mary Janes, phone', 'p')] },
+        { t: 'Product pages', x: 'The shoe from every angle, sizes, and the story of the collaboration it belongs to.', imgs: [im('koi/product-d', 'Product page, desktop', 'd'), im('koi/product-m', 'Product page, phone', 'p')] },
+      ],
+      links: [['Visit koifootwear.com', 'https://www.koifootwear.com/']],
       service: 'ecommerce',
     },
     {
@@ -150,6 +197,73 @@ const OS = (() => {
       ],
       gallery: [im('fig/home-desktop', 'Homepage', 'd'), im('fig/home-mobile', 'Homepage, phone', 'p'), im('fig/app', 'FIG app', 'p'), im('fig/labesny-app', 'Same engine: Labesny', 'p')],
       links: [['Open the app preview', 'https://band-agents.github.io/fig-app-preview/']], service: 'ecommerce',
+    },
+    {
+      id: 'wibi', name: 'WIBI', folder: 'apps', kind: 'App · Electronics', market: 'Kuwait',
+      cover: im('wibi/cover', 'The WIBI app', 'f'),
+      tagline: 'Want it, buy it. IT and electronics, delivered next day in Kuwait.',
+      about: ['WIBI Online Shopping App for WANTITBUYIT, one of Kuwait’s IT retailers: computers, servers, printers, monitors, hardware and software in one app, in English and Arabic.',
+        'Order today and get it tomorrow, offers up to 70% off, quick search across the whole range and a safe checkout with several ways to pay.'],
+      facts: [['Market', 'Kuwait'], ['App', 'WIBI Online Shopping App'], ['Category', 'IT and electronics'], ['Languages', 'English and Arabic']],
+      features: [{ t: 'The app', x: 'Next-day delivery, genuine products, the widest IT range in Kuwait, offers, search and checkout.', imgs: appShots('wibi', ['Order today, delivered tomorrow', 'Genuine products', 'Shopping in Kuwait', 'The widest IT range', 'Offers up to 70% off', 'Quick search', 'Safe checkout']) }],
+      links: [['See it on the App Store', 'https://apps.apple.com/app/id1465871180']],
+      service: 'software',
+    },
+    {
+      id: 'fkjewellers', name: 'FK Jewellers', folder: 'apps', kind: 'App · Jewellery', market: 'Kuwait',
+      cover: im('fkjewellers/cover', 'The FK Jewellers app', 'f'),
+      tagline: 'Gold jewellery from Kuwait, in your pocket.',
+      about: ['FK Jewellers Kuwait, the shopping app for FK International: gold rings, necklaces, bracelets and more, browsed by collection and bought in a few taps.',
+        'Jewellery is a considered buy, so the app keeps the pieces large, the search simple and the checkout calm, with delivery across Kuwait.'],
+      facts: [['Market', 'Kuwait'], ['App', 'FK Jewellers Kuwait'], ['Category', 'Gold jewellery']],
+      features: [{ t: 'The app', x: 'Collections, search, product pages and checkout, in English and Arabic.', imgs: appShots('fkjewellers', ['Home', 'Collections', 'Search and menu', 'Product', 'Checkout', 'Delivery']) }],
+      links: [['See it on the App Store', 'https://apps.apple.com/app/id1497668267']],
+      service: 'software',
+    },
+    {
+      id: '1pass-app', name: '1Pass', folder: 'apps', kind: 'App · Fitness', market: 'Saudi Arabia',
+      cover: im('1pass-app/cover', 'The 1Pass app', 'f'),
+      tagline: 'One subscription, 400+ gyms across Saudi Arabia.',
+      about: ['1Pass by GetMuv, the Saudi fitness subscription: one pass to 400+ gyms, studios, padel courts and wellness providers in 13+ cities.',
+        'The app finds a gym near you, books the class, tracks your visits and lets you switch plans or top up credits whenever you like.'],
+      facts: [['Market', 'Saudi Arabia'], ['App', '1Pass'], ['Network', '400+ gyms and providers'], ['Cities', '13+']],
+      features: [{ t: 'The app', x: 'Plans, a map of gyms near you, bookings and workouts that match your vibe.', imgs: appShots('1pass-app', ['Move your way', '400+ gyms and providers', 'Book, track, manage', 'Flexible plans', 'Find your plan', 'Gyms near you', 'Something new every day', 'Workouts for you', 'Living well']) }],
+      links: [['See it on the App Store', 'https://apps.apple.com/app/id1261918868']], see: ['ig-1pass'],
+      service: 'software',
+    },
+    {
+      id: 'lane-rewards', name: 'Lane Rewards', folder: 'apps', kind: 'App · Loyalty', market: 'USA',
+      cover: im('lane-rewards/cover', 'Lane Rewards by Lane Bryant', 'f'),
+      tagline: 'Lane Bryant’s loyalty, offers and digital card in one app.',
+      about: ['Lane Rewards by Lane Bryant, the app for the American women’s fashion brand: shop, check the latest offers, pay with your digital card, and see your rewards points and available credit.'],
+      facts: [['Market', 'USA'], ['App', 'Lane Rewards by Lane Bryant'], ['Built for', 'Shopping, offers, rewards']],
+      features: [{ t: 'The app', x: 'Favourites, easy navigation, shopping on the go, the digital card and offers.', imgs: appShots('lane-rewards', ['Faster access to favourites', 'Easy navigation', 'Shop wherever you go', 'Your digital card', 'Offers']) }],
+      links: [['See it on the App Store', 'https://apps.apple.com/app/id960873062']],
+      service: 'software',
+    },
+    {
+      id: 'petsqtr', name: 'PetsQtr', folder: 'apps', kind: 'App · Pet store', market: 'Qatar',
+      cover: im('petsqtr/cover', 'The PetsQtr app', 'f'),
+      tagline: 'Everything for pets in Qatar, delivered home.',
+      about: ['PetsQtr, the pet store app for Qatar: food, treats, toys and grooming for cats, dogs, birds and more, delivered to your door, with reorder for the things you buy every month.'],
+      facts: [['Market', 'Qatar'], ['App', 'PetsQtr'], ['Category', 'Pet supplies']],
+      features: [{ t: 'The app', x: 'App-only offers, shopping by pet, favourites and a fast checkout.', imgs: appShots('petsqtr', ['App-exclusive offers', 'The mobile experience', 'Favourites at your fingertips', 'Easy navigation', 'Fast, secure checkout']) }],
+      links: [['See it on the App Store', 'https://apps.apple.com/app/id1600680100']],
+      service: 'software',
+    },
+    {
+      id: 'mawajeeb', name: 'Mawajeeb · مواچيب', folder: 'apps', kind: 'Apps · Customer + Restaurant', market: 'Saudi Arabia',
+      cover: im('mawajeeb/cover', 'The Mawajeeb app', 'f'),
+      tagline: 'The first Saudi app for feasts. Two apps, one platform.',
+      about: ['Mawajeeb, the Saudi platform for feasts and traditional meals: customers pick the dish, the quantity and the time, order from kitchens near them, track it step by step and pay in full or in instalments with Tabby and Tamara.',
+        'Restaurants get their own app: orders as they come in, the menu, delivery, and a wallet with earnings and every transaction. Both in Arabic first.'],
+      facts: [['Market', 'Saudi Arabia'], ['Apps', 'Mawajeeb, Mawajeeb Restaurant'], ['Payments', 'Card, Tabby, Tamara'], ['Live', 'mawajeeb.sa']],
+      features: [
+        { t: 'For customers', x: 'Feasts in one tap, live order tracking, and Saudi generosity on the doorstep.', imgs: appShots('mawajeeb', ['Track your order', 'Feasts in one tap', 'Your order, your way', 'Live tracking', 'Saudi generosity']) },
+        { t: 'For restaurants', x: 'Sign in, see the wallet and earnings, take orders and keep the history, all in one dashboard.', imgs: appShots('mawajeeb', ['Sign in', 'Wallet', 'Earnings', 'Orders', 'Order history', 'Dashboard'], 'rs') },
+      ],
+      links: [['Visit mawajeeb.sa', 'https://mawajeeb.sa/?lang=en'], ['Customer app', 'https://apps.apple.com/app/id6752831356'], ['Restaurant app', 'https://apps.apple.com/app/id6752826045']],
+      service: 'software',
     },
     {
       id: 'alo', name: 'Alo Yoga', folder: 'stores', kind: 'Store', market: 'Egypt region',
@@ -400,7 +514,7 @@ const OS = (() => {
       links: [['Play with the live shader', 'https://band-agents.github.io/band/#lab']], service: 'lab',
     },
   ];
-  for (const p of PROJECTS) if (!p.gallery.length && p.features.length) p.gallery = p.features.flatMap(f => f.imgs);
+  for (const p of PROJECTS) if (!p.gallery?.length && p.features.length) p.gallery = p.features.flatMap(f => f.imgs);
   // Social design: Instagram feeds (posts, carousels, highlight covers), from js/social.js
   const IG = {
     '1pass': ['Fitness app', 'Your move, your gear, your rules.'], capital: ['Office furniture', 'Engineered for you.'], elsafwa: ['Serviced residences, New Cairo', 'Wake up inspired.'],
@@ -428,10 +542,10 @@ const OS = (() => {
   const SERVICES = [
     { id: 'ecommerce', name: 'Ecommerce development', sub: 'Think → Innovate → Execute', lead: 'We sit with your team, study your customer, stress-test your UX, and build a Shopify store or headless setup that actually converts.',
       get: ['Shopify or headless storefronts', 'One build for several countries: currency, branches and delivery per market', 'Arabic done properly, right to left', 'Product pages and cross-selling that grow the basket', 'Migrations that lose nothing (FIG: 6,730 products)'],
-      work: ['womensecret', 'odds', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'] },
+      work: ['womensecret', 'odds', 'vestiaire', 'bradery', 'koi', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'] },
     { id: 'software', name: 'Custom software', sub: 'The tool that doesn’t exist yet', lead: 'Business systems, client portals, internal tools and shopping apps. Built from scratch, owned by you, documented so anyone after us can continue.',
       get: ['Systems that run a business: orders, inventory, bookings, production, accounts', 'Client-facing portals: customers see their own numbers', 'Real-time data plumbing: Meta, TikTok, Google and Shopify in one place', 'Shopping apps in English and Arabic'],
-      work: ['thoth', 'studio', 'labesny', 'fig'] },
+      work: ['thoth', 'studio', 'labesny', 'fig', 'mawajeeb', '1pass-app', 'wibi', 'fkjewellers', 'lane-rewards', 'petsqtr'] },
     { id: 'brand', name: 'Design & brand', sub: 'Your vision → Our execution', lead: 'From social creatives to full brand guidelines, packaging to campaign visuals. Fast, and at the quality your brand demands.',
       get: ['Visual identities', 'Full guideline decks: essence, tone of voice, colour, type, application', 'Website visual systems', 'Instagram feeds: posts, carousels and highlight covers, planned as one grid', 'Mood boards and campaign design'],
       work: ['mes-brand', 'end', 'sloth', 'handler', 'guesswhat', 'mas', 'ig-yqn', 'ig-elsafwa', 'ig-hunna', 'ig-1pass'] },
@@ -445,8 +559,8 @@ const OS = (() => {
   ];
 
   const CLIENTS = [
-    ['Ecommerce — International', ['Alo Yoga', 'Pier 1', 'Stein Mart', 'Dressbarn', 'RadioShack', 'Koi Footwear', 'Volcom', 'The Brandery']],
-    ['Ecommerce — Middle East', ['Women’secret', 'Cole Haan', 'Labesny', 'FIG', 'Skechers', 'ECCO', 'Umbro', 'ANT', 'Cizaro', 'Oshoplin']],
+    ['Ecommerce — International', ['Alo Yoga', 'Pier 1', 'Stein Mart', 'Dressbarn', 'RadioShack', 'KOI Footwear', 'Volcom', 'The Bradery', 'Vestiaire Collective', 'Lane Bryant']],
+    ['Ecommerce — Middle East', ['Women’secret', 'Cole Haan', 'Labesny', 'FIG', 'Skechers', 'ECCO', 'Umbro', 'ANT', 'Cizaro', 'Oshoplin', 'Odds', 'WIBI', 'FK Jewellers', 'PetsQtr', 'Mawajeeb']],
     ['Design, software & media', ['AYA-S', 'Capital Office Furniture', 'MAS SofaBed', 'Handler Auto', 'El Safwa Resort', 'YQN Eyewear', 'Hunna World', 'Menna Elsonny Store', '1Pass', 'Guess What', 'Ashya Egypt', 'Be Glowy', 'WOW Sewing', 'UNSTMPD', 'am:pm Coffee']],
   ];
 

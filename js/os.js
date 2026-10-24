@@ -268,6 +268,7 @@
     wire();
     view.scrollTop = push === 'pop' ? (scrolls[r.id] || 0) : 0;
     placeLoop();
+    if (push !== 'first' && win.state !== 'open') openWindow();     // anything you open shows the window
     if (!R && push !== 'first') view.firstElementChild?.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
     $('.chips .on', view)?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
@@ -313,7 +314,7 @@
   const calm = R || navigator.connection?.saveData;
   function loop(host, tall) {
     if (!host || host.firstChild) return;
-    const name = tall ? 'field-tall' : 'field', v = document.createElement('video');
+    const name = tall ? 'garden-tall' : 'garden', v = document.createElement('video');
     Object.assign(v, { muted: true, loop: true, playsInline: true, poster: `img/bg/${name}.jpg`, preload: calm ? 'none' : 'auto' });
     v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
     if (calm) v.classList.add('on');
@@ -418,7 +419,7 @@
   });
 
   /* ---------- the frame: side, top nav, tabs ---------- */
-  $('#side').innerHTML = `<div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+  $('#side').innerHTML = `<div class="lights"><button class="l-close" aria-label="Close window"></button><button class="l-min" aria-label="Minimise to the Dock"></button><button class="l-zoom" aria-label="Zoom window"></button></div>
     <a href="#" data-go="home" class="si">${ic('home')}<span>Overview</span></a>
     <h6 class="mono">Work</h6>
     ${CATS.map(c => `<a href="#${c.id}" data-go="${c.id}" class="si">${ic(c.id)}<span>${c.name}</span><em class="mono">${inCat(c.id).length}</em></a>`).join('')}
@@ -432,6 +433,70 @@
   $('#bar').insertAdjacentHTML('afterbegin', `<button class="mback" id="mBack" aria-label="Back">${ic('back')}</button>`);
   $('#mBack').onclick = back;
 
+  /* ---------- the Mac: folders on the desktop, a Dock, and a window you can close, minimise, zoom, move and resize ---------- */
+  const app = $('#app'), desk = () => !phone.matches;
+  const win = { state: 'open' };                          // open | min | closed
+  const FOLDER = (glyph) => `<svg class="fold" viewBox="0 0 64 52" aria-hidden="true"><path d="M4 9a4 4 0 0 1 4-4h14.5l5 5H56a4 4 0 0 1 4 4v3H4z" fill="#7FCFA3"/>
+    <rect x="4" y="13" width="56" height="35" rx="5" fill="url(#fg)"/><g transform="translate(23 21) scale(.75)" class="fg-glyph">${glyph}</g></svg>`;
+  $('#icons').innerHTML = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="fg" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#A6E3C1"/><stop offset="1" stop-color="#6BC394"/></linearGradient></defs></svg>`
+    + CATS.map(c => `<a class="dicon" href="#${c.id}" data-open>${FOLDER(`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#1F6B45" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity=".6">${I[c.id]}</svg>`)}<span>${c.name}</span></a>`).join('');
+  const DOCK = [['home', '', 'band.'], ['search', null, 'Search'], ['services', 'services', 'Services'], ['results', 'results', 'Results'], ['clients', 'clients', 'Clients'], ['contact', 'contact', 'Contact']];
+  $('#dock').innerHTML = DOCK.map(([k, h, t]) => `${k === 'services' ? '<i class="sep" aria-hidden="true"></i>' : ''}<button class="ditem d-${k}" data-k="${k}" aria-label="${t}"><span class="tip">${t}</span>
+      <span class="tile">${k === 'home' ? BQ.lockup('#FFFFFF') : ic(k)}</span><i class="dot"></i></button>`).join('');
+  const dockSync = () => $('.d-home', $('#dock')).classList.toggle('run', win.state !== 'closed');
+  const centre = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+  const fly = (el) => { const a = app.getBoundingClientRect(), [x, y] = centre(el); return `translate(${x - a.left - a.width / 2}px,${y - a.top - a.height / 2}px)`; };
+  function openWindow(from) {
+    if (!desk() || win.state === 'open') return;
+    app.classList.remove('closed'); win.state = 'open'; dockSync();
+    if (!R) app.animate([{ transform: (from ? fly(from) : 'translateY(30px)') + ' scale(.06)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 460, easing: 'cubic-bezier(.2,.85,.25,1)' });
+  }
+  function closeWindow(min) {
+    if (win.state !== 'open') return;
+    const done = () => { app.classList.add('closed'); win.state = min ? 'min' : 'closed'; dockSync(); };
+    if (R) return done();
+    app.animate([{ transform: 'none', opacity: 1 }, min ? { transform: fly($('.d-home')) + ' scale(.05)', opacity: .2 } : { transform: 'scale(.94)', opacity: 0 }],
+      { duration: min ? 420 : 200, easing: 'cubic-bezier(.55,0,.8,.2)' }).onfinish = done;
+  }
+  function zoomWindow() {
+    if (!R) { app.classList.add('easing'); setTimeout(() => app.classList.remove('easing'), 380); }
+    app.classList.toggle('zoomed');
+  }
+  $('.l-close').onclick = () => closeWindow(false);
+  $('.l-min').onclick = () => closeWindow(true);
+  $('.l-zoom').onclick = zoomWindow;
+  $$('#icons [data-open]').forEach(a => a.addEventListener('click', () => { $$('#icons .dicon').forEach(x => x.classList.toggle('sel', x === a)); openWindow(a); }));
+  $$('#dock .ditem').forEach(b => b.onclick = () => {
+    const k = b.dataset.k, d = DOCK.find(x => x[0] === k);
+    if (k === 'search') return openPal();
+    if (!R) b.querySelector('.tile').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-14px)' }, { transform: 'translateY(0)' }], { duration: 420, easing: 'ease-out' });
+    if (k === 'home' && win.state !== 'open') return openWindow(b);
+    go(d[1]); openWindow(b);
+  });
+  $('.logo').addEventListener('click', () => openWindow($('.d-home')));
+  // the Dock magnifies under the pointer
+  $('#dock').addEventListener('pointermove', e => { if (R) return; $$('#dock .ditem').forEach(b => { const [x] = centre(b), d = Math.abs(e.clientX - x); b.style.setProperty('--m', Math.max(0, 1 - d / 150).toFixed(3)); }); });
+  $('#dock').addEventListener('pointerleave', () => $$('#dock .ditem').forEach(b => b.style.setProperty('--m', 0)));
+  // move the window by its toolbar, resize it from the corner, double-click the toolbar to zoom
+  {
+    app.insertAdjacentHTML('beforeend', '<span class="grip" aria-hidden="true"></span>');
+    const box = () => { const r = app.getBoundingClientRect(); Object.assign(app.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px', right: 'auto', bottom: 'auto' }); };
+    const drag = (el, move) => el.addEventListener('pointerdown', e => {
+      if (!desk() || e.button !== 0 || e.target.closest('button,a,input') || app.classList.contains('zoomed')) return;
+      e.preventDefault(); box(); const r = app.getBoundingClientRect(), x0 = e.clientX, y0 = e.clientY;
+      const mv = ev => move(r, ev.clientX - x0, ev.clientY - y0), up = () => { removeEventListener('pointermove', mv); app.classList.remove('moving'); };
+      app.classList.add('moving'); addEventListener('pointermove', mv); addEventListener('pointerup', up, { once: true });
+    });
+    const mb = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--mb')) || 46;
+    const moveBy = (r, dx, dy) => { app.style.left = Math.min(innerWidth - 120, Math.max(120 - r.width, r.left + dx)) + 'px'; app.style.top = Math.min(innerHeight - 140, Math.max(mb() + 4, r.top + dy)) + 'px'; };
+    drag($('#tool'), moveBy); drag($('.lights'), moveBy);
+    drag($('.grip', app), (r, dx, dy) => { app.style.width = Math.max(720, r.width + dx) + 'px'; app.style.height = Math.max(440, r.height + dy) + 'px'; });
+    $('#tool').addEventListener('dblclick', e => { if (!e.target.closest('button,a')) zoomWindow(); });
+  }
+  phone.addEventListener('change', () => { if (!desk()) { app.classList.remove('closed', 'zoomed'); app.removeAttribute('style'); win.state = 'open'; } dockSync(); });
+  dockSync();
+
   /* ---------- clock ---------- */
   const clk = () => { try { $('#clock').textContent = 'Cairo ' + new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Cairo', weekday: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date()); } catch { } };
   clk(); setInterval(clk, 15000);
@@ -439,13 +504,14 @@
   /* ---------- boot: the barcode rises, the wordmark writes itself ---------- */
   $('#lk').innerHTML = BQ.lockup('currentColor');
   $('#bootWm').innerHTML = BQ.wordmark('#EDEDE6', 5.9);
+  if (desk() && !R) { app.classList.add('closed'); win.state = 'closed'; }   // the window opens out of the Dock after boot
   render('first');
   let again = false;
   try { again = !!sessionStorage.getItem('bos:booted'); sessionStorage.setItem('bos:booted', '1'); } catch { }
   const boot = $('#boot');
-  const finish = () => { boot.classList.add('gone'); setTimeout(() => { bootCode?.stop(); boot.remove(); }, 600); };
+  const finish = () => { boot.classList.add('gone'); setTimeout(() => { bootCode?.stop(); boot.remove(); }, 600); setTimeout(() => openWindow($('.d-home')), 350); };
   let bootCode = null;
-  if (R || again) boot.remove();
+  if (R || again) { boot.remove(); setTimeout(() => openWindow($('.d-home')), 250); }
   else {
     bootCode = BQ.code($('#bootCode'), { color: '#EDEDE6', accent: '#10A862', mode: 'data', minH: .05 });
     const rise = Array(11).fill(0); bootCode.set(rise);

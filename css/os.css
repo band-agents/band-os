@@ -1,12 +1,12 @@
 /* band. OS — white, black and one green. Manrope for reading, JetBrains Mono for the machine.
    Desktop: one window on the desk, categories down the side. Phone (≤760px): full screen, chips on top, tabs at the bottom. */
 :root{
-  --desk:#ECECE6;--paper:#FFFFFF;--soft:#F4F4F0;--ink:#0B0B0B;--ink2:#3A3A36;--mute:#7A7A73;--rule:#E6E6E0;--green:#10A862;
-  --mb:46px;--tabs:0px;--side:236px;--ease:cubic-bezier(.2,.8,.2,1);color-scheme:light
+  --desk:#ECECE6;--paper:#FBFBF8;--soft:#F1F2EE;--ink:#141614;--ink2:#3D403C;--mute:#767A74;--rule:#E3E5DF;--green:#10A862;
+  --mb:46px;--tabs:0px;--side:236px;--iconsW:0px;--dockH:88px;--ease:cubic-bezier(.2,.8,.2,1);color-scheme:light
 }
 *{box-sizing:border-box}
 html,body{height:100%}
-body{margin:0;background:#060606 url(../img/bg/field.jpg) center/cover;color:var(--ink);
+body{margin:0;background:#060606 url(../img/bg/garden.jpg) center/cover;color:var(--ink);
   font:400 15px/1.5 'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow:hidden;-webkit-tap-highlight-color:transparent}
 .mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;letter-spacing:.01em}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
@@ -49,13 +49,47 @@ h1,h2,h3{margin:0;font-weight:700}
 .mback{display:none}
 
 /* ---------- the window ---------- */
-.app{position:fixed;top:calc(var(--mb) + 16px);bottom:28px;left:max(28px,calc((100vw - 1320px)/2));right:max(28px,calc((100vw - 1320px)/2));display:grid;grid-template-columns:var(--side) 1fr;
+.app{position:fixed;top:calc(var(--mb) + 14px);bottom:var(--dockH);left:max(24px,calc((100vw - var(--iconsW) - 1320px)/2));width:min(1320px,calc(100vw - var(--iconsW) - 48px));display:grid;grid-template-columns:var(--side) 1fr;
   background:var(--paper);border-radius:18px;border:1px solid rgba(255,255,255,.1);box-shadow:0 50px 140px -30px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.4),0 0 90px -40px rgba(16,168,98,.35);overflow:hidden;z-index:1}
 .side{background:var(--soft);border-right:1px solid var(--rule);padding:16px 12px;display:flex;flex-direction:column;gap:2px;overflow:auto;scrollbar-width:none}
 .side::-webkit-scrollbar{display:none}
-.lights{display:flex;gap:7px;padding:2px 6px 18px}
-.lights i{width:11px;height:11px;border-radius:50%;background:#D7D7D0}
-.lights i:nth-child(1){background:#FF5F57}.lights i:nth-child(2){background:#FEBC2E}.lights i:nth-child(3){background:#28C840}
+.lights{display:flex;gap:8px;padding:2px 6px 18px;cursor:default}
+.lights button{position:relative;width:12px;height:12px;border-radius:50%;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.18)}
+.l-close{background:#FF5F57}.l-min{background:#FEBC2E}.l-zoom{background:#28C840}
+.lights button::after{position:absolute;inset:0;display:grid;place-items:center;font:700 10px/1 system-ui,sans-serif;color:rgba(0,0,0,.55);opacity:0;transition:opacity .12s}
+.l-close::after{content:"×"}.l-min::after{content:"−"}.l-zoom::after{content:"+"}
+.lights:hover button::after{opacity:1}
+.app.closed{display:none}
+.app.zoomed{left:8px !important;top:calc(var(--mb) + 6px) !important;width:calc(100vw - 16px) !important;height:auto !important;bottom:var(--dockH) !important;border-radius:12px}
+.app.easing{transition:left .35s var(--ease),top .35s var(--ease),width .35s var(--ease),height .35s var(--ease),bottom .35s var(--ease)}
+.app.moving{user-select:none}.app.moving iframe,.app.moving video{pointer-events:none}
+.grip{position:absolute;right:0;bottom:0;width:20px;height:20px;cursor:nwse-resize;z-index:3}
+
+/* ---------- desktop folders and the Dock ---------- */
+.icons{position:fixed;top:calc(var(--mb) + 18px);right:12px;bottom:var(--dockH);z-index:0;display:grid;grid-auto-flow:column;grid-template-rows:repeat(auto-fill,100px);direction:rtl;gap:0 4px;align-content:start}
+.dicon{direction:ltr;width:94px;display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 4px;border-radius:9px;color:#fff;text-align:center;transition:background .15s}
+.dicon .fold{width:60px;height:49px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.35));transition:transform .25s var(--ease)}
+.dicon span{font-size:12px;font-weight:600;line-height:1.25;text-shadow:0 1px 3px rgba(0,0,0,.85);padding:1px 6px;border-radius:5px}
+.dicon:hover{background:rgba(255,255,255,.07)}
+.dicon:hover .fold{transform:translateY(-2px)}
+.dicon.sel span{background:var(--green);text-shadow:none}
+.dock{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);z-index:70;display:flex;align-items:flex-end;gap:6px;padding:7px 9px;border-radius:22px;
+  background:rgba(28,34,31,.42);backdrop-filter:blur(26px) saturate(1.6);-webkit-backdrop-filter:blur(26px) saturate(1.6);border:1px solid rgba(255,255,255,.14);box-shadow:0 20px 50px -10px rgba(0,0,0,.6)}
+.ditem{--m:0;position:relative;width:calc(52px + var(--m) * 22px);height:calc(52px + var(--m) * 22px);transition:width .14s ease-out,height .14s ease-out}
+.ditem .tile{display:grid;place-items:center;width:100%;height:100%;border-radius:23%;background:linear-gradient(180deg,#FFFFFF,#E7EBE6);color:var(--ink);box-shadow:0 5px 12px rgba(0,0,0,.28),inset 0 0 0 .5px rgba(0,0,0,.08)}
+.ditem .tile .ic{width:45%;height:45%;stroke-width:1.8}
+.d-home .tile{background:linear-gradient(180deg,#1C211E,#060707);padding:20%}
+.d-home .tile svg{width:100%;height:100%}
+.d-search .tile{background:linear-gradient(180deg,#1F4A35,#0E2318);color:#A9F0B9}
+.d-results .tile{background:linear-gradient(180deg,#3BD18B,#0E9A58);color:#fff}
+.d-clients .tile{background:linear-gradient(180deg,#F4EBDD,#E2D3BC);color:#5A4A33}
+.d-contact .tile{background:linear-gradient(180deg,#7CB7FF,#2F7BE5);color:#fff}
+.dock .sep{align-self:stretch;width:1px;margin:6px 3px;background:rgba(255,255,255,.22)}
+.dock .dot{position:absolute;left:50%;bottom:-6px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:rgba(255,255,255,.9);opacity:0;transition:opacity .2s}
+.ditem.run .dot{opacity:1}
+.tip{position:absolute;bottom:calc(100% + 14px);left:50%;transform:translateX(-50%);padding:5px 10px;border-radius:8px;background:rgba(24,26,25,.88);color:#fff;font-size:12px;font-weight:600;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s}
+.ditem:hover .tip,.ditem:focus-visible .tip{opacity:1}
+@media (min-width:1280px){:root{--iconsW:200px}}
 .side h6{margin:18px 10px 6px;font-size:10.5px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
 .si{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:10px;font-size:14px;font-weight:600;color:var(--ink2);transition:background .15s,color .15s}
 .si:hover{background:rgba(0,0,0,.05);color:var(--ink)}
@@ -382,7 +416,7 @@ img.top{object-position:top}
   .logo .os{background:var(--ink);color:#fff}
   .bgfx{display:none}
   .page .hero{position:relative;margin:0 -16px;padding:34px 16px 26px;color:#fff;background:#060606;overflow:hidden;isolation:isolate}
-  .hero-fx{display:block;position:absolute;inset:0;z-index:-1;background:#060606 url(../img/bg/field-tall.jpg) center/cover}
+  .hero-fx{display:block;position:absolute;inset:0;z-index:-1;background:#060606 url(../img/bg/garden-tall.jpg) center/cover}
   .hero-fx::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(6,6,6,.15),rgba(6,6,6,.55) 70%,rgba(6,6,6,.85))}
   .hero .eyebrow{color:rgba(255,255,255,.6)}
   .hero h1 span{color:rgba(255,255,255,.5)}
@@ -402,8 +436,8 @@ img.top{object-position:top}
   .ask{width:40px;height:40px;padding:0;justify-content:center;background:var(--soft);color:var(--ink)}
   .ask span,.ask kbd{display:none}
   .ask canvas{width:20px;height:12px}
-  .app{top:var(--mb);bottom:var(--tabs);left:0;right:0;border:0;border-radius:0;box-shadow:none;grid-template-columns:1fr}
-  .side,.tool{display:none}
+  .app{top:var(--mb);bottom:var(--tabs);left:0;right:0;width:auto;border:0;border-radius:0;box-shadow:none;grid-template-columns:1fr}
+  .side,.tool,.icons,.dock,.grip{display:none}
   .page{padding:0 16px 48px}
   .chips{display:flex;gap:8px;position:sticky;top:0;z-index:5;margin:0 -16px 8px;padding:12px 16px;overflow-x:auto;scrollbar-width:none;background:rgba(255,255,255,.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
   .chips::-webkit-scrollbar{display:none}
