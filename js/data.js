@@ -8,8 +8,7 @@ const OS = (() => {
 
   // The categories, in the order the site shows them: [id, name, one line]
   const FOLDERS = [
-    ['stores', 'Stores', 'Shopify stores for one market or several, in English and Arabic.'],
-    ['web', 'Websites', 'Custom Shopify themes that read like a magazine and sell like a marketplace.'],
+    ['stores', 'Stores & websites', 'Shopify stores and custom themes, for one market or several, in English and Arabic.'],
     ['apps', 'Apps', 'Shopping apps with checkout, loyalty and full right-to-left Arabic.'],
     ['software', 'Software', 'Business systems and client portals, built from scratch and owned by you.'],
     ['brands', 'Brands', 'Identities, guideline decks and the motion that brings them to life.'],
@@ -47,6 +46,30 @@ const OS = (() => {
         im('womensecret/bras-jo', 'Bras, Jordan', 'p'), im('womensecret/sleep', 'Sleep & homewear', 'p'), im('womensecret/club', 'Club WOW', 'p'), im('womensecret/stores', 'Store finder', 'p'), im('womensecret/tile-swim', 'Swim tile', 'f')], service: 'ecommerce',
     },
     {
+      id: 'odds', name: 'Odds', folder: 'stores', kind: 'Store · Brand films', market: 'Egypt',
+      cover: im('odds/cover', 'The Odds store homepage', 'd'),
+      tagline: 'Everyday cotton socks, a store in two languages and films made with AI.',
+      about: ['Odds (أودز) makes everyday cotton socks in Egypt, for men, women and kids. We built their Shopify store from scratch: a custom bilingual theme, the whole range with descriptions and SEO, collections, pages and menus, in English and Arabic.',
+        'Socks are a small decision, so the store makes it quick: a pack finder by pack size and sock height, “Complete the drawer” on every product, and value packs up front. The brand films and lifestyle shots that run through the store were made with AI, then cut for every format.'],
+      facts: [['Market', 'Egypt'], ['Platform', 'Shopify, custom theme'], ['Languages', 'English and Arabic, right to left'], ['Range', 'Men, women and kids; 3, 5 and 6-pair packs'], ['Built', 'Theme, catalogue, pack finder, AI films']],
+      numbers: [['69', 'SKUs live'], ['3 · 5 · 6', 'pairs per pack'], ['EN / AR', 'one store, both directions']],
+      features: [
+        { t: 'Comfort, up front', x: 'The red of the packaging, a film of the socks being worn, and the packs one tap away. The same homepage on phone and desktop.', imgs: [im('odds/home-d', 'Homepage, desktop', 'd'), im('odds/home-m', 'Homepage, phone', 'p')] },
+        { t: 'Find your pack', x: 'Who it’s for, how many pairs, how high: three rows of chips, and the range narrows as you tap.', imgs: [im('odds/finder-d', 'Find your pack', 'd'), im('odds/collection-m', 'Collection, phone', 'p')] },
+        { t: 'Complete the drawer', x: 'Every product page suggests the pairs that go with it, adds them in one tap, then shows other heights and bigger packs.', imgs: [im('odds/product-d', 'Product page, desktop', 'd'), im('odds/product-m', 'Product page, phone', 'p')] },
+        { t: 'Arabic, written properly', x: 'The whole store mirrors right to left, in clean Modern Standard Arabic, with prices in pounds.', imgs: [im('odds/arabic-m', 'Arabic homepage, phone', 'p'), im('odds/arabic-d', 'Arabic homepage, desktop', 'd')] },
+        { t: 'Films made with AI', x: 'Product films and lifestyle clips, generated and cut for the store, the feed and stories, so a new brand had a full campaign on day one.', imgs: [
+          { src: 'img/odds/film/odds-hero-poster-16x9.jpg', v: 'img/odds/film/odds-hero-16x9.mp4', cap: 'Homepage film', k: 'f' },
+          ...[['p1-orbit-marble', 'Marble crew, in orbit'], ['p4-slide-in-stripes', 'Stripes, sliding in'], ['p3-macro-dots', 'Dots, up close'], ['p5-fan-out-kids', 'Kids’ packs, fanned out']]
+            .map(([n, cap]) => ({ src: `img/odds/film/${n}-poster.jpg`, v: `img/odds/film/${n}-16x9.mp4`, cap, k: 'f' })),
+          ...[['01-man-pulling-on-sock', 'Pulling on a sock'], ['03-woman-putting-on-sock', 'Women’s ankle'], ['05-child-holding-socks', 'Kids'], ['04-man-taking-a-step', 'A step']]
+            .map(([n, cap]) => ({ src: `img/odds/film/odds-${n}.jpg`, v: `img/odds/film/odds-${n}.mp4`, cap, k: 't' })),
+        ] },
+      ],
+      gallery: shots('odds', ['home', 'collection', 'product']).concat(im('odds/finder-d', 'Find your pack', 'd'), im('odds/arabic-d', 'Arabic, desktop', 'd'), im('odds/arabic-m', 'Arabic, phone', 'p')),
+      service: 'ecommerce',
+    },
+    {
       id: 'colehaan', name: 'Cole Haan', folder: 'stores', kind: 'Store', market: 'USA',
       cover: im('colehaan/cover', 'Cole Haan homepage', 'd'),
       gallery: [im('colehaan/home-d', 'Homepage', 'd'), im('colehaan/home-m', 'Homepage, phone', 'p'), im('colehaan/home2-d', 'Homepage, men’s and women’s', 'd'), im('colehaan/collection-d', 'Men’s sneakers', 'd'), im('colehaan/product-d', 'Product page', 'd')],
@@ -62,7 +85,7 @@ const OS = (() => {
       links: [['Visit colehaan.com', 'https://www.colehaan.com/']], service: 'ecommerce',
     },
     {
-      id: 'fig-web', name: 'FIG website', folder: 'web', kind: 'Website · Shopify theme', market: 'Egypt',
+      id: 'fig-web', name: 'FIG website', folder: 'stores', kind: 'Website · Shopify theme', market: 'Egypt',
       cover: im('fig-web/cover', 'FIG Couture homepage', 'd'),
       tagline: 'The Evening Edit. FIG’s new store on Shopify.',
       about: ['The new website for FIG (Fashion International Group), Egypt’s fashion franchise group: FIG Couture, a custom Shopify theme, replacing figeg.com. Twenty houses under one roof, from Women’secret and Benetton to BCBGMAXAZRIA, shopped in Egyptian pounds.',
@@ -77,7 +100,7 @@ const OS = (() => {
       links: [['See the FIG app', 'https://band-agents.github.io/fig-app-preview/']], see: ['fig', 'labesny-web'], service: 'ecommerce',
     },
     {
-      id: 'labesny-web', name: 'Labesny website', folder: 'web', kind: 'Website · Shopify theme', market: 'Kuwait',
+      id: 'labesny-web', name: 'Labesny website', folder: 'stores', kind: 'Website · Shopify theme', market: 'Kuwait',
       cover: im('labesny-web/cover', 'Labesny Couture homepage', 'd'),
       tagline: 'The Evening Edit, in Kuwait. Labesny’s new store.',
       about: ['The new website for Labesny, the multi-brand fashion store in Kuwait: Labesny Couture, a custom Shopify theme for labesny.com. Women, men, kids and lingerie from brands like Women’secret, La vie en rose and Tom Tailor, priced in Kuwaiti dinars.',
@@ -405,7 +428,7 @@ const OS = (() => {
   const SERVICES = [
     { id: 'ecommerce', name: 'Ecommerce development', sub: 'Think → Innovate → Execute', lead: 'We sit with your team, study your customer, stress-test your UX, and build a Shopify store or headless setup that actually converts.',
       get: ['Shopify or headless storefronts', 'One build for several countries: currency, branches and delivery per market', 'Arabic done properly, right to left', 'Product pages and cross-selling that grow the basket', 'Migrations that lose nothing (FIG: 6,730 products)'],
-      work: ['womensecret', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'] },
+      work: ['womensecret', 'odds', 'colehaan', 'fig-web', 'labesny-web', 'alo', 'volcom', 'pier1', 'steinmart', 'dressbarn', 'radioshack', 'oshoplin', 'ayas'] },
     { id: 'software', name: 'Custom software', sub: 'The tool that doesn’t exist yet', lead: 'Business systems, client portals, internal tools and shopping apps. Built from scratch, owned by you, documented so anyone after us can continue.',
       get: ['Systems that run a business: orders, inventory, bookings, production, accounts', 'Client-facing portals: customers see their own numbers', 'Real-time data plumbing: Meta, TikTok, Google and Shopify in one place', 'Shopping apps in English and Arabic'],
       work: ['thoth', 'studio', 'labesny', 'fig'] },
@@ -441,6 +464,8 @@ const OS = (() => {
   const LINKS = [['Instagram', '@band.cairo', 'https://www.instagram.com/band.cairo/'], ['Threads', '@band.cairo', 'https://www.threads.com/@band.cairo'], ['X', '@band_cairo', 'https://x.com/band_cairo'],
     ['LinkedIn', 'band.', 'https://www.linkedin.com/company/104876648/'], ['Portfolio', 'band-agents.github.io/band', 'https://band-agents.github.io/band/']];
   const EMAIL = 'hello@band.agency';
+  // where to find us: the pin Dan shared (Google Maps place “Band”)
+  const PLACE = { label: 'Corniche El Nil, Cairo', lat: 30.0719202, lng: 31.2275839, url: 'https://maps.app.goo.gl/rg5DSjh9nzj1TSjh6' };
 
-  return { FOLDERS, PROJECTS, byId, SERVICES, CLIENTS, RESULTS, LINKS, EMAIL };
+  return { FOLDERS, PROJECTS, byId, SERVICES, CLIENTS, RESULTS, LINKS, EMAIL, PLACE };
 })();

@@ -15,8 +15,8 @@
   const inCat = id => D.PROJECTS.filter(p => p.folder === id || p.also?.includes(id));
   const PAGES = [['services', 'Services'], ['results', 'Results'], ['clients', 'Clients'], ['contact', 'Contact']];
   const pageName = id => (PAGES.find(p => p[0] === id) || [])[1];
-  const COVER_OF = { stores: 'womensecret', web: 'fig-web', apps: 'labesny', software: 'thoth', brands: 'mes-brand', social: 'ig-yqn', media: 'volcom', lab: 'lab' };
-  const FEATURED = ['womensecret', 'labesny', 'mes-brand', 'volcom', 'thoth', 'end'];
+  const COVER_OF = { stores: 'womensecret', apps: 'labesny', software: 'thoth', brands: 'mes-brand', social: 'ig-yqn', media: 'volcom', lab: 'lab' };
+  const FEATURED = ['odds', 'womensecret', 'labesny', 'mes-brand', 'volcom', 'end'];
   const NEED = ['Store', 'Website', 'App', 'Software', 'Brand', 'Social', 'Media', 'AI content', 'Creative tech'];
 
   const I = {
@@ -74,7 +74,7 @@
     const inner = g.v
       ? `<video src="${g.v}" poster="${g.src}" muted loop playsinline preload="none" data-auto></video>`
       : `<img src="${g.thumb || g.src}" alt="${esc(g.cap)}" loading="lazy">`;
-    const k = g.k === 'd' ? 'd' : g.k === 'p' ? 'p' : 'f';
+    const k = ['d', 'p', 't'].includes(g.k) ? g.k : 'f';            // t = a tall 9:16 clip
     return `<figure class="m ${k}"><div class="frame" role="button" tabindex="0" data-l="${l}" data-i="${i}" aria-label="Open ${esc(g.cap)}">${k === 'd' ? '<span class="chrome"><i></i><i></i><i></i></span>' : ''}<span class="scr">${inner}</span>${g.v ? '<span class="play mono">motion</span>' : ''}</div><figcaption>${esc(g.cap)}</figcaption></figure>`;
   }
   const strip = (imgs, cls = '') => { const l = listId(imgs); return `<div class="strip ${cls} n${Math.min(imgs.length, 4)}">${imgs.map((g, i) => media(g, l, i)).join('')}</div>`; };
@@ -84,7 +84,7 @@
     const n = D.PROJECTS.length;
     return `<div class="page">
       ${chips('home')}
-      <header class="hero">
+      <header class="hero"><div class="hero-fx" id="heroFx" aria-hidden="true"></div>
         <p class="eyebrow mono">band. — a studio in Cairo</p>
         <h1>Stores, software, brands <span>and media.</span></h1>
         <p class="lead">We build online stores, write custom software, shape brands and buy the media, in English and Arabic. Everything we’ve made, sorted by category.</p>
@@ -94,7 +94,8 @@
       <section class="sec">${secHead('Browse by category')}
         <div class="cats">${CATS.map(c => { const p = byId[COVER_OF[c.id]] || inCat(c.id)[0]; return `<a class="catc" href="#${c.id}">
           <span class="cv">${coverHTML(p)}</span>
-          <span class="cb"><span class="cn">${ic(c.id)}<b>${c.name}</b><em class="mono">${inCat(c.id).length}</em></span><span class="cl">${c.line}</span></span></a>`; }).join('')}</div>
+          <span class="cb"><span class="cn">${ic(c.id)}<b>${c.name}</b><em class="mono">${inCat(c.id).length}</em></span><span class="cl">${c.line}</span></span></a>`; }).join('')}
+          <a class="catc yours" href="#contact"><span class="cb"><span class="cl mono">Next</span><b>Your project.</b><span class="go">Start a project ${ic('arrow')}</span></span></a></div>
       </section>
       <section class="sec">${secHead('Selected work')}
         <div class="grid">${FEATURED.map(id => byId[id] && card(byId[id])).join('')}</div>
@@ -221,11 +222,17 @@
         <aside class="how">
           <h2 class="lbl mono">How it goes</h2>
           <ol>${steps.map(([a, b]) => `<li><b>${a}</b><span>${b}</span></li>`).join('')}</ol>
-          <h2 class="lbl mono">Find us</h2>
+          <h2 class="lbl mono">Find us online</h2>
           <ul class="links">${D.LINKS.filter(([n]) => n !== 'Threads').map(([n, h, u]) => `<li><a href="${u}" target="_blank" rel="noopener"><span>${n}</span><small>${h}</small>${ic('out')}</a></li>`).join('')}
             <li><a href="mailto:${D.EMAIL}"><span>Email</span><small>${D.EMAIL}</small>${ic('out')}</a></li></ul>
         </aside>
       </div>
+      <section class="place">
+        <div class="pl"><h2 class="lbl mono">The studio</h2><b>${esc(D.PLACE.label)}</b><p>Come by for the 20-minute call in person. Tell us you’re coming first.</p>
+          <a class="btn dark" href="${D.PLACE.url}" target="_blank" rel="noopener">Open in Google Maps ${ic('out')}</a></div>
+        <div class="map"><iframe title="band. on the map" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+          src="https://www.google.com/maps/embed?origin=mfe&pb=!1m3!2m1!1s${D.PLACE.lat},${D.PLACE.lng}!6i16"></iframe></div>
+      </section>
     </div>`;
   }
 
@@ -235,6 +242,7 @@
     const h = decodeURIComponent(location.hash.slice(1)).replace(/^\//, '');
     if (!h || h === 'work' || h === 'all' || h === 'home') return { k: 'home', id: 'home' };
     if (cat(h)) return { k: 'cat', id: h };
+    if (h === 'web' || h === 'websites') return { k: 'cat', id: 'stores' };       // Websites now live with Stores
     if (pageName(h)) return { k: 'page', id: h };
     if (byId[h]) return { k: 'project', id: h };
     if (h === 'gallery' || h === 'photos') return { k: 'home', id: 'home' };
@@ -259,6 +267,7 @@
     $('#backBtn').disabled = r.k === 'home';
     wire();
     view.scrollTop = push === 'pop' ? (scrolls[r.id] || 0) : 0;
+    placeLoop();
     if (!R && push !== 'first') view.firstElementChild?.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 320, easing: 'cubic-bezier(.2,.8,.2,1)' });
     $('.chips .on', view)?.scrollIntoView({ block: 'nearest', inline: 'center' });
   }
@@ -300,6 +309,24 @@
     }
   }
 
+  /* ---------- the motion loop (made with Remotion, see band-os-motion) ---------- */
+  const calm = R || navigator.connection?.saveData;
+  function loop(host, tall) {
+    if (!host || host.firstChild) return;
+    const name = tall ? 'field-tall' : 'field', v = document.createElement('video');
+    Object.assign(v, { muted: true, loop: true, playsInline: true, poster: `img/bg/${name}.jpg`, preload: calm ? 'none' : 'auto' });
+    v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+    if (calm) v.classList.add('on');
+    else { v.src = `img/bg/${name}.mp4`; v.addEventListener('playing', () => v.classList.add('on'), { once: true }); }
+    host.append(v); if (!calm) v.play().catch(() => v.classList.add('on'));
+  }
+  const placeLoop = () => { if (phone.matches) loop($('#heroFx', view), true); else loop($('#bgfx'), innerHeight > innerWidth * 1.2); };
+  if (!R) addEventListener('pointermove', e => {                     // the desk leans a little toward the pointer
+    if (phone.matches) return;
+    $('#bgfx').style.transform = `translate(${(e.clientX / innerWidth - .5) * -14}px,${(e.clientY / innerHeight - .5) * -10}px) scale(1.04)`;
+  }, { passive: true });
+  phone.addEventListener('change', placeLoop);
+
   /* ---------- the viewer ---------- */
   const ql = $('#ql'); let qs = null, lastFocus = null;
   function quick(list, i) {
@@ -338,7 +365,7 @@
   function toast(t, ms = 2600) { let el = $('#toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; el.setAttribute('role', 'status'); document.body.append(el); } el.textContent = t; el.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove('on'), ms); }
 
   /* ---------- search and bqnd ---------- */
-  const kCode = BQ.code($('#kCode'), { color: '#FFFFFF', accent: '#10A862', mode: 'breathe' });
+  const kCode = BQ.code($('#kCode'), { color: '#0B0B0B', accent: '#10A862', mode: 'breathe' });
   const pCode = BQ.code($('#pCode'), { color: '#0B0B0B', accent: '#10A862', mode: 'breathe', minH: .1 });
   const pal = $('#pal');
   const asst = new BQ.Assistant({
