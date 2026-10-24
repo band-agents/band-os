@@ -17,4 +17,4 @@ The work of band., a studio in Cairo: every project, sorted by category.
 
 It is a static site with no build step. `index.html` loads `css/os.css`, `js/social.js` (the Instagram sets), `js/data.js` (every fact and image, and the categories), `js/core.js` (the logo, the animated barcode, the assistant) and `js/os.js` (the app). Images are in `img/`. They are made by the scripts in the studio's `brand/_src`: `shoot-os-work.mjs` and `shoot-os-directions.mjs` (live stores and website shots), `prep-os-work.mjs` (resizes them) and `prep-os-social.mjs` (the Instagram sets → `img/social` and `js/social.js` input).
 
-Portfolio: https://band-agents.github.io/band/ · Instagram: [@band.cairo](https://www.instagram.com/band.cairo/)
+Email: band.digi.tech@gmail.com · Instagram: [@band.cairo](https://www.instagram.com/band.cairo/)

@@ -511,7 +511,7 @@ const OS = (() => {
         { t: 'Interactive lookbooks, social cutdowns', x: 'The same pipeline over campaign photography, tuned per drop. Record the canvas straight to a reel: one build, every format.', imgs: [] },
       ],
       gallery: [im('lab/shader', 'Live shader', 'd')],
-      links: [['Play with the live shader', 'https://band-agents.github.io/band/#lab']], service: 'lab',
+      service: 'lab',
     },
   ];
   for (const p of PROJECTS) if (!p.gallery?.length && p.features.length) p.gallery = p.features.flatMap(f => f.imgs);
@@ -576,8 +576,8 @@ const OS = (() => {
   ];
 
   const LINKS = [['Instagram', '@band.cairo', 'https://www.instagram.com/band.cairo/'], ['Threads', '@band.cairo', 'https://www.threads.com/@band.cairo'], ['X', '@band_cairo', 'https://x.com/band_cairo'],
-    ['LinkedIn', 'band.', 'https://www.linkedin.com/company/104876648/'], ['Portfolio', 'band-agents.github.io/band', 'https://band-agents.github.io/band/']];
-  const EMAIL = 'hello@band.agency';
+    ['LinkedIn', 'band.', 'https://www.linkedin.com/company/104876648/']];
+  const EMAIL = 'band.digi.tech@gmail.com';
   // where to find us: the pin Dan shared (Google Maps place “Band”)
   const PLACE = { label: 'Corniche El Nil, Cairo', lat: 30.0719202, lng: 31.2275839, url: 'https://maps.app.goo.gl/rg5DSjh9nzj1TSjh6' };
 
