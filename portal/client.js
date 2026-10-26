@@ -21,7 +21,7 @@ export async function mount(who) {
   catch (e) { toast(e.message, true); return; }
   document.title = `${W.client.name} · band. portal`;
   $('#app').innerHTML = shell({ tag: 'Client', name: W.client.name }) + `
-    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><span class="save" id="save"><i></i><span>Saved</span></span></div><div class="view" id="view" tabindex="-1"></div></section></div>`;
+    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><span class="save" id="save"><i></i><span>Saved</span></span></div><div class="view" id="view" tabindex="-1"></div></section></div><nav class="bnav" id="bnav" aria-label="Sections"></nav>`;
   $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back();
   $('#view').addEventListener('click', onClick); $('#view').addEventListener('input', onInput); $('#view').addEventListener('change', onInput);
   addEventListener('hashchange', go); setInterval(poll, 30000);
@@ -45,11 +45,24 @@ function paint() {
     sections().map(([r, t, i, badge, ok]) => `<button class="si ${r === route ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${badge !== undefined && badge !== '' ? `<em class="${ok ? 'ok' : ''}">${esc(badge)}</em>` : ''}</button>`).join('') +
     `<div class="sfoot"><span>Questions?</span><a href="mailto:${esc(W.settings.studioEmail)}">${esc(W.settings.studioEmail)}</a></div>`;
   $$('#side [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
+  tabbar();
   const title = sections().find(s => s[0] === route)[1];
   $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
   const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, invoices, files, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
+}
+
+/* phone: the four things you use most live in a bottom bar, the rest under More */
+const PRIMARY = ['overview', 'start', 'agreement', 'results'], SHORT = { start: 'Start', results: 'Results' };
+function tabbar() {
+  const all = sections(), prim = all.filter(s => PRIMARY.includes(s[0])), more = all.filter(s => !PRIMARY.includes(s[0]));
+  $('#bnav').innerHTML = prim.map(([r, t, i, badge]) => `<button class="${r === route ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${SHORT[r] || t}</span>${r === 'agreement' && W.contract.status === 'sent' ? '<i>!</i>' : ''}</button>`).join('')
+    + `<button class="${more.some(s => s[0] === route) ? 'on' : ''}" data-more aria-label="More">${ic('list')}<span>More</span>${W.msgs.length ? `<i>${W.msgs.length}</i>` : ''}</button>`;
+  $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
+  $('#bnav [data-more]').onclick = () => modal(`<h3>More</h3><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">${more.map(([r, t, i, badge]) => `<button class="btn" style="justify-content:flex-start;height:52px" data-go="${r}">${ic(i)}<span style="flex:1;text-align:left">${t}</span>${badge ? `<span class="mono" style="color:var(--mute)">${esc(badge)}</span>` : ''}</button>`).join('')}<button class="btn" style="justify-content:flex-start;height:52px" data-go="__out">${ic('out')}<span>Sign out</span></button></div>`, {
+    onMount: (m, close) => $$('[data-go]', m).forEach(b => b.onclick = () => { close(); b.dataset.go === '__out' ? signOut() : nav(b.dataset.go); }),
+  });
 }
 
 /* ---------- overview ---------- */

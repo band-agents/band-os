@@ -294,23 +294,61 @@ body.staff .ad{background:var(--card)}
 #pal .list button em{margin-left:auto;font-style:normal;font:500 11px 'JetBrains Mono',monospace;opacity:.6}
 #pal .hint{padding:10px 18px;border-top:1px solid var(--rule);color:var(--mute);display:flex;gap:16px}
 
-/* ---------- phone ---------- */
+/* ---------- phone: an app, not a squeezed desktop. Bottom tab bar, full-bleed pages, 16px inputs, sheets instead of dialogs ---------- */
+.bnav{display:none}
 @media (max-width:860px){
-  .win{inset:46px 0 0 0;width:auto;left:0;border-radius:0;grid-template-columns:1fr;grid-template-rows:auto 1fr;border:0}
-  .side{flex-direction:row;overflow-x:auto;padding:10px;border-right:0;border-bottom:1px solid var(--rule);gap:6px}
-  .side h6,.sfoot,.who-card{display:none}
-  .si{width:auto;white-space:nowrap;padding:8px 14px;border-radius:999px;border:1px solid var(--rule)}
-  .si em{display:none}
-  .g3,.g4,.tl,.split,.gov{grid-template-columns:1fr}.ring{margin:0 auto}
-  .g2{grid-template-columns:1fr}
-  .agr{grid-template-columns:1fr}.toc{display:none}.signp{position:static}
-  .fgrid{grid-template-columns:1fr}
+  .bar{height:52px;padding:0 14px;background:rgba(6,6,6,.78)}
+  .bar .who,.bar .envtag,.bar .pill span,.bar .pill kbd{display:none}
+  .bar .pill{width:36px;height:36px;padding:0;justify-content:center;border-radius:50%}
+  .bar .pill .ic{width:17px;height:17px}
+  .bar .ghostb{height:36px;padding:0 10px}
+  .win{inset:52px 0 0 0;width:auto;left:0;display:block;border:0;border-radius:0;box-shadow:none}
+  .side{display:none}
+  .main{height:100%}
+  .tool{height:50px;padding:0 14px;gap:10px}
+  .crumbs{font-size:13px}
+  .view{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  .page,.page.wide{padding:22px 16px 28px}
+  .page h1{font-size:34px;line-height:1.02}
+  .lead{font-size:15.5px;margin-top:10px}
+  .sec{margin-top:30px}.sh h2{font-size:19px}
+  .grp{margin-top:26px}
+  .eyebrow{margin-bottom:10px}
+  .g4,.g2{grid-template-columns:1fr 1fr}.g3,.tl,.split{grid-template-columns:1fr !important}
+  .gov{grid-template-columns:auto 1fr !important;gap:10px}.gov>.card:first-child{padding:12px;justify-content:center}.gov>.card:last-child{grid-column:1/-1}
+  .ring{width:96px;height:96px}.ring::before{inset:9px}.ring b{font-size:23px}.ring small{font-size:9px}
+  .stat{padding:15px}.stat .v{font-size:27px}.stat .k{font-size:12.5px}
+  .card{padding:16px;border-radius:14px}
+  .card:has(table.t){overflow-x:auto}table.t{min-width:480px}
+  .next{flex-direction:column;align-items:stretch;gap:14px;padding:20px;border-radius:16px;margin-top:20px}.next canvas{display:none}.next h3{font-size:21px}.next .btn{width:100%}
+  .tl>div{padding:14px}
+  .hero-s{flex-direction:column;align-items:flex-start;gap:14px}.hero-s canvas{display:none}
+  .item{border-radius:14px}.item>header{padding:14px 14px;gap:11px}.item h4{font-size:15px}.item .body{padding:0 14px 18px}
+  .item .acts .btn{flex:1 1 auto}
+  ol.steps{padding-left:18px}
+  .copy{flex-wrap:wrap}.copy b{font-size:14.5px;word-break:break-all}.copy span{flex-basis:100%}
+  .fgrid,.fgrid[style*="grid-template-columns"]{grid-template-columns:1fr !important}.fgrid[style*="repeat(5"]{grid-template-columns:1fr 1fr !important}
+  .in,input,select,textarea{font-size:16px}.in{height:48px}textarea.in{height:auto}
+  .btn{height:46px}.btn.sm{height:38px}
+  .tabs{flex-wrap:nowrap;overflow-x:auto;margin:16px -16px 0;padding:0 16px 4px;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}.tabs button{flex:none;height:38px}
+  .agr{grid-template-columns:1fr;gap:16px}.toc{display:none}.signp{position:static}.signp canvas{height:170px}
+  .paper{padding:26px 20px;font-size:14.5px}.paper h1{font-size:23px}
+  .thread .msg{max-width:94%}
+  .row{flex-wrap:wrap;gap:10px;padding:14px}.row .n{flex:1 1 100%}.row .n b{font-size:17px}.row .bar-p{width:100%}.row>div:last-child{width:100%}
+  .chart{height:200px}
+  .ads{grid-template-columns:1fr}
+  #ctext{min-height:360px !important}#cprev{max-height:420px !important}
+  .modal{align-items:flex-end;padding:0}.modal .box{width:100%;max-height:92vh;border-radius:22px 22px 0 0;padding:22px 18px calc(26px + env(safe-area-inset-bottom))}
+  #pal{padding-top:0;align-items:flex-end}#pal .pbox{width:100%;border-radius:22px 22px 0 0}#pal input{font-size:16px}#pal .hint{display:none}
+  #toast{bottom:calc(90px + env(safe-area-inset-bottom))}
   #login{padding:12px}#login .stage{grid-template-columns:1fr;border-radius:18px}.stage .l{min-height:0;padding:24px 22px 20px;border-right:0;border-bottom:1px solid rgba(255,255,255,.08)}.stage .l canvas{height:84px;width:130px}.stage .l .wm{width:84px;margin-top:10px}.stage .l h1{margin-top:18px;font-size:28px}.stage .l p{font-size:14px;margin-top:8px}.stage .l .meta{margin-top:16px}.stage .r{padding:24px 22px 26px}
-  .item .body{padding-left:18px}
-  .bar .who span,.bar .pill span,.bar .pill .ic{width:15px;height:15px}.bar .pill kbd{display:none}
-  .bar .pill{padding:0 10px}
-  .next{flex-direction:column;align-items:flex-start}.next canvas{display:none}
-  .hero-s canvas{display:none}
+  .bnav{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;position:fixed;left:0;right:0;bottom:0;z-index:70;padding:7px 6px calc(7px + env(safe-area-inset-bottom));background:rgba(251,251,248,.94);backdrop-filter:blur(18px) saturate(1.4);-webkit-backdrop-filter:blur(18px) saturate(1.4);border-top:1px solid var(--rule)}
+  body.staff .bnav{background:rgba(16,19,18,.94)}
+  .bnav button{position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 2px 4px;font:700 10.5px 'Manrope',sans-serif;color:var(--mute);border-radius:12px}
+  .bnav button .ic{width:22px;height:22px}
+  .bnav button.on{color:var(--ink)}.bnav button.on .ic{stroke:var(--green)}
+  .bnav button.on::before{content:"";position:absolute;top:-7px;left:50%;width:22px;height:3px;margin-left:-11px;border-radius:3px;background:var(--green)}
+  .bnav i{position:absolute;top:3px;left:calc(50% + 6px);min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--green);color:#fff;font:700 9.5px/16px 'JetBrains Mono',monospace;font-style:normal;text-align:center}
 }
 @media print{
   body{background:#fff;overflow:visible}body::before,.bar,.side,.tool,.signp,.toc,#toast{display:none !important}

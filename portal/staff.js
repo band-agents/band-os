@@ -10,8 +10,8 @@ export async function mount(who) {
   try { [O, T] = await Promise.all([api('GET', 'staff/overview'), api('GET', 'template')]); } catch (e) { toast(e.message, true); return; }
   lastLog = O.log[0]?.at;
   document.title = 'Staff · band. portal';
-  $('#app').innerHTML = shell({ tag: 'Staff', staff: true, name: me.name, extra: `<span class="mono" style="color:rgba(255,255,255,.5);margin-right:6px">${O.mode === 'redis' ? 'LIVE' : 'LOCAL DATA'}</span>` }) + `
-    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><button class="btn sm green" id="newBtn">${ic('plus')} New client</button></div><div class="view" id="view" tabindex="-1"></div></section></div>`;
+  $('#app').innerHTML = shell({ tag: 'Staff', staff: true, name: me.name, extra: `<span class="mono envtag" style="color:rgba(255,255,255,.5);margin-right:6px">${O.mode === 'redis' ? 'LIVE' : 'LOCAL DATA'}</span>` }) + `
+    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><button class="btn sm green" id="newBtn">${ic('plus')} New client</button></div><div class="view" id="view" tabindex="-1"></div></section></div><nav class="bnav" id="bnav" aria-label="Sections"></nav>`;
   $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back(); $('#newBtn').onclick = newClient;
   $('#view').addEventListener('click', onClick); $('#view').addEventListener('input', onInput);
   addEventListener('hashchange', go); setInterval(poll, 20000); go();
@@ -35,7 +35,14 @@ async function go() {
   if (route === 'client') { try { C = await api('GET', 'staff/clients/' + arg); } catch (e) { toast(e.message, true); return nav('clients'); } } else C = null;
   paint();
 }
+function tabbar() {
+  const on = r => route === r || (r === 'clients' && route === 'client');
+  $('#bnav').innerHTML = [['overview', 'Overview', 'home'], ['clients', 'Clients', 'users'], ['activity', 'Activity', 'clock'], ['settings', 'Settings', 'settings']]
+    .map(([r, t, i]) => `<button class="${on(r) ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${t}</span>${r === 'clients' && O.clients.some(c => c.awaiting || c.help) ? '<i>•</i>' : ''}</button>`).join('');
+  $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
+}
 function side() {
+  tabbar();
   $('#side').innerHTML = `<div class="who-card"><b>${esc(me.name)}</b><span>Staff</span></div><h6>Studio</h6>
     ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em>${n}</em>` : ''}</button>`).join('')}
     <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting || c.help || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
