@@ -48,7 +48,7 @@ function login() {
   const $$m = s => [...el.querySelectorAll(s)];
   el.querySelectorAll('.seg button').forEach(b => b.onclick = () => { mode = b.dataset.m; paint(); });
   paint();
-  api('GET', 'health').then(h => { if (!h.secret || !h.staffCode) $('#lstat').textContent = 'Server not configured yet'; }).catch(() => { $('#lstat').textContent = 'Server unreachable'; });
+  api('GET', 'health').then(h => { if (!h.secret || !h.staffCode) $('#lstat').textContent = 'Server not configured yet'; }).catch(e => { $('#lstat').textContent = e.code === 503 ? 'Server setup not finished yet' : 'Server unreachable'; });
   $('#lf').onsubmit = async e => {
     e.preventDefault(); const go = $('#lgo'); go.disabled = true; $('#lerr').textContent = '';
     try {
