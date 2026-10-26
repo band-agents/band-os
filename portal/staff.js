@@ -46,7 +46,7 @@ function paint() {
   side(); const v = $('#view'), t = { overview, clients, client, activity, settings }[route]();
   $('#crumbs').innerHTML = route === 'client' ? `<a data-nav="clients">Clients</a><i>/</i><span>${esc(C.client.name)}</span>` : `<span>${{ overview: 'Overview', clients: 'Clients', activity: 'Activity', settings: 'Settings' }[route]}</span>`;
   $('#crumbs a')?.addEventListener('click', () => nav('clients'));
-  v.innerHTML = t; v.scrollTop = 0; bc?.stop(); bc = null; const cv = $('#hcode'); if (cv) bc = barcode(cv, { color: '#EDEDE6', level: Math.min(1, .3 + O.log.filter(l => Date.now() - new Date(l.at) < 864e5).length / 12) }); palette();
+  v.innerHTML = t; v.scrollTop = 0; bc?.stop(); bc = null; const cv = $('#hcode'); if (cv) bc = barcode(cv, { color: '#EDEDE6', level: Math.min(1, .3 + O.log.filter(l => Date.now() - new Date(l.at) < 864e5).length / 12) }); palette(); if (route === 'settings') loadTeam();
 }
 
 /* ---------- overview ---------- */
@@ -175,7 +175,15 @@ function settings() {
     <div class="fld full"><label>Our Meta Business ID (shown to clients in “Add band. as a partner”)</label><input class="in" id="st-bm" inputmode="numeric" value="${esc(s.bandBmId)}" placeholder="16-digit number from Business settings"></div>
     <div class="fld"><label>Default governing law</label><input class="in" id="st-law" value="${esc(s.governingLaw)}"></div><div class="fld"><label>Agreement title</label><input class="in" id="st-title" value="${esc(s.contractTitle)}"></div></div>
     <div class="warnbox">${ic('alert')}<span>The default agreement text is a draft written for this service. Have a lawyer read it before the first client signs. Electronic signature rules depend on the country.</span></div>
-    <div class="acts"><button class="btn green" data-savesettings>Save settings</button></div></div></div>`;
+    <div class="acts"><button class="btn green" data-savesettings>Save settings</button></div></div>
+    <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">Everyone can sign in with the team code. A personal code signs in under that person's own name, so the activity log says who did what.</p>
+    <div id="team" style="margin-top:12px"><p class="small">Loading…</p></div>
+    <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Personal code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div></div>`;
+}
+async function loadTeam() {
+  const el = $('#team'); if (!el) return;
+  try { const r = await api('GET', 'staff/team'); el.innerHTML = r.team.length ? `<table class="t"><tbody>${r.team.map(m => `<tr><td><b>${esc(m.name)}</b><br><span class="small">added ${esc(day(m.at))}</span></td><td class="r"><button class="btn sm ghost danger" data-rmstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">No personal codes yet.</p>'; }
+  catch (e) { el.innerHTML = `<p class="small">${esc(e.message)}</p>`; }
 }
 
 /* ---------- row editors ---------- */
@@ -218,6 +226,8 @@ async function onClick(e) {
   if (d.savenotes !== undefined) return void (await put({ notes: $('#cs-notes').value }));
   if (d.reset !== undefined) { if (!confirm('Make a new access code? The old one stops working immediately.')) return; try { const r = await api('POST', `staff/clients/${arg}/resetcode`, {}); codeModal(C.client, r.code, false); } catch (er) { toast(er.message, true); } return; }
   if (d.del !== undefined) { const n = prompt(`Type "${C.client.name}" to delete this workspace for good.`); if (n === null) return; try { await api('DELETE', 'staff/clients/' + arg, { confirm: n }); await reload(); toast('Deleted'); nav('overview'); } catch (er) { toast(er.message, true); } return; }
+  if (d.addstaff !== undefined) { try { await api('POST', 'staff/team', { name: $('#tm-name').value, code: $('#tm-code').value }); $('#tm-name').value = $('#tm-code').value = ''; toast('Added'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
+  if (d.rmstaff) { if (!confirm('Remove this person? Their personal code stops working.')) return; try { await api('DELETE', 'staff/team', { id: d.rmstaff }); toast('Removed'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
   if (d.savesettings !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { studio: $('#st-studio').value, studioEmail: $('#st-email').value, bandBmId: $('#st-bm').value, governingLaw: $('#st-law').value, contractTitle: $('#st-title').value }); toast('Saved'); } catch (er) { toast(er.message, true); } }
 }
 document.addEventListener('change', async e => {

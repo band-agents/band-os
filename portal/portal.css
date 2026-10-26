@@ -23,8 +23,8 @@ p{margin:0}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 
 /* ---------- login ---------- */
-#login{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;overflow:auto}
-#login .stage{width:min(940px,100%);display:grid;grid-template-columns:1.05fr 1fr;border-radius:22px;overflow:hidden;border:1px solid rgba(255,255,255,.12);
+#login{position:fixed;inset:0;z-index:50;display:flex;padding:20px;overflow:auto;-webkit-overflow-scrolling:touch}
+#login .stage{margin:auto;width:min(940px,100%);display:grid;grid-template-columns:1.05fr 1fr;border-radius:22px;overflow:hidden;border:1px solid rgba(255,255,255,.12);
   background:rgba(8,10,9,.62);backdrop-filter:blur(24px) saturate(1.4);-webkit-backdrop-filter:blur(24px) saturate(1.4);box-shadow:0 60px 160px -30px rgba(0,0,0,.9),0 0 120px -50px rgba(16,168,98,.5);color:#EDEDE6}
 .stage .l{padding:44px 40px;display:flex;flex-direction:column;justify-content:space-between;min-height:520px;border-right:1px solid rgba(255,255,255,.08);position:relative}
 .stage .l canvas{width:min(210px,60%);height:150px;display:block}
@@ -305,7 +305,7 @@ body.staff .ad{background:var(--card)}
   .g2{grid-template-columns:1fr}
   .agr{grid-template-columns:1fr}.toc{display:none}.signp{position:static}
   .fgrid{grid-template-columns:1fr}
-  #login .stage{grid-template-columns:1fr}.stage .l{min-height:0;border-right:0;border-bottom:1px solid rgba(255,255,255,.08)}
+  #login{padding:12px}#login .stage{grid-template-columns:1fr;border-radius:18px}.stage .l{min-height:0;padding:24px 22px 20px;border-right:0;border-bottom:1px solid rgba(255,255,255,.08)}.stage .l canvas{height:84px;width:130px}.stage .l .wm{width:84px;margin-top:10px}.stage .l h1{margin-top:18px;font-size:28px}.stage .l p{font-size:14px;margin-top:8px}.stage .l .meta{margin-top:16px}.stage .r{padding:24px 22px 26px}
   .item .body{padding-left:18px}
   .bar .who span,.bar .pill span,.bar .pill .ic{width:15px;height:15px}.bar .pill kbd{display:none}
   .bar .pill{padding:0 10px}

@@ -66,11 +66,13 @@ const H = { client: {}, staff: {}, open: {} };
 
 H.open['GET health'] = async () => ({ ok: true, mode, ...configured() });
 H.open['POST login/staff'] = async (req, res) => {
-  const cfg = configured(); if (!cfg.secret || !cfg.staffCode) throw bad(503, 'Staff login is not configured on this server yet.');
-  const b = await readBody(req);
+  const cfg = configured(); if (!cfg.secret) throw bad(503, 'Staff login is not configured on this server yet.');
+  const b = await readBody(req), code = clip(b.code, 200);
   if (await store.hit(`rl:s:${sha(ip(req))}`, 600) > 8) throw bad(429, 'Too many tries. Wait ten minutes.');
-  if (!same(sha(clip(b.code, 200)), sha(process.env.STAFF_CODE))) throw bad(401, 'That code is not right.');
-  const name = clip(b.name, 40).trim() || 'Staff';
+  // the team code from the host's environment works for anyone; personal codes made in Settings sign in under their own name
+  let name = cfg.staffCode && same(sha(code), sha(process.env.STAFF_CODE)) ? (clip(b.name, 40).trim() || 'Staff') : null;
+  if (!name) { const u = ((await store.get('staffusers')) || []).find(x => same(hashCode(code, x.salt), x.hash)); name = u?.name || null; }
+  if (!name) throw bad(401, 'That code is not right.');
   setSession(req, res, { role: 'staff', name }, 60 * 60 * 24 * 7);
   await log(name, 'signed in');
   return { role: 'staff', name };
@@ -258,6 +260,24 @@ H.staff['DELETE client'] = async (req, res, s, q) => {
   await store.srem('clients', q.id); await log(s.name, `deleted ${c.name}`);
   return { ok: true };
 };
+H.staff['GET team'] = async () => ({ team: ((await store.get('staffusers')) || []).map(({ id, name, at }) => ({ id, name, at })) });
+H.staff['POST team'] = async (req, res, s) => {
+  const b = await readBody(req), name = clip(b.name, 40).trim(), code = clip(b.code, 100);
+  if (name.length < 2) throw bad(400, 'Give the person a name.');
+  if (code.trim().length < 6) throw bad(400, 'The code needs at least 6 characters.');
+  const users = (await store.get('staffusers')) || [];
+  if (users.some(x => x.name.toLowerCase() === name.toLowerCase())) throw bad(409, 'That name already has a code.');
+  if (users.some(x => same(hashCode(code, x.salt), x.hash)) || (configured().staffCode && same(sha(code), sha(process.env.STAFF_CODE)))) throw bad(409, 'Pick a different code. This one is already in use.');
+  const salt = newSalt(); users.push({ id: newId(5), name, salt, hash: hashCode(code, salt), at: now() });
+  await store.set('staffusers', users.slice(0, 30)); await log(s.name, `added ${name} to the staff`);
+  return { ok: true };
+};
+H.staff['DELETE team'] = async (req, res, s) => {
+  const b = await readBody(req), users = (await store.get('staffusers')) || [], u = users.find(x => x.id === b.id);
+  if (!u) throw bad(404, 'Not found'); if (u.name === s.name) throw bad(400, 'You cannot remove yourself.');
+  await store.set('staffusers', users.filter(x => x.id !== b.id)); await log(s.name, `removed ${u.name} from the staff`);
+  return { ok: true };
+};
 H.staff['GET settings'] = async () => settings();
 H.staff['PUT settings'] = async (req) => {
   const b = await readBody(req), cur = await settings();
@@ -267,7 +287,8 @@ H.staff['PUT settings'] = async (req) => {
 
 // ---------- router ----------
 export async function handle(req, res) {
-  const u = new URL(req.url, 'http://x'), parts = u.pathname.replace(/^\/api\/?/, '').split('/').filter(Boolean);
+  // On Vercel a rewrite sends every /api/... request here and puts the original path in ?__p=
+  const u = new URL(req.url, 'http://x'), qp = u.searchParams.get('__p'), parts = (qp !== null ? qp : u.pathname.replace(/^\/api\/?/, '')).split('/').filter(Boolean);
   res.setHeader('cache-control', 'no-store'); res.setHeader('content-type', 'application/json; charset=utf-8'); res.setHeader('x-content-type-options', 'nosniff');
   const out = (code, o) => { res.statusCode = code; res.end(JSON.stringify(o)); };
   try {
