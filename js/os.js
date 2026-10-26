@@ -32,6 +32,7 @@
     services: '<path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/>',
     results: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
     clients: '<path d="M4 20V8l8-4 8 4v12"/><path d="M9 20v-6h6v6"/>',
+    portal: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     contact: '<rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M4 7l8 6 8-6"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
@@ -441,7 +442,7 @@
   $('#icons').innerHTML = `<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="fg" x1="0" x2="0" y1="0" y2="1">
       <stop offset="0" stop-color="#A6E3C1"/><stop offset="1" stop-color="#6BC394"/></linearGradient></defs></svg>`
     + CATS.map(c => `<a class="dicon" href="#${c.id}" data-open>${FOLDER(`<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#1F6B45" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity=".6">${I[c.id]}</svg>`)}<span>${c.name}</span></a>`).join('');
-  const DOCK = [['home', '', 'band.'], ['search', null, 'Search'], ['services', 'services', 'Services'], ['results', 'results', 'Results'], ['clients', 'clients', 'Clients'], ['contact', 'contact', 'Contact']];
+  const DOCK = [['home', '', 'band.'], ['search', null, 'Search'], ['services', 'services', 'Services'], ['results', 'results', 'Results'], ['clients', 'clients', 'Clients'], ['contact', 'contact', 'Contact'], ['portal', null, 'Portal']];
   $('#dock').innerHTML = DOCK.map(([k, h, t]) => `${k === 'services' ? '<i class="sep" aria-hidden="true"></i>' : ''}<button class="ditem d-${k}" data-k="${k}" aria-label="${t}"><span class="tip">${t}</span>
       <span class="tile">${k === 'home' ? BQ.lockup('#FFFFFF') : ic(k)}</span><i class="dot"></i></button>`).join('');
   const dockSync = () => $('.d-home', $('#dock')).classList.toggle('run', win.state !== 'closed');
@@ -470,6 +471,7 @@
   $$('#dock .ditem').forEach(b => b.onclick = () => {
     const k = b.dataset.k, d = DOCK.find(x => x[0] === k);
     if (k === 'search') return openPal();
+    if (k === 'portal') { if (!R) b.querySelector('.tile').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-14px)' }, { transform: 'translateY(0)' }], { duration: 420, easing: 'ease-out' }); return void setTimeout(() => { location.href = 'portal/'; }, R ? 0 : 260); }
     if (!R) b.querySelector('.tile').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-14px)' }, { transform: 'translateY(0)' }], { duration: 420, easing: 'ease-out' });
     if (k === 'home' && win.state !== 'open') return openWindow(b);
     go(d[1]); openWindow(b);

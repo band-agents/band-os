@@ -1,0 +1,228 @@
+import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText, setPalette, openPalette, md, headings, chart, barcode, STATE, KIND } from './lib.js';
+import { shell, signOut } from './main.js';
+import { agreementPdf } from './pdf.js';
+
+let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk = false;
+const sections = () => [
+  ['overview', 'Overview', 'home'], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
+  ['forms', 'Forms', 'form'], ['agreement', 'Agreement', 'pen', { draft: 'soon', void: '—', sent: 'sign', signed: 'done' }[W.contract.status], W.contract.status === 'signed'],
+  ['results', 'Ads & results', 'chart'], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'], ['messages', 'Messages', 'chat', W.msgs.length || '']];
+
+/* ---------- state of one checklist item, same rules as the server ---------- */
+const items = () => [...T.checklist, ...(W.staff.customItems || [])].filter(i => !(W.staff.hidden || []).includes(i.id));
+const stateOf = i => W.staff.verify[i.id]?.state || (i.id === 'sign' ? (W.contract.status === 'signed' ? 'verified' : 'todo') : i.owner === 'staff' ? (W.staff.auto?.[i.id] ? 'verified' : 'todo') : W.answers.checklist[i.id]?.state || 'todo');
+const isDone = s => ['submitted', 'verified', 'na'].includes(s);
+const pct = () => Math.round(100 * W.summary.done / Math.max(1, W.summary.total));
+const nextItem = () => items().filter(i => i.required !== false && i.owner !== 'staff').find(i => !isDone(stateOf(i)));
+
+export async function mount(who) {
+  me = who;
+  try { [W, T] = await Promise.all([api('GET', 'client/workspace'), api('GET', 'template')]); }
+  catch (e) { toast(e.message, true); return; }
+  document.title = `${W.client.name} · band. portal`;
+  $('#app').innerHTML = shell({ tag: 'Client', name: W.client.name }) + `
+    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><span class="save" id="save"><i></i><span>Saved</span></span></div><div class="view" id="view" tabindex="-1"></div></section></div>`;
+  $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back();
+  $('#view').addEventListener('click', onClick); $('#view').addEventListener('input', onInput); $('#view').addEventListener('change', onInput);
+  addEventListener('hashchange', go); setInterval(poll, 30000);
+  palette(); go();
+}
+const bust = () => { setPalette([]); palette(); };
+function palette() {
+  setPalette([
+    ...sections().map(([r, t, i]) => ({ t: t, i, h: 'Go to', k: r, run: () => nav(r) })),
+    ...items().filter(i => i.owner !== 'staff').map(i => ({ t: i.title, i: 'check', h: KIND[i.kind] || 'Item', run: () => { open.add(i.id); nav('start'); setTimeout(() => $(`[data-item="${i.id}"]`)?.scrollIntoView({ block: 'center' }), 80); } })),
+    { t: 'Message the team', i: 'chat', h: 'Action', run: () => nav('messages') }, { t: 'Sign out', i: 'out', h: 'Action', run: signOut },
+  ]);
+}
+const nav = (r, a = '') => { location.hash = '#' + r + (a ? '/' + a : ''); };
+function go() {
+  [route, arg] = (location.hash.slice(1) || 'overview').split('/'); if (!sections().some(s => s[0] === route)) route = 'overview';
+  paint();
+}
+function paint() {
+  $('#side').innerHTML = `<div class="who-card"><b>${esc(W.client.name)}</b><span>${esc(W.client.brands.map(b => b.name).join(' · '))}</span></div><h6>Your project</h6>` +
+    sections().map(([r, t, i, badge, ok]) => `<button class="si ${r === route ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${badge !== undefined && badge !== '' ? `<em class="${ok ? 'ok' : ''}">${esc(badge)}</em>` : ''}</button>`).join('') +
+    `<div class="sfoot"><span>Questions?</span><a href="mailto:${esc(W.settings.studioEmail)}">${esc(W.settings.studioEmail)}</a></div>`;
+  $$('#side [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
+  const title = sections().find(s => s[0] === route)[1];
+  $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
+  const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, invoices, files, messages })[route](); v.scrollTop = 0;
+  bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
+  if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
+}
+
+/* ---------- overview ---------- */
+const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; };
+function overview() {
+  const n = nextItem(), c = W.contract.status, last = [...W.msgs].reverse().find(m => m.from === 'staff');
+  const tl = W.staff.timeline || [];
+  return `<div class="page wide"><p class="eyebrow mono">${esc(greet())}</p><h1>${esc(W.client.name)}<span>, welcome.</span></h1>
+    <p class="lead">${pct() === 100 ? 'Everything we need is in. We start on week one.' : 'Here is what we need from you to start. Do it in any order, and come back any time. It saves as you go.'}</p>
+    <div class="grid gov" style="margin-top:30px">
+      <div class="card" style="display:flex;align-items:center;gap:22px"><div class="ring" style="--p:${pct()}"><div><b>${pct()}%</b><small>READY</small></div></div></div>
+      <div class="card stat"><div class="v">${W.summary.done}<small>of ${W.summary.total}</small></div><div class="k">things sent to us</div><div class="bar-p" style="margin-top:14px"><i style="width:${pct()}%"></i></div><div class="k" style="margin-top:10px">${W.summary.verified} checked by us${W.summary.fix ? `, <b style="color:var(--red)">${W.summary.fix} need a fix</b>` : ''}</div></div>
+      <div class="card stat"><div class="v" style="font-size:24px">${{ draft: 'Being prepared', sent: 'Ready to sign', signed: 'Signed', void: 'Withdrawn' }[c]}</div><div class="k">your agreement</div><button class="btn ${c === 'sent' ? 'green' : ''} sm" style="margin-top:14px" data-nav="agreement">${c === 'signed' ? 'View and download' : c === 'sent' ? 'Read and sign' : 'Open'} ${ic('arrow')}</button></div></div>
+    ${n ? `<div class="next"><div class="t"><span class="chipx" style="opacity:.6">Next step · ${esc(KIND[n.kind] || '')}</span><h3>${esc(n.title)}</h3><p>${esc(n.why)}</p></div><button class="btn light" data-open="${esc(n.id)}">Do it now ${ic('arrow')}</button><canvas id="nxcode" aria-hidden="true"></canvas></div>`
+      : c === 'sent' ? `<div class="next"><div class="t"><span class="chipx" style="opacity:.6">Next step</span><h3>Read and sign your agreement</h3><p>It takes five minutes. You get a PDF copy straight after.</p></div><button class="btn light" data-nav="agreement">Open agreement ${ic('arrow')}</button><canvas id="nxcode" aria-hidden="true"></canvas></div>` : ''}
+    <div class="sec"><div class="sh"><h2>The next 12 weeks</h2></div><div class="tl">${tl.map(t => `<div class="${t.state === 'now' ? 'now' : t.state === 'done' ? 'done' : ''}"><div class="w">WEEKS ${esc(t.weeks)}${t.state === 'now' ? ' · NOW' : t.state === 'done' ? ' · DONE' : ''}</div><h4>${esc(t.title)}</h4><p>${esc(t.body)}</p></div>`).join('')}</div></div>
+    ${last ? `<div class="sec"><div class="sh"><h2>Latest from us</h2><button class="more btn sm ghost" data-nav="messages">Reply ${ic('arrow')}</button></div><div class="msg" style="max-width:none"><small>${esc(last.name)} · ${ago(last.at)} ago</small>${esc(last.text)}</div></div>` : ''}</div>`;
+}
+
+/* ---------- start here ---------- */
+function field(f, val, ns) {
+  const v = val ?? '', id = `${ns}-${f.id}`, ph = f.ph ? ` placeholder="${esc(f.ph)}"` : '';
+  if (f.type === 'check') return `<label class="chk full"><input type="checkbox" data-f="${esc(f.id)}" ${v === true || v === 'true' ? 'checked' : ''}><span>${esc(f.label)}</span></label>`;
+  const lab = `<label for="${id}">${esc(f.label)}${f.req ? ' <span class="req">*</span>' : ''}</label>`;
+  if (f.type === 'area') return `<div class="fld full">${lab}<textarea class="in" id="${id}" data-f="${esc(f.id)}"${ph}>${esc(v)}</textarea></div>`;
+  if (f.type === 'select') return `<div class="fld">${lab}<select class="in" id="${id}" data-f="${esc(f.id)}"><option value=""></option>${(f.opts || []).map(o => `<option ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select></div>`;
+  return `<div class="fld">${lab}<input class="in" id="${id}" data-f="${esc(f.id)}" type="${f.type === 'url' ? 'url' : f.type === 'email' ? 'email' : 'text'}" value="${esc(v)}"${ph}></div>`;
+}
+function itemHtml(i) {
+  const s = stateOf(i), a = W.answers.checklist[i.id] || {}, ver = W.staff.verify[i.id], isOpen = open.has(i.id), [lab, tone] = STATE[s];
+  const staffOwned = i.owner === 'staff', canNA = i.required === false;
+  return `<div class="item s-${s} ${isOpen ? 'open' : ''}" data-item="${esc(i.id)}"><header data-toggle="${esc(i.id)}"><span class="dot">${ic('check')}</span>
+    <h4>${esc(i.title)}${i.required === false ? '' : ''}<small>${esc(KIND[i.kind] || '')}${i.required === false ? ' · optional' : ''}</small></h4><span class="pillx ${tone}">${lab}</span></header>
+    <div class="body"><p class="why">${esc(i.why)}</p>
+    ${i.steps?.length ? `<ol class="steps">${i.steps.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}
+    ${i.show?.includes('bandBmId') ? `<div class="copy"><span>Our Business ID</span><b>${esc(W.settings.bandBmId || 'we will send it')}</b>${W.settings.bandBmId ? `<button class="btn sm" data-copy="${esc(W.settings.bandBmId)}">${ic('copy')} Copy</button>` : ''}</div>` : ''}
+    ${i.kind === 'access' ? `<div class="warnbox">${ic('shield')}<span>Never type a password here. If a platform can only be shared by password, press “I need help” and we will arrange a safe way.</span></div>` : ''}
+    ${ver?.state === 'verified' ? `<div class="note ok">Checked by band.${ver.comment ? ': ' + esc(ver.comment) : '.'}</div>` : ''}${ver?.state === 'needs-fix' ? `<div class="note bad"><b>Needs a fix.</b> ${esc(ver.comment || '')}</div>` : ''}
+    ${i.id === 'sign' ? `<div class="acts"><button class="btn dark" data-nav="agreement">${W.contract.status === 'signed' ? 'View your copy' : W.contract.status === 'sent' ? 'Read and sign' : 'Not ready yet'}</button></div>`
+      : staffOwned ? `<p class="small" style="margin-top:14px">${s === 'verified' ? 'Done.' : 'We mark this when it happens. Nothing for you to do.'}</p>`
+      : `${i.fields?.length ? `<div class="fgrid" data-ns="${esc(i.id)}">${i.fields.map(f => field(f, a.fields?.[f.id], i.id)).join('')}</div>` : ''}
+         <div class="fld" style="margin-top:14px"><label for="n-${esc(i.id)}">Note for us (optional)</label><textarea class="in" id="n-${esc(i.id)}" data-note style="min-height:64px"${s === 'help' ? ' placeholder="What is blocking you?"' : ''}>${esc(a.note || '')}</textarea></div>
+         <div class="acts"><button class="btn green sm" data-state="submitted">${ic('check')} ${s === 'submitted' ? 'Update' : 'Mark as sent'}</button><button class="btn sm" data-state="help">I need help</button>${canNA ? '<button class="btn sm ghost" data-state="na">Not applicable</button>' : ''}${isDone(s) || s === 'help' ? '<button class="btn sm ghost" data-state="todo">Undo</button>' : ''}</div>`}
+    </div></div>`;
+}
+function start() {
+  const all = items(), groups = T.groups.map(g => [g, all.filter(i => i.group === g.id)]).filter(([, l]) => l.length);
+  return `<div class="page"><p class="eyebrow mono">Start here</p><h1>What we need<span> to begin.</span></h1><p class="lead">Access, material, numbers and a few decisions. Open an item, do what it says, press “Mark as sent”. We check each one and tell you if anything needs a fix.</p>
+    <div class="bar-p" style="margin-top:22px;max-width:420px"><i style="width:${pct()}%"></i></div><p class="small" style="margin-top:8px">${W.summary.done} of ${W.summary.total} required items sent</p>
+    ${groups.map(([g, l]) => `<div class="grp"><div class="sh"><h2>${esc(g.title)}<em>${l.filter(i => isDone(stateOf(i))).length}/${l.length}</em></h2></div><p class="small">${esc(g.hint)}</p>${l.map(itemHtml).join('')}</div>`).join('')}</div>`;
+}
+
+/* ---------- forms ---------- */
+const formKey = (f, brand) => f.perBrand ? `${f.id}:${brand}` : f.id;
+function formTabs() { return T.forms.flatMap(f => f.perBrand ? W.client.brands.map(b => ({ f, brand: b.id, label: `${f.title} · ${b.name}` })) : [{ f, brand: '', label: f.title }]); }
+function forms() {
+  const tabs = formTabs(), cur = tabs.find(t => formKey(t.f, t.brand) === arg) || tabs[0], key = formKey(cur.f, cur.brand), vals = W.answers.forms[key] || {};
+  const filled = t => { const v = W.answers.forms[formKey(t.f, t.brand)] || {}, r = t.f.fields.filter(x => x.req); return r.length ? r.filter(x => v[x.id]).length + '/' + r.length : ''; };
+  return `<div class="page"><p class="eyebrow mono">Forms</p><h1>About you<span> and the business.</span></h1><p class="lead">Short answers are fine. It saves as you type.</p>
+    <div class="tabs">${tabs.map(t => `<button class="${formKey(t.f, t.brand) === key ? 'on' : ''}" data-form="${esc(formKey(t.f, t.brand))}">${esc(t.label)} <span class="mono" style="opacity:.6">${filled(t)}</span></button>`).join('')}</div>
+    <div class="card" style="margin-top:14px"><h3 style="font-size:20px">${esc(cur.f.title)}${cur.brand ? ' · ' + esc(W.client.brands.find(b => b.id === cur.brand)?.name) : ''}</h3><p class="small" style="margin-top:4px">${esc(cur.f.hint)}</p>
+    <div class="fgrid" data-formkey="${esc(key)}">${cur.f.fields.map(f => field(f, vals[f.id], key)).join('')}</div></div></div>`;
+}
+
+/* ---------- agreement ---------- */
+function agreement() {
+  const c = W.contract;
+  if (c.status === 'draft' || c.status === 'void') return `<div class="page"><p class="eyebrow mono">Agreement</p><h1>${c.status === 'void' ? 'Withdrawn' : 'Being prepared'}<span>.</span></h1><div class="empty" style="margin-top:26px"><b>${c.status === 'void' ? 'We withdrew this agreement.' : 'We are writing your agreement.'}</b>We will message you the moment it is ready to read.</div></div>`;
+  const hs = headings(c.text), signed = c.status === 'signed', sg = c.signature;
+  return `<div class="page wide"><p class="eyebrow mono">Agreement</p><h1>${esc(c.title)}<span>.</span></h1>
+    <p class="lead">${signed ? 'Signed. Your copy is below, and you can download it any time.' : 'Read it first. When you are ready, sign on the right.'}</p>
+    <div class="agr" style="margin-top:28px"><nav class="toc" id="toc" aria-label="Sections">${hs.map((h, n) => `<a data-jump="s${n}">${esc(h.replace(/^\d+\.\s*/, ''))}</a>`).join('')}</nav>
+    <article class="paper" id="paper">${md(c.text)}${signed ? `<div class="seal"><div><img alt="Signature of ${esc(sg.name)}" src="${esc(sg.drawing)}"><b>${esc(sg.name)}</b><span>${esc(sg.title || 'For ' + W.client.name)} · ${esc(new Date(sg.at).toUTCString().slice(5, 22))}</span></div>
+      <div>${c.countersign ? `<div style="font:italic 28px/1 Georgia,serif;height:70px;padding-top:24px">${esc(c.countersign.name)}</div><b>${esc(W.settings.studio)}</b><span>Countersigned ${esc(day(c.countersign.at))}</span>` : `<div style="height:70px;display:grid;align-items:center;color:#8a8d86;font-style:italic">Awaiting our countersignature</div><b>${esc(W.settings.studio)}</b>`}</div></div>` : ''}</article>
+    <aside class="card signp">${signed ? `<div class="signed"><h3>${ic('check')} Signed</h3><p style="margin-top:8px">${esc(sg.name)}<br><span class="small" style="color:inherit;opacity:.8">${esc(new Date(sg.at).toUTCString())}</span></p><div class="hash">Fingerprint ${esc(sg.docHash)}</div></div>
+      <div class="acts" style="flex-direction:column"><button class="btn dark" data-pdf>${ic('down')} Download PDF</button><button class="btn" data-print>${ic('print')} Print</button></div>`
+      : `<h3 style="font-size:19px;margin-bottom:14px">Sign here</h3>
+      <div class="fld"><label for="sgn">Full name</label><input class="in" id="sgn" autocomplete="name" placeholder="As on your ID"></div>
+      <div class="fld" style="margin-top:12px"><label for="sgt">Role (optional)</label><input class="in" id="sgt" placeholder="Owner, Director…"></div>
+      <div class="fld" style="margin-top:12px"><label>Draw your signature</label><canvas id="pad" width="640" height="200" aria-label="Signature pad"></canvas><span class="clear" data-clear>Clear</span></div>
+      <label class="chk" style="margin-top:14px"><input type="checkbox" id="sgc"><span>I have read this agreement, I am allowed to sign for ${esc(W.client.name)}, and I agree to sign electronically.</span></label>
+      <button class="btn green" id="sgo" style="width:100%;margin-top:16px" disabled>${ic('pen')} Sign agreement</button>
+      <p class="small" style="margin-top:10px">We record the time and a fingerprint of this exact text. You get a PDF straight after.</p>`}</aside></div></div>`;
+}
+function sigPad() {
+  const cv = $('#pad'); if (!cv) return; const ctx = cv.getContext('2d'); ctx.lineWidth = 3.2; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = '#0B0B0B'; sigInk = false; let down = false, last;
+  const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+  cv.onpointerdown = e => { down = true; last = pos(e); cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.arc(...last, 1.4, 0, 7); ctx.fill(); e.preventDefault(); };
+  cv.onpointermove = e => { if (!down) return; const p = pos(e); ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; sigInk = true; ready(); };
+  cv.onpointerup = cv.onpointercancel = () => { down = false; };
+  $('[data-clear]').onclick = () => { ctx.clearRect(0, 0, cv.width, cv.height); sigInk = false; ready(); };
+  const ready = () => { $('#sgo').disabled = !(sigInk && $('#sgn').value.trim().length >= 3 && $('#sgc').checked); };
+  ['#sgn', '#sgc'].forEach(s => $(s).addEventListener('input', ready)); $('#sgc').addEventListener('change', ready);
+  $('#sgo').onclick = async () => {
+    const b = $('#sgo'); b.disabled = true;
+    try { W = { ...W, ...(await api('POST', 'client/sign', { name: $('#sgn').value, title: $('#sgt').value, consent: $('#sgc').checked, drawing: cv.toDataURL('image/png') })) }; toast('Signed. Your copy is ready.'); paint(); }
+    catch (e) { toast(e.message, true); b.disabled = false; }
+  };
+  const view = $('#view'), hs = $$('.paper h2'), links = $$('#toc a');
+  view.onscroll = () => { let k = 0; hs.forEach((h, n) => { if (h.getBoundingClientRect().top < 140) k = n; }); links.forEach((a, n) => a.classList.toggle('on', n === k)); };
+}
+const pdfNow = async () => { try { await agreementPdf({ title: W.contract.title, text: W.contract.text, client: W.client.name, signature: W.contract.signature && { ...W.contract.signature }, countersign: W.contract.countersign, docHash: W.contract.signature.docHash, studio: W.settings.studio }); } catch (e) { toast(e.message, true); } };
+
+/* ---------- ads and results ---------- */
+function results() {
+  const P = W.staff.performance || [], ads = W.staff.ads || [], dash = W.staff.dashboardUrl;
+  const months = [...new Set(P.map(r => r.date.slice(0, 7)))].sort(), cur = months.at(-1), prev = months.at(-2);
+  const sum = (m, k) => P.filter(r => r.date.startsWith(m)).reduce((a, r) => a + r[k], 0), lbl = P.at(-1)?.label || 'Results';
+  const kpi = (t, v, p, fmt, mode) => `<div class="card stat"><div class="v">${fmt(v)}</div><div class="k">${t}${p !== undefined && p > 0 ? `<br><span style="color:${mode === 'flat' ? 'var(--mute)' : (v >= p) === (mode === 'up') ? 'var(--green)' : 'var(--red)'}">${v >= p ? '&uarr;' : '&darr;'} ${Math.abs(Math.round((v - p) / p * 100))}% vs last month</span>` : ''}</div></div>`;
+  const mon = m => new Date(m + '-15').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+  const cpr = m => sum(m, 'results') ? sum(m, 'spend') / sum(m, 'results') : 0;
+  const brands = [...new Set(P.map(r => r.brand))];
+  return `<div class="page wide"><p class="eyebrow mono">Ads &amp; results</p><h1>How your ads<span> are doing.</span></h1>
+    <p class="lead">${P.length ? 'Updated by our team. Every number is from your own ad account.' : 'Your ads go live in weeks 3 to 6. The numbers appear here as soon as they do.'}</p>
+    ${dash ? `<div class="cta" style="margin-top:20px"><a class="btn dark" href="${esc(dash)}" target="_blank" rel="noopener">${ic('chart')} Open the live dashboard ${ic('arrow')}</a></div>` : ''}
+    ${P.length ? `<div class="grid g4" style="margin-top:28px">${kpi('Ad spend, ' + mon(cur), sum(cur, 'spend'), prev && sum(prev, 'spend'), v => money(v), 'flat')}${kpi(esc(lbl) + ', ' + mon(cur), sum(cur, 'results'), prev && sum(prev, 'results'), v => v.toLocaleString(), 'up')}${kpi('Cost per ' + esc(lbl.toLowerCase().replace(/s$/, '')), cpr(cur), prev && cpr(prev), v => v ? money(v) : '—', 'down')}
+      <div class="card stat"><div class="v">${P.length}<small>weeks logged</small></div><div class="k">${brands.length} brand${brands.length > 1 ? 's' : ''}</div></div></div>
+      <div class="sec"><div class="sh"><h2>Week by week</h2></div><div class="card">${chart(P, { label: lbl })}</div></div>
+      <div class="sec"><div class="sh"><h2>The numbers</h2></div><div class="card" style="padding:6px 10px;overflow:auto"><table class="t"><thead><tr><th>Week of</th><th>Brand</th><th class="r">Spend</th><th class="r">Results</th><th class="r">Cost each</th><th>Note</th></tr></thead><tbody>${[...P].sort((a, b) => b.date.localeCompare(a.date)).map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.brand)}</td><td class="r">${money(r.spend)}</td><td class="r">${r.results.toLocaleString()} <span class="mono" style="color:var(--mute)">${esc(r.label)}</span></td><td class="r">${r.results ? money(r.spend / r.results) : '—'}</td><td style="color:var(--mute)">${esc(r.note)}</td></tr>`).join('')}</tbody></table></div></div>` : `<div class="empty" style="margin-top:28px"><b>Nothing to show yet.</b>Weeks 1 and 2 are set-up. Ads start in week 3.</div>`}
+    <div class="sec"><div class="sh"><h2>Your ads<em>${ads.length}</em></h2></div>${ads.length ? `<div class="ads">${ads.map(a => `<div class="ad"><div class="th" ${a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : ''}>${a.thumb ? '' : ic('image')}<span class="pillx ${a.status === 'live' ? 'live' : a.status === 'review' ? 'warn' : ''}">${esc(a.status)}</span></div><div class="tx"><b>${esc(a.name)}</b><span class="small">${esc(a.brand)} · ${esc(a.platform)}</span>${a.note ? `<p class="small" style="margin-top:6px">${esc(a.note)}</p>` : ''}${a.link ? `<a class="more small" style="display:inline-flex;margin-top:10px;font-weight:700;color:var(--ink)" href="${esc(a.link)}" target="_blank" rel="noopener">View ad ${ic('arrow')}</a>` : ''}</div></div>`).join('')}</div>` : `<div class="empty"><b>No ads yet.</b>They show up here, with a link to each, once they are approved.</div>`}</div></div>`;
+}
+
+/* ---------- invoices, files, messages ---------- */
+function invoices() {
+  const I = W.staff.invoices || [];
+  return `<div class="page"><p class="eyebrow mono">Invoices</p><h1>What you pay<span> us.</span></h1><p class="lead">Our fee is billed monthly in advance. Ad spend is separate: you pay it straight to Meta from your own ad account.</p>
+    ${I.length ? `<div class="card" style="margin-top:26px;padding:6px 10px"><table class="t"><thead><tr><th>Invoice</th><th>Due</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>${I.map(i => `<tr><td><b>${esc(i.no)}</b>${i.note ? `<br><span class="small">${esc(i.note)}</span>` : ''}</td><td>${esc(i.due)}</td><td class="r">${money(i.amount, i.currency)}</td><td><span class="pillx ${i.status === 'paid' ? 'live' : i.status === 'due' ? 'warn' : ''}">${esc(i.status)}</span></td><td class="r">${i.link ? `<a class="btn sm" href="${esc(i.link)}" target="_blank" rel="noopener">${ic('down')} Open</a>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty" style="margin-top:26px"><b>No invoices yet.</b>Your first one arrives with the signed agreement.</div>`}</div>`;
+}
+function files() {
+  const L = W.staff.links || [], mine = []; for (const [id, a] of Object.entries(W.answers.checklist)) for (const [f, v] of Object.entries(a.fields || {})) if (/^https?:\/\//.test(v)) mine.push({ label: items().find(i => i.id === id)?.title || id, url: v });
+  return `<div class="page"><p class="eyebrow mono">Files &amp; links</p><h1>Everything<span> in one list.</span></h1>
+    <div class="sec"><div class="sh"><h2>From us</h2></div>${L.length || W.staff.dashboardUrl ? `<div class="card" style="padding:6px 18px"><table class="t"><tbody>${W.staff.dashboardUrl ? `<tr><td><b>Live dashboard</b></td><td class="r"><a class="btn sm" href="${esc(W.staff.dashboardUrl)}" target="_blank" rel="noopener">Open ${ic('arrow')}</a></td></tr>` : ''}${L.map(l => `<tr><td><b>${esc(l.label)}</b><br><span class="small mono">${esc(l.kind)}</span></td><td class="r"><a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener">Open ${ic('arrow')}</a></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty"><b>Nothing yet.</b>Reports, the dashboard and shared folders show up here.</div>`}</div>
+    <div class="sec"><div class="sh"><h2>What you shared with us</h2></div>${mine.length ? `<div class="card" style="padding:6px 18px"><table class="t"><tbody>${mine.map(m => `<tr><td><b>${esc(m.label)}</b></td><td class="r"><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener">Open ${ic('arrow')}</a></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty"><b>No links yet.</b>Folder links you add in “Start here” are listed here.</div>'}</div></div>`;
+}
+function messages() {
+  return `<div class="page"><p class="eyebrow mono">Messages</p><h1>Talk to<span> the team.</span></h1><p class="lead">For quick questions. For anything urgent, email ${esc(W.settings.studioEmail)}.</p>
+    <div class="thread" style="margin-top:28px">${W.msgs.length ? W.msgs.map(m => `<div class="msg ${m.from === 'client' ? 'me' : ''}"><small>${esc(m.name)} · ${esc(day(m.at))} ${ago(m.at)}</small>${esc(m.text)}</div>`).join('') : '<div class="empty"><b>No messages yet.</b>Say hello.</div>'}</div>
+    <div class="fld"><textarea class="in" id="msgText" placeholder="Write to us…" aria-label="Message"></textarea></div><div class="acts"><button class="btn dark" data-send>${ic('send')} Send</button></div></div>`;
+}
+
+/* ---------- events ---------- */
+const saving = n => { const s = $('#save'); s.classList.toggle('busy', n); $('span', s).textContent = n ? 'Saving…' : 'Saved'; };
+const flush = {};
+async function persist(patch) { saving(true); try { await api('PUT', 'client/answers', patch); } catch (e) { toast(e.message, true); } saving(false); }
+const saveField = debounce(patch => persist(patch), 700);
+function itemPatch(el) {
+  const card = el.closest('[data-item]'), id = card.dataset.item, fields = {};
+  $$('[data-f]', card).forEach(x => fields[x.dataset.f] = x.type === 'checkbox' ? x.checked : x.value);
+  const p = { fields, note: $('[data-note]', card)?.value || '' };
+  (W.answers.checklist[id] = W.answers.checklist[id] || {}); Object.assign(W.answers.checklist[id], { fields, note: p.note }); return { id, p };
+}
+function onInput(e) {
+  const el = e.target;
+  if (el.closest('[data-item]') && (el.dataset.f || el.dataset.note !== undefined)) { const { id, p } = itemPatch(el); saveField({ checklist: { [id]: p } }); }
+  else if (el.closest('[data-formkey]') && el.dataset.f) { const box = el.closest('[data-formkey]'), key = box.dataset.formkey, v = {}; $$('[data-f]', box).forEach(x => v[x.dataset.f] = x.value); W.answers.forms[key] = v; saveField({ forms: { [key]: v } }); }
+}
+async function onClick(e) {
+  const t = e.target.closest('button,a,[data-toggle]'); if (!t) return;
+  if (t.dataset.nav) return nav(t.dataset.nav);
+  if (t.dataset.copy) return copyText(t.dataset.copy);
+  if (t.dataset.open) { open.add(t.dataset.open); nav('start'); return setTimeout(() => $(`[data-item="${t.dataset.open}"]`)?.scrollIntoView({ block: 'center' }), 80); }
+  if (t.dataset.form) return nav('forms', t.dataset.form);
+  if (t.dataset.jump) return document.getElementById(t.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (t.dataset.toggle !== undefined) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); return t.closest('.item').classList.toggle('open'); }
+  if (t.dataset.pdf !== undefined) return pdfNow();
+  if (t.dataset.print !== undefined) return print();
+  if (t.dataset.state) {
+    const { id, p } = itemPatch(t); p.state = t.dataset.state; saveField.flush({ checklist: { [id]: p } }); W.answers.checklist[id].state = p.state; await refresh(); toast(p.state === 'submitted' ? 'Sent to us. Thank you.' : p.state === 'help' ? 'We will reach out.' : 'Updated');
+  }
+  if (t.dataset.send !== undefined) { const v = $('#msgText').value.trim(); if (!v) return; try { await api('POST', 'client/message', { text: v }); await refresh(); toast('Sent'); } catch (er) { toast(er.message, true); } }
+}
+async function refresh() { try { W = await api('GET', 'client/workspace'); } catch { } const keep = $('#view').scrollTop; paint(); $('#view').scrollTop = keep; }
+async function poll() {
+  if (document.hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || route === 'agreement') return;
+  try { const n = await api('GET', 'client/workspace'); const changed = JSON.stringify([n.staff, n.contract.status, n.msgs.length]) !== JSON.stringify([W.staff, W.contract.status, W.msgs.length]); if (changed) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); W = n; const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; } } catch { }
+}

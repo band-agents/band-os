@@ -43,6 +43,11 @@ h1,h2,h3{margin:0;font-weight:700}
 .topnav a.on{background:#fff;color:var(--ink)}
 .sp{flex:1}
 .clock{color:rgba(255,255,255,.55);margin-right:8px}
+.plink{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px;margin-right:6px;border-radius:999px;color:rgba(255,255,255,.75);font-size:13px;font-weight:600;transition:background .15s,color .15s}
+.plink:hover{background:rgba(255,255,255,.1);color:#fff}
+.plink .ic{width:15px;height:15px}
+.d-portal .tile{background:linear-gradient(180deg,#1C211E,#060707);color:#A9F0B9}
+@media (max-width:760px){.plink span{display:none}.plink{padding:0 9px}}
 .ask{display:flex;align-items:center;gap:9px;height:32px;padding:0 6px 0 12px;border-radius:999px;background:#fff;color:var(--ink);font-size:13px;font-weight:600}
 .ask canvas{width:22px;height:13px}
 .ask kbd{font-size:10.5px;background:var(--soft);padding:3px 7px;border-radius:999px}

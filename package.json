@@ -1,0 +1,8 @@
+{
+  "name": "band-os",
+  "private": true,
+  "type": "module",
+  "description": "band. OS: the studio's site, plus the client and staff portal at /portal.",
+  "scripts": { "dev": "node dev.mjs" },
+  "engines": { "node": ">=20" }
+}
