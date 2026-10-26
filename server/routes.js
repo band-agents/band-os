@@ -185,16 +185,20 @@ H.staff['POST clients'] = async (req, res, s) => {
   const name = clip(b.name, 100).trim(), email = clip(b.contactEmail, 200).trim().toLowerCase();
   if (!name) throw bad(400, 'The client needs a name.');
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw bad(400, 'A valid contact email is needed. It is their login.');
-  if (await store.get(`idx:email:${email}`)) throw bad(409, 'That email already has a workspace.');
+  const extra = [].concat(b.extraEmails || []).flatMap(x => String(x).split(/[,\s;]+/)).map(x => x.trim().toLowerCase()).filter(x => x && x !== email).slice(0, 5);
+  for (const e of [email, ...extra]) {
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) throw bad(400, `${clip(e, 60)} is not a valid email.`);
+    if (await store.get(`idx:email:${e}`)) throw bad(409, `${clip(e, 60)} already has a workspace.`);
+  }
   const id = newId(8), code = newCode(), salt = newSalt();
   const brands = (Array.isArray(b.brands) ? b.brands : []).map(x => clip(x, 60).trim()).filter(Boolean).slice(0, 8).map((n, i) => ({ id: 'b' + (i + 1), name: n }));
-  const c = { id, name, brands: brands.length ? brands : [{ id: 'b1', name }], contacts: [{ name: clip(b.contactName, 80), email }], status: 'invited', startDate: clip(b.startDate, 10), createdAt: now(), createdBy: s.name,
+  const c = { id, name, brands: brands.length ? brands : [{ id: 'b1', name }], contacts: [{ name: clip(b.contactName, 80), email }, ...extra.map(e => ({ name: '', email: e }))], status: 'invited', startDate: clip(b.startDate, 10), createdAt: now(), createdBy: s.name,
     fee: num(b.fee) || 1200, currency: clip(b.currency || 'USD', 5), accounts: clip(b.accounts, 80), salt, codeHash: hashCode(code, salt) };
   await store.set(`client:${id}`, c);
   await store.set(`answers:${id}`, emptyAnswers());
   await store.set(`staff:${id}`, emptyStaff());
   await store.set(`contract:${id}`, { status: 'draft', title: set.contractTitle, text: CONTRACT, version: 1 });
-  await store.set(`idx:email:${email}`, id);
+  for (const e of [email, ...extra]) await store.set(`idx:email:${e}`, id);
   await store.sadd('clients', id);
   await log(s.name, `created the workspace for ${name}`, id);
   return { client: pubClient(c), code };

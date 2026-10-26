@@ -76,6 +76,7 @@ function newClient() {
     <form id="nc" class="fgrid"><div class="fld full"><label>Client or company</label><input class="in" name="name" required placeholder="Origin Circle"></div>
     <div class="fld full"><label>Brands (comma separated)</label><input class="in" name="brands" placeholder="Origin Circle, Lonely Mouth"></div>
     <div class="fld"><label>Contact name</label><input class="in" name="contactName" placeholder="Farah"></div><div class="fld"><label>Contact email (their login)</label><input class="in" name="contactEmail" type="email" required></div>
+    <div class="fld full"><label>Other emails that can log in to the same workspace (optional, comma separated)</label><input class="in" name="extraEmails" placeholder="second@company.com"></div>
     <div class="fld"><label>Start date</label><input class="in" name="startDate" type="date"></div><div class="fld"><label>Monthly fee</label><input class="in" name="fee" type="number" value="1200"></div>
     <div class="fld"><label>Currency</label><select class="in" name="currency"><option>USD</option><option>EGP</option><option>EUR</option><option>KWD</option></select></div><div class="fld"><label>Accounts wording</label><input class="in" name="accounts" placeholder="two ad accounts"></div>
     <div class="full err" id="ncerr" style="color:var(--red)"></div><div class="full acts"><button class="btn green" type="submit">Create workspace</button><button type="button" class="btn ghost" data-close>Cancel</button></div></form>`, {
@@ -88,9 +89,9 @@ function newClient() {
     },
   });
 }
-const loginMsg = (c, code) => `Hi ${c.contacts[0]?.name || ''},\n\nYour band. portal is ready: ${location.origin}/portal/\nEmail: ${c.contacts[0]?.email}\nAccess code: ${code}\n\nEverything we need from you is in "Start here". Your agreement will appear there too.\n\nband.`;
+const loginMsg = (c, code) => `Hi ${c.contacts[0]?.name || ''},\n\nYour band. portal is ready: ${location.origin}/portal/\nEmail: ${c.contacts.map(x => x.email).join(" or ")}\nAccess code: ${code}\n\nEverything we need from you is in "Start here". Your agreement will appear there too.\n\nband.`;
 function codeModal(c, code, fresh) {
-  modal(`<h3>${fresh ? 'Workspace ready' : 'New access code'}</h3><p class="small" style="margin-bottom:14px">This code is shown once. We only store a hash. Send it to ${esc(c.contacts[0]?.email)} over a private channel.</p>
+  modal(`<h3>${fresh ? 'Workspace ready' : 'New access code'}</h3><p class="small" style="margin-bottom:14px">This code is shown once. We only store a hash. Send it to ${esc(c.contacts.map(x => x.email).join(", "))} over a private channel.</p>
     <div class="codebox">${esc(code)}</div><div class="acts"><button class="btn green" data-copyall>${ic('copy')} Copy the message to send</button><button class="btn" data-copycode>Copy code</button><button class="btn ghost" data-close>Done</button></div>`, {
     onMount: (m, close) => { $('[data-close]', m).onclick = close; $('[data-copycode]', m).onclick = () => copyText(code); $('[data-copyall]', m).onclick = () => copyText(loginMsg(c, code)); },
   });
