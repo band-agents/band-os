@@ -18,3 +18,18 @@ The work of band., a studio in Cairo: every project, sorted by category.
 It is a static site with no build step. `index.html` loads `css/os.css`, `js/social.js` (the Instagram sets), `js/data.js` (every fact and image, and the categories), `js/core.js` (the logo, the animated barcode, the assistant) and `js/os.js` (the app). Images are in `img/`. They are made by the scripts in the studio's `brand/_src`: `shoot-os-work.mjs` and `shoot-os-directions.mjs` (live stores and website shots), `prep-os-work.mjs` (resizes them) and `prep-os-social.mjs` (the Instagram sets → `img/social` and `js/social.js` input).
 
 Email: band.digi.tech@gmail.com · Instagram: [@band.cairo](https://www.instagram.com/band.cairo/)
+
+## Portal (client and staff login)
+
+`/portal/` is a private area on the same site. Clients sign in with their email and an access code a staff member makes for them. Staff sign in with one shared code.
+
+- **Clients:** a checklist of what we need to start (access by invite, never a password), forms, the agreement with a typed and drawn e-signature and a PDF download, ads and results, invoices, links and messages.
+- **Staff:** overview, one workspace per client, verify each item, edit and send the agreement, countersign, enter results and ads, invoices, activity, settings.
+
+Code: `portal/` (front end, plain ES modules), `api/[...path].js` (one serverless function), `server/` (routes, auth, storage, the default checklist and agreement in `seed.js`).
+
+Run it on your machine: copy `.env.example` to `.env.local`, set `STAFF_CODE` and `SESSION_SECRET`, then `node dev.mjs` and open http://localhost:3000/portal/. Data is kept in `.data/store.json`.
+
+Deploy on Vercel: import this repo, set `STAFF_CODE` and `SESSION_SECRET` under Environment Variables, and add Upstash Redis from the Marketplace (it sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`). Without Redis the API answers 503 on purpose.
+
+The agreement text in `server/seed.js` is a draft. Have a lawyer read it before the first client signs.
