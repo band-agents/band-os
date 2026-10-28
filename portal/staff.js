@@ -1,6 +1,6 @@
 import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText, setPalette, openPalette, md, chart, barcode, STATE, KIND } from './lib.js';
 import { shell, signOut } from './main.js';
-import { agreementPdf } from './pdf.js';
+import { agreementPdf, clientDataPdf } from './pdf.js';
 
 let me, O, T, C = null, route = 'overview', arg = '', tab = 'checklist', bc = null, open = new Set(), lastLog = null;
 const nav = (r, a = '', t = '') => { location.hash = '#' + r + (a ? '/' + a : '') + (t ? '/' + t : ''); };
@@ -110,7 +110,7 @@ async function reloadClient() { C = await api('GET', 'staff/clients/' + arg); aw
 const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
 function client() {
   const s = C.summary;
-  return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
+  return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
     <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
@@ -228,6 +228,7 @@ async function onClick(e) {
   if (d.creopen !== undefined) return contract('reopen');
   if (d.cvoid !== undefined) { if (!confirm('Void this agreement?')) return; return contract('void'); }
   if (d.counter !== undefined) return contract('countersign');
+  if (d.filepdf !== undefined) { t.disabled = true; try { await clientFile(); } catch (er) { toast(er.message, true); } t.disabled = false; return; }
   if (d.spdf !== undefined) { try { const k = C.contract; await agreementPdf({ title: k.title, text: k.signedText, client: C.client.name, signature: k.signature, countersign: k.countersign, docHash: k.signature.docHash, studio: C.settings.studio }); } catch (er) { toast(er.message, true); } return; }
   if (d.savecs !== undefined) { try { const old = C.client.brands, names = $('#cs-brands').value.split('\n').map(x => x.trim()).filter(Boolean); await api('PATCH', 'staff/clients/' + arg, { name: $('#cs-name').value, status: $('#cs-status').value, brands: names.map((n, i) => ({ id: old[i]?.id || 'b' + (i + 1 + old.length), name: n })) }); await reloadClient(); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.savenotes !== undefined) return void (await put({ notes: $('#cs-notes').value }));
@@ -244,6 +245,21 @@ document.addEventListener('change', async e => {
 async function contract(action) {
   const body = { action }; if (action === 'save' || action === 'send') body.text = $('#ctext').value; if (action === 'countersign') { body.name = prompt('Countersign as', me.name); if (!body.name) return; }
   try { await api('PUT', `staff/clients/${arg}/contract`, body); await reloadClient(); toast({ save: 'Saved', send: 'Sent to the client', void: 'Voided', reopen: 'Back to draft', countersign: 'Countersigned' }[action]); stay(); } catch (er) { toast(er.message, true); }
+}
+/* the client's whole file as a PDF: key facts, the forms, then the checklist by section */
+function clientFile() {
+  const c = C.client, s = C.summary, k = C.contract;
+  const forms = T.forms.flatMap(f => f.perBrand ? c.brands.map(b => ({ f, key: `${f.id}:${b.id}`, title: `${f.title} · ${b.name}` })) : [{ f, key: f.id, title: f.title }])
+    .map(({ f, key, title }) => { const v = C.answers.forms[key] || {}; return { title, sub: f.hint, rows: f.fields.map(x => [x.label, v[x.id]]) }; });
+  const groups = T.groups.map(g => ({ title: g.title, hint: g.hint, blocks: visible(C).filter(i => i.group === g.id).map(i => {
+    const st = stateOf(C, i), a = C.answers.checklist[i.id] || {}, ver = C.staff.verify[i.id] || {}, own = i.owner === 'staff' || i.id === 'sign';
+    return { title: i.title, status: STATE[st], sub: [KIND[i.kind], i.required === false && 'optional', i.owner === 'staff' && 'we do this', i.id === 'sign' && `agreement ${k?.status}`].filter(Boolean).join(' · '),
+      rows: own ? [] : (i.fields || []).map(f => [f.label, a.fields?.[f.id]]), note: a.note, comment: ver.comment, quiet: own || !(i.fields || []).length };
+  }) })).filter(g => g.blocks.length);
+  const contact = c.contacts.map(x => [x.name, x.email].filter(Boolean).join('\n')).join('\n');
+  return clientDataPdf({ studio: C.settings.studio, client: c.name, progress: s,
+    facts: [['Brands', c.brands.map(b => b.name).join(', ')], ['Contact', contact, 1.6], ['Start date', fmtD(c.startDate)], ['Monthly fee', c.fee ? money(c.fee, c.currency) : '', .8], ['Agreement', k?.status === 'signed' ? `Signed ${fmtD(k.signature.at)}` : k?.status]],
+    sections: [{ title: 'Forms', hint: 'What the client typed into the forms.', blocks: forms }, ...groups] });
 }
 function addItem() {
   modal(`<h3>Add an item for ${esc(C.client.name)}</h3><form id="ai" class="fgrid"><div class="fld full"><label>What do they need to do?</label><input class="in" name="title" required placeholder="Give us access to the Shopify store"></div>
