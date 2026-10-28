@@ -63,7 +63,7 @@ function side() {
   tabbar();
   $('#side').innerHTML = `<div class="who-card"><b>${esc(me.name)}</b><span>Staff</span></div><h6>Studio</h6>
     ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['tickets', 'Support inbox', 'ticket', waiting() || '', waiting()], ['meetings', 'Calls', 'cal', O.meetings.length || ''], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n, hot]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em class="${hot ? 'hot' : ''}">${n}</em>` : ''}</button>`).join('')}
-    <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help || c.tickets ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting + c.help + c.tickets || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
+    <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help || c.tickets || c.events ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting + c.help + c.tickets + (c.events || 0) || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
     <div class="sfoot"><span class="mono">n · new client</span><span class="mono">⌘K · jump to anything</span></div>`;
   $$('#side [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav)); $$('#side [data-client]').forEach(b => b.onclick = () => nav('client', b.dataset.client));
 }
@@ -81,15 +81,16 @@ const brandChips = c => c.brands.map(b => `<span class="brand"><i></i>${esc(b.na
 const cpill = s => `<span class="pillx ${s === 'signed' ? 'live' : s === 'sent' ? 'warn' : ''}">${{ draft: 'agreement draft', sent: 'awaiting signature', signed: 'signed', void: 'agreement void' }[s]}</span>`;
 function row(c) {
   return `<div class="row" data-client="${c.id}" tabindex="0"><div class="n"><b>${esc(c.name)}</b><span>${brandChips(c)}</span></div>${cpill(c.contract)}
-    ${c.tickets ? `<span class="pillx warn">${c.tickets} ticket${c.tickets > 1 ? 's' : ''}</span>` : ''}${c.awaiting ? `<span class="pillx warn">${c.awaiting} to review</span>` : ''}${c.help ? `<span class="pillx bad">${c.help} need help</span>` : ''}<div style="width:120px"><div class="bar-p"><i style="width:${pctOf(c)}%"></i></div><span class="small mono">${c.done}/${c.total} · ${pctOf(c)}%</span></div></div>`;
+    ${c.tickets ? `<span class="pillx warn">${c.tickets} ticket${c.tickets > 1 ? 's' : ''}</span>` : ''}${c.events ? `<span class="pillx warn">${c.events} new event${c.events > 1 ? 's' : ''}</span>` : ''}${c.awaiting ? `<span class="pillx warn">${c.awaiting} to review</span>` : ''}${c.help ? `<span class="pillx bad">${c.help} need help</span>` : ''}<div style="width:120px"><div class="bar-p"><i style="width:${pctOf(c)}%"></i></div><span class="small mono">${c.done}/${c.total} · ${pctOf(c)}%</span></div></div>`;
 }
 const feed = (n = 14) => `<div class="feed">${O.log.slice(0, n).map(l => `<div><time>${ago(l.at)}</time><span><b>${esc(l.who)}</b> ${esc(l.what)}</span></div>`).join('') || '<p class="small">Nothing yet.</p>'}</div>`;
 function overview() {
-  const C0 = O.clients, sum = k => C0.reduce((a, c) => a + c[k], 0), sign = C0.filter(c => c.contract === 'sent').length, need = C0.filter(c => c.awaiting || c.help || c.fix || c.tickets || c.contract === 'sent');
+  const C0 = O.clients, sum = k => C0.reduce((a, c) => a + c[k], 0), sign = C0.filter(c => c.contract === 'sent').length, need = C0.filter(c => c.awaiting || c.help || c.fix || c.tickets || c.events || c.contract === 'sent');
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${greet()},<span> ${esc(me.name)}.</span></h1></div><canvas id="hcode" aria-hidden="true"></canvas></div>
     <div class="grid g4" style="margin-top:30px">${[['Clients', C0.length, 'in the portal'], ['To review', sum('awaiting'), 'items sent by clients'], ['Waiting to sign', sign, 'agreements out'], ['Need help', sum('help'), 'items flagged']].map(([t, v, k], n) => `<div class="card stat"><div class="v" style="${n && v ? 'color:var(--green)' : ''}">${v}</div><div class="k">${t}<br><span class="mini">${k}</span></div></div>`).join('')}</div>
     <div class="split" style="margin-top:44px;grid-template-columns:1.5fr 1fr"><div><div class="sh"><h2>Needs you<em>${need.length}</em></h2></div>${need.map(row).join('') || '<div class="empty"><b>All clear.</b>Nothing is waiting on us.</div>'}
       ${waiting() ? `<div class="sh" style="margin-top:34px"><h2>Tickets waiting<em>${waiting()}</em></h2><button class="btn sm ghost" data-nav="tickets">All</button></div>${O.tickets.filter(t => t.status === 'open').slice(0, 4).map(t => trow(t, t.cid, t.client)).join('')}` : ''}
+      ${O.events.length ? `<div class="sh" style="margin-top:34px"><h2>Coming events<em>${O.events.length}</em></h2></div>${O.events.slice(0, 4).map(e => erow(e, true)).join('')}` : ''}
       ${O.meetings.length ? `<div class="sh" style="margin-top:34px"><h2>Next calls<em>${O.meetings.length}</em></h2><button class="btn sm ghost" data-nav="meetings">All</button></div>${O.meetings.slice(0, 3).map(m => mrow(m, true)).join('')}` : ''}
       <div class="sh" style="margin-top:34px"><h2>All clients<em>${C0.length}</em></h2><button class="btn sm" data-new>${ic('plus')} New client</button></div>${C0.map(row).join('') || '<div class="empty"><b>No clients yet.</b>Press <span class="mono">N</span> to create the first workspace.</div>'}</div>
       <div><div class="sh"><h2>Activity</h2><button class="btn sm ghost" data-nav="activity">All</button></div><div class="card" style="padding:6px 18px">${feed(10)}</div></div></div></div>`;
@@ -137,11 +138,11 @@ async function reload() { O = await api('GET', 'staff/overview'); }
 async function reloadClient() { C = await api('GET', 'staff/clients/' + arg); await reload(); }
 
 /* ---------- one client ---------- */
-const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
+const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['events', 'Events'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
 function client() {
   const s = C.summary;
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
-    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${k === 'tickets' && C.summary.tickets ? ` <span class="mono" style="color:var(--green)">${C.summary.tickets}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, tickets: ctickets, meetings: cmeetings, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
+    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
 function checklist() {
@@ -181,6 +182,21 @@ function cmeetings() {
   const now = Date.now(), up = C.meetings.filter(m => m.status === 'booked' && Date.parse(m.end) > now).sort((a, b) => a.start.localeCompare(b.start)), rest = C.meetings.filter(m => !up.includes(m));
   return (up.map(m => mrow(m)).join('') || '<div class="empty"><b>No calls booked.</b>The client books from Meetings in their portal.</div>') +
     (rest.length ? `<div class="sh" style="margin-top:26px"><h2>Earlier and cancelled</h2></div>${rest.map(m => mrow(m, false, true)).join('')}` : '');
+}
+
+/* the client's events: launches, sales, openings. We set where each one stands and can leave them a note. */
+const EST = { new: ['New', 'warn'], planned: ['In our plan', 'ok'], live: ['Ads running', 'live'], done: ['Done', ''] };
+const dShort = (s, o = {}) => new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', ...o });
+const evSpan = e => e.end && e.end !== e.start ? `${dShort(e.start, { day: 'numeric', month: 'short' })} – ${dShort(e.end, { day: 'numeric', month: 'short', year: 'numeric' })}` : dShort(e.start, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+const erow = (e, withClient, past) => `<div class="meet ev ${past ? 'past' : ''}" ${withClient ? `data-evc="${esc(e.cid)}" style="cursor:pointer"` : ''}><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
+  <div class="n"><b>${withClient ? esc(e.client) + ' · ' : ''}${esc(e.title)}</b><span class="small">${esc(evSpan(e))}${e.brand ? ' · ' + esc(e.brand) : ''} · added by ${esc(e.by)}</span>
+    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${EST[e.status][1]}">${EST[e.status][0]}</span></div>
+    ${withClient ? '' : `${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
+    <div class="verify" data-ev="${esc(e.id)}"><select class="in" data-evst style="width:auto;height:38px">${Object.entries(EST).map(([k, [l]]) => `<option value="${k}" ${k === e.status ? 'selected' : ''}>${l}</option>`).join('')}</select><input class="in" data-evcm style="flex:1;min-width:200px;height:38px" placeholder="Note shown to the client (optional)" value="${esc(e.comment)}"><button class="btn sm green" data-evsave>Save</button></div>`}</div></div>`;
+function cevents() {
+  const now = new Date().toISOString().slice(0, 10), up = C.events.filter(e => (e.end || e.start) >= now), past = C.events.filter(e => !up.includes(e)).reverse();
+  return (up.map(e => erow(e)).join('') || '<div class="empty"><b>No events coming up.</b>The client adds them under Events in their portal.</div>') +
+    (past.length ? `<div class="sh" style="margin-top:26px"><h2>Past</h2></div>${past.map(e => erow(e, false, true)).join('')}` : '');
 }
 
 /* agreement editor: the text on the left, the client's view on the right */
@@ -271,10 +287,15 @@ function onInput(e) {
 const put = async (body, msg = 'Saved') => { try { const r = await api('PUT', `staff/clients/${arg}/staffdata`, body); C.staff = r.staff; C.summary = r.summary; await reload(); toast(msg); return true; } catch (er) { toast(er.message, true); return false; } };
 const stay = () => { const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; };
 async function onClick(e) {
-  const t = e.target.closest('button,a,[data-toggle],.row,[data-meetc]'); if (!t) return; const d = t.dataset;
+  const t = e.target.closest('button,a,[data-toggle],.row,[data-meetc],[data-evc]'); if (!t) return; const d = t.dataset;
   if (d.nav) return nav(d.nav); if (d.client) return nav('client', d.client); if (d.new !== undefined) return newClient(); if (d.tab) return nav('client', arg, d.tab);
   if (d.tk) { const [cid, tid] = d.tk.split('/'); return nav('client', cid, 'tickets', tid); }
   if (d.meetc) return nav('client', d.meetc, 'meetings');
+  if (d.evc) return nav('client', d.evc, 'events');
+  if (d.evsave !== undefined) {
+    const box = t.closest('[data-ev]');
+    try { await api('PUT', `staff/clients/${arg}/event`, { eid: box.dataset.ev, status: $('[data-evst]', box).value, comment: $('[data-evcm]', box).value }); await reloadClient(); toast('Saved. The client sees it.'); stay(); } catch (er) { toast(er.message, true); } return;
+  }
   if (d.tkreply) {
     const v = $('#tkReply').value.trim(); if (!v) return toast('Write a reply first.', true); t.disabled = true;
     try { await api('POST', `staff/clients/${arg}/reply`, { tid: d.tkreply, text: v, close: !!d.andclose }); await reloadClient(); toast(d.andclose ? 'Sent and closed' : 'Sent'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return;
@@ -353,7 +374,7 @@ async function poll() {
   try {
     const n = await api('GET', 'staff/overview'), head = n.log[0];
     if (head && head.at !== lastLog) { lastLog = head.at; if (head.who !== me.name) toast(`${head.who} ${head.what}`); }
-    const changed = JSON.stringify([n.clients, n.tickets, n.meetings]) !== JSON.stringify([O.clients, O.tickets, O.meetings]); O = n;
+    const changed = JSON.stringify([n.clients, n.tickets, n.meetings, n.events]) !== JSON.stringify([O.clients, O.tickets, O.meetings, O.events]); O = n;
     if (changed && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') && !$('.modal')) { if (route === 'client') { await reloadClient().catch(() => { }); } stay(); } else side();
   } catch { }
 }

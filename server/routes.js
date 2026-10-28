@@ -40,12 +40,12 @@ const vars = (c, s) => ({
 export const render = (text, v) => String(text).replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? `{{${k}}}`);
 
 async function bundle(id) {
-  const [c, answers, st, contract, msgs, tickets] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`)]);
+  const [c, answers, st, contract, msgs, tickets, events] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`), store.get(`events:${id}`)]);
   if (!c) throw bad(404, 'Unknown client');
-  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [] };
+  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [], events: events || [] };
 }
 const items = (st) => [...CHECKLIST, ...(st.customItems || []).map(i => ({ ...i, custom: true }))].filter(i => !(st.hidden || []).includes(i.id));
-function summarize({ c, answers, st, contract, tickets = [] }) {
+function summarize({ c, answers, st, contract, tickets = [], events = [] }) {
   const all = items(st).filter(i => i.required !== false);
   const stateOf = i => {
     const v = st.verify[i.id]?.state; if (v) return v;
@@ -59,7 +59,7 @@ function summarize({ c, answers, st, contract, tickets = [] }) {
     id: c.id, name: c.name, brands: c.brands, status: c.status, startDate: c.startDate, createdAt: c.createdAt,
     total: all.length, done, verified, help: all.filter(i => stateOf(i) === 'help').length,
     awaiting: all.filter(i => stateOf(i) === 'submitted' && i.owner !== 'staff').length, fix: all.filter(i => stateOf(i) === 'needs-fix').length,
-    contract: contract?.status || 'draft', lastActive: answers.updatedAt, tickets: tickets.filter(t => t.status === 'open').length,
+    contract: contract?.status || 'draft', lastActive: answers.updatedAt, tickets: tickets.filter(t => t.status === 'open').length, events: events.filter(e => e.status === 'new' && (e.end || e.start) >= now().slice(0, 10)).length,
   };
 }
 
@@ -103,12 +103,12 @@ H.open['GET template'] = async (req) => { if (!sessionOf(req)) throw bad(401, 'S
 
 // ---------- client ----------
 const clientWorkspace = async id => {
-  const { c, answers, st, contract, msgs, tickets } = await bundle(id), s = await settings(), v = vars(c, s);
+  const { c, answers, st, contract, msgs, tickets, events } = await bundle(id), s = await settings(), v = vars(c, s);
   const visible = contract && ['sent', 'signed'].includes(contract.status);
   const sig = contract?.signature;
   return {
-    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz }, summary: summarize({ c, answers, st, contract, tickets }),
-    tickets, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30),
+    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz }, summary: summarize({ c, answers, st, contract, tickets, events }),
+    tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30),
     contract: visible ? { status: contract.status, title: contract.title, text: contract.status === 'signed' ? contract.signedText : render(contract.text, v), sentAt: contract.sentAt, hash: contract.hash,
       signature: sig ? { name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, docHash: sig.docHash } : null,
       countersign: contract.countersign || null } : { status: contract?.status === 'void' ? 'void' : 'draft' },
@@ -186,7 +186,11 @@ H.staff['GET overview'] = async () => {
   const tickets = [];
   for (const id of ids) for (const t of (await store.get(`tickets:${id}`)) || []) if (t.status !== 'closed') tickets.push({ ...brief(t), cid: id, client: rows.find(r => r.id === id)?.name || '' });
   tickets.sort((a, b) => b.updated.localeCompare(a.updated));
-  return { clients: rows, log: await store.lrange('log', 0, 59), settings: await settings(), mode, mail: mailReady(), tickets, meetings: upcoming(await meetingsAll()) };
+  // events from today on, across clients, soonest first
+  const today = new Date().toISOString().slice(0, 10), events = [];
+  for (const id of ids) for (const e of (await store.get(`events:${id}`)) || []) if ((e.end || e.start) >= today && e.status !== 'done') events.push({ ...e, cid: id, client: rows.find(r => r.id === id)?.name || '' });
+  events.sort((a, b) => a.start.localeCompare(b.start));
+  return { clients: rows, log: await store.lrange('log', 0, 59), settings: await settings(), mode, mail: mailReady(), tickets, meetings: upcoming(await meetingsAll()), events };
 };
 H.staff['POST clients'] = async (req, res, s) => {
   const b = await readBody(req), set = await settings();
@@ -212,9 +216,9 @@ H.staff['POST clients'] = async (req, res, s) => {
   return { client: pubClient(c), code };
 };
 H.staff['GET client'] = async (req, res, s, q) => {
-  const { c, answers, st, contract, msgs, tickets } = await bundle(q.id), set = await settings();
-  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets }), settings: set,
-    tickets, meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
+  const { c, answers, st, contract, msgs, tickets, events } = await bundle(q.id), set = await settings();
+  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events }), settings: set,
+    tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
 };
 H.staff['PATCH client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -239,7 +243,7 @@ H.staff['PUT staffdata'] = async (req, res, s, q) => {
   for (const k of Object.keys(b)) { const v = cleanStaff(k, b[k]); if (v !== undefined) st[k] = v; }
   await store.set(`staff:${q.id}`, st);
   if (b.note) await log(s.name, clip(b.note, 120), q.id);
-  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [] }) };
+  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [], events: await eventsOf(q.id) }) };
 };
 H.staff['PUT contract'] = async (req, res, s, q) => {
   const b = await readBody(req), { c, contract } = await bundle(q.id), set = await settings();
@@ -262,7 +266,7 @@ H.staff['POST message'] = async (req, res, s, q) => {
 H.staff['DELETE client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
   if (b.confirm !== c.name) throw bad(400, 'Type the client name to confirm.');
-  for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`, `tickets:${q.id}`]) await store.del(k);
+  for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`, `tickets:${q.id}`, `events:${q.id}`]) await store.del(k);
   await store.set('meetings', (await meetingsAll()).filter(m => m.cid !== q.id));
   for (const x of c.contacts || []) await store.del(`idx:email:${x.email}`);
   await store.srem('clients', q.id); await log(s.name, `deleted ${c.name}`);
@@ -411,6 +415,43 @@ H.staff['POST testmail'] = async (req, res, s) => {
   const set = await settings();
   if (!await send({ to: set.studioEmail, subject: `Test from the ${set.studio} portal`, ...letter({ title: 'Email works.', lines: [`${s.name} sent this test from the portal settings.`, 'New tickets, replies and meeting bookings arrive here.'] }) })) throw bad(502, 'Gmail refused it. Check GMAIL_USER and the app password.');
   return { ok: true };
+};
+
+// ---------- client events: launches, sales, openings we should plan ads around ----------
+// The client adds them; staff set a status and leave a comment. new = not seen yet, planned = in our plan, live = ads running, done.
+const ESTATES = ['new', 'planned', 'live', 'done'];
+const ymd = v => /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : '';
+const eventsOf = async cid => (await store.get(`events:${cid}`)) || [];
+const saveEvents = (cid, all) => store.set(`events:${cid}`, all.sort((a, b) => a.start.localeCompare(b.start)).slice(-200));
+
+H.client['POST event'] = async (req, res, s) => {
+  const b = await readBody(req), c = await store.get(`client:${s.cid}`), all = await eventsOf(s.cid), set = await settings();
+  const title = clip(b.title, 120).trim(), start = ymd(b.start), end = ymd(b.end);
+  if (title.length < 2) throw bad(400, 'Give the event a name.');
+  if (!start) throw bad(400, 'Pick the date of the event.');
+  if (end && end < start) throw bad(400, 'The end date is before the start date.');
+  const old = b.id ? all.find(e => e.id === b.id) : null; if (b.id && !old) throw bad(404, 'No such event');
+  if (!old && all.length >= 200) throw bad(429, 'That is a lot of events. Remove old ones first.');
+  const fields = { title, start, end, segment: clip(b.segment, 60).trim(), brand: clip(b.brand, 60).trim(), audience: clip(b.audience, 300).trim(), offer: clip(b.offer, 300).trim(), description: clip(b.description, 4000).trim(), link: url(b.link), updated: now() };
+  const e = old ? Object.assign(old, fields) : { id: newId(6), ...fields, at: now(), by: s.email, status: 'new', comment: '' };
+  if (!old) all.push(e); await saveEvents(s.cid, all);
+  await log(c.name, `${old ? 'updated' : 'added'} the event "${title}" (${start})`, s.cid);
+  const span = end && end !== start ? `${start} to ${end}` : start;
+  await send({ to: set.studioEmail, replyTo: s.email, subject: `${old ? 'Event updated' : 'New event'}: ${c.name} · ${title} · ${span}`,
+    ...letter({ title: `${nameOf(c, s.email)} ${old ? 'updated' : 'added'} an event`, lines: [`${title}, ${span}.`, ...[['Segment', e.segment], ['Brand', e.brand], ['Audience', e.audience], ['Offer', e.offer], ['Link', e.link]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`)],
+      quote: e.description || undefined, button: { label: 'Open in the portal', url: `${portal(req)}#client/${s.cid}/events` } }) });
+  return { event: e };
+};
+H.client['DELETE event'] = async (req, res, s) => {
+  const b = await readBody(req), all = await eventsOf(s.cid), e = all.find(x => x.id === b.id); if (!e) throw bad(404, 'No such event');
+  await saveEvents(s.cid, all.filter(x => x.id !== b.id)); const c = await store.get(`client:${s.cid}`); await log(c.name, `removed the event "${e.title}"`, s.cid);
+  return { ok: true };
+};
+H.staff['PUT event'] = async (req, res, s, q) => {
+  const b = await readBody(req), all = await eventsOf(q.id), e = all.find(x => x.id === b.eid); if (!e) throw bad(404, 'No such event');
+  if (ESTATES.includes(b.status)) e.status = b.status; if (b.comment !== undefined) e.comment = clip(b.comment, 1000).trim();
+  e.seen = now(); await saveEvents(q.id, all); await log(s.name, `set the event "${e.title}" to ${e.status}`, q.id);
+  return { event: e };
 };
 
 // ---------- router ----------

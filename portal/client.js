@@ -6,7 +6,7 @@ let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk 
 const sections = () => [
   ['overview', 'Overview', 'home'], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
   ['forms', 'Forms', 'form'], ['agreement', 'Agreement', 'pen', { draft: 'soon', void: '—', sent: 'sign', signed: 'done' }[W.contract.status], W.contract.status === 'signed'],
-  ['results', 'Ads & results', 'chart'], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
+  ['results', 'Ads & results', 'chart'], ['events', 'Events', 'flag', upEv().length || ''], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
   ['support', 'Support', 'ticket', unreadT() || openT() || '', !!unreadT()], ['meetings', 'Meetings', 'cal', upMeet().length || ''], ['messages', 'Messages', 'chat', W.msgs.length || '']];
 
 /* ---------- tickets and meetings, as the client sees them ---------- */
@@ -17,6 +17,10 @@ const TST = { open: ['Waiting on us', 'warn'], answered: ['Answered', 'ok'], clo
 const CATS = { question: 'Question', problem: 'Something is broken', request: 'A request', billing: 'Billing', other: 'Other' };
 const TOPICS = ['Results review', 'Ads and creative', 'Setup and access', 'Billing', 'Something else'];
 const since = iso => { const a = ago(iso); return a === 'now' ? 'just now' : a + ' ago'; };
+const today = () => new Date().toISOString().slice(0, 10);
+const upEv = () => (W.events || []).filter(e => (e.end || e.start) >= today());
+const EST = { new: ['Sent to us', ''], planned: ['In our plan', 'ok'], live: ['Ads running', 'live'], done: ['Done', ''] };
+const SEGMENTS = ['Product launch', 'Sale or promo', 'Opening', 'Holiday or season', 'In-store event', 'Collaboration', 'Other'];
 
 /* ---------- state of one checklist item, same rules as the server ---------- */
 const items = () => [...T.checklist, ...(W.staff.customItems || [])].filter(i => !(W.staff.hidden || []).includes(i.id));
@@ -42,7 +46,7 @@ function palette() {
   setPalette([
     ...sections().map(([r, t, i]) => ({ t: t, i, h: 'Go to', k: r, run: () => nav(r) })),
     ...items().filter(i => i.owner !== 'staff').map(i => ({ t: i.title, i: 'check', h: KIND[i.kind] || 'Item', run: () => { open.add(i.id); nav('start'); setTimeout(() => $(`[data-item="${i.id}"]`)?.scrollIntoView({ block: 'center' }), 80); } })),
-    { t: 'Open a ticket', i: 'ticket', h: 'Action', run: () => nav('support', 'new') }, { t: 'Book a meeting', i: 'cal', h: 'Action', run: () => nav('meetings') },
+    { t: 'Add an event', i: 'flag', h: 'Action', run: () => nav('events', 'new') }, { t: 'Open a ticket', i: 'ticket', h: 'Action', run: () => nav('support', 'new') }, { t: 'Book a meeting', i: 'cal', h: 'Action', run: () => nav('meetings') },
     { t: 'Message the team', i: 'chat', h: 'Action', run: () => nav('messages') }, { t: 'Sign out', i: 'out', h: 'Action', run: signOut },
   ]);
 }
@@ -63,7 +67,7 @@ function paint() {
   tabbar();
   const title = sections().find(s => s[0] === route)[1];
   $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
-  const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
+  const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
 }
@@ -221,6 +225,41 @@ function messages() {
     <div class="fld"><textarea class="in" id="msgText" placeholder="Write to us…" aria-label="Message"></textarea></div><div class="acts"><button class="btn dark" data-send>${ic('send')} Send</button></div></div>`;
 }
 
+/* ---------- events: launches, sales and openings we plan ads around ---------- */
+const dShort = (s, o = {}) => new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', ...o });
+const span = e => e.end && e.end !== e.start ? `${dShort(e.start, { day: 'numeric', month: 'short' })} – ${dShort(e.end, { day: 'numeric', month: 'short', year: 'numeric' })}` : dShort(e.start, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const inDays = s => { const n = Math.round((Date.parse(s + 'T00:00:00Z') - Date.parse(today() + 'T00:00:00Z')) / 864e5); return n <= 0 ? 'on now' : n === 1 ? 'tomorrow' : `in ${n} days`; };
+const erow = (e, past) => { const [lab, tone] = EST[e.status] || EST.new; return `<div class="meet ev ${past ? 'past' : ''}"><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
+  <div class="n"><b>${esc(e.title)}</b><span class="small">${esc(span(e))}${past ? '' : ' · ' + inDays(e.start)}${e.brand ? ' · ' + esc(e.brand) : ''}</span>
+    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${tone}">${lab}</span></div>
+    ${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}
+    ${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
+    ${e.comment ? `<div class="note ok" style="margin-top:10px">From ${esc(W.settings.studio)}: ${esc(e.comment)}</div>` : ''}</div>
+  <button class="btn sm ghost" data-evedit="${esc(e.id)}">${ic('edit')} Edit</button></div>`; };
+function events() {
+  const all = W.events || [], e = all.find(x => x.id === arg);
+  if (arg === 'new' || e) {
+    const v = e || { title: '', segment: '', brand: W.client.brands.length === 1 ? W.client.brands[0].name : '', start: '', end: '', audience: '', offer: '', description: '', link: '' };
+    return `<div class="page"><p class="eyebrow mono">Events · ${e ? 'edit' : 'new'}</p><h1>${e ? esc(e.title) : 'Tell us<span> what is coming.</span>'}</h1><p class="lead">A launch, a sale, an opening, a holiday. The earlier we know, the better the ads around it.</p>
+      <div class="card" style="margin-top:24px"><div class="fgrid">
+        <div class="fld full"><label for="ev-t">Event name <span class="req">*</span></label><input class="in" id="ev-t" maxlength="120" value="${esc(v.title)}" placeholder="e.g. Winter collection launch"></div>
+        <div class="fld"><label for="ev-s">Segment</label><input class="in" id="ev-s" list="ev-segs" maxlength="60" value="${esc(v.segment)}" placeholder="Pick or type your own"><datalist id="ev-segs">${SEGMENTS.map(x => `<option value="${x}">`).join('')}</datalist></div>
+        <div class="fld"><label for="ev-b">Brand</label><select class="in" id="ev-b"><option value="">All brands</option>${W.client.brands.map(b => `<option ${b.name === v.brand ? 'selected' : ''}>${esc(b.name)}</option>`).join('')}</select></div>
+        <div class="fld"><label for="ev-d">Date <span class="req">*</span></label><input class="in" id="ev-d" type="date" value="${esc(v.start)}"></div>
+        <div class="fld"><label for="ev-e">Ends (if more than one day)</label><input class="in" id="ev-e" type="date" value="${esc(v.end)}"></div>
+        <div class="fld full"><label for="ev-x">Description</label><textarea class="in" id="ev-x" style="min-height:130px" placeholder="What happens, where, and what you want people to do.">${esc(v.description)}</textarea></div>
+        <div class="fld"><label for="ev-a">Who it is for</label><input class="in" id="ev-a" maxlength="300" value="${esc(v.audience)}" placeholder="e.g. Members, new customers, Cairo only"></div>
+        <div class="fld"><label for="ev-o">Offer (optional)</label><input class="in" id="ev-o" maxlength="300" value="${esc(v.offer)}" placeholder="e.g. 20% off, free gift"></div>
+        <div class="fld full"><label for="ev-l">Link (optional)</label><input class="in" id="ev-l" type="url" value="${esc(v.link)}" placeholder="https:// a page, a folder with photos…"></div></div>
+        <div class="acts"><button class="btn green" data-evsave="${esc(e?.id || '')}">${ic('check')} ${e ? 'Save changes' : 'Add event'}</button><button class="btn ghost" data-nav="events">Cancel</button>${e ? `<button class="btn ghost danger" data-evdel="${esc(e.id)}">${ic('trash')} Remove</button>` : ''}</div></div></div>`;
+  }
+  const up = upEv(), past = all.filter(x => !up.includes(x)).reverse().slice(0, 12);
+  return `<div class="page"><p class="eyebrow mono">Events</p><h1>What is<span> coming up.</span></h1><p class="lead">Add launches, sales, openings and seasons. We plan the ads around them and tell you here when they are in our plan.</p>
+    <div class="acts" style="margin-top:20px"><button class="btn green" data-evnew>${ic('plus')} Add an event</button></div>
+    <div class="sec"><div class="sh"><h2>Coming up<em>${up.length}</em></h2></div>${up.map(x => erow(x)).join('') || '<div class="empty"><b>No events yet.</b>Add the next launch or sale, even if the date is rough.</div>'}</div>
+    ${past.length ? `<div class="sec"><div class="sh"><h2>Past</h2></div>${past.map(x => erow(x, true)).join('')}</div>` : ''}</div>`;
+}
+
 /* ---------- support tickets ---------- */
 const trow = t => `<div class="row" data-ticket="${esc(t.id)}" tabindex="0"><span class="tno">#${t.no}</span><div class="n"><b>${esc(t.subject)}</b><span>${esc(CATS[t.cat] || '')} · ${t.thread.length} message${t.thread.length > 1 ? 's' : ''} · ${since(t.updated)}</span></div>${t.priority === 'urgent' ? '<span class="pillx bad">urgent</span>' : ''}<span class="pillx ${TST[t.status][1]}">${TST[t.status][0]}</span>${unreadC(t) ? '<i class="dotu" title="New reply"></i>' : ''}</div>`;
 function support() {
@@ -301,6 +340,9 @@ async function onClick(e) {
   if (t.dataset.nav) return nav(t.dataset.nav);
   if (t.dataset.ticket) return nav('support', t.dataset.ticket);
   if (t.dataset.newticket !== undefined) return nav('support', 'new');
+  if (t.dataset.evnew !== undefined) return nav('events', 'new');
+  if (t.dataset.evedit) return nav('events', t.dataset.evedit);
+  if (t.dataset.evsave !== undefined || t.dataset.evdel) return events$(t);
   if (t.dataset.day) { selDay = t.dataset.day; selSlot = ''; return stay(); }
   if (t.dataset.slot) { selSlot = t.dataset.slot; const keep = [$('#mt-t')?.value, $('#mt-n')?.value]; stay(); if (keep[0]) { $('#mt-t').value = keep[0]; $('#mt-n').value = keep[1]; } return; }
   if (t.dataset.tksend !== undefined || t.dataset.tkreply || t.dataset.tkclose || t.dataset.book !== undefined || t.dataset.mcancel) return support$(t);
@@ -337,13 +379,25 @@ async function support$(t) {
   } catch (er) { toast(er.message, true); if (d.book !== undefined && er.code === 409) { S = null; selSlot = ''; loadSlots(); } }
   finally { t.disabled = false; }
 }
+async function events$(t) {
+  const d = t.dataset; t.disabled = true;
+  try {
+    if (d.evdel) {
+      if (!confirm('Remove this event?')) return;
+      await api('DELETE', 'client/event', { id: d.evdel }); W.events = W.events.filter(x => x.id !== d.evdel); toast('Removed'); return nav('events');
+    }
+    const r = await api('POST', 'client/event', { id: d.evsave || undefined, title: $('#ev-t').value, segment: $('#ev-s').value, brand: $('#ev-b').value, start: $('#ev-d').value, end: $('#ev-e').value, description: $('#ev-x').value, audience: $('#ev-a').value, offer: $('#ev-o').value, link: $('#ev-l').value });
+    W.events = [...(W.events || []).filter(x => x.id !== r.event.id), r.event].sort((a, b) => a.start.localeCompare(b.start));
+    toast(d.evsave ? 'Saved' : 'Added. The team is told.'); nav('events');
+  } catch (er) { toast(er.message, true); } finally { t.disabled = false; }
+}
 const putTicket = t => { W.tickets = (W.tickets || []).map(x => x.id === t.id ? t : x); };
 const stay = () => { const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; };
 async function refresh() { try { W = await api('GET', 'client/workspace'); } catch { } stay(); }
 async function poll() {
   if (document.hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || route === 'agreement') return;
   try {
-    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status)]);
+    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment)]);
     if (sig(n) !== sig(W)) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); const before = unreadT(); W = n; if (unreadT() > before) toast('We answered a ticket'); stay(); }
   } catch { }
 }

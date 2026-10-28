@@ -276,6 +276,8 @@ body.staff .ad{background:var(--card)}
 .meet .d span{display:block;font:500 10px 'JetBrains Mono',monospace;text-transform:uppercase;color:var(--mute)}
 .meet .n{flex:1;min-width:0}.meet .n b{display:block;font-size:15.5px}
 .meet.past{opacity:.55}
+.meet.ev{align-items:flex-start}.meet.ev .d{padding-top:2px}
+.meet .desc{margin:10px 0 0;font-size:14px;color:var(--ink2);white-space:pre-wrap;word-wrap:break-word}
 .daycb{display:flex;gap:6px;flex-wrap:wrap}
 .daycb label{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--rule);border-radius:999px;font-weight:700;font-size:13px;cursor:pointer}
 .daycb input{accent-color:var(--green)}
