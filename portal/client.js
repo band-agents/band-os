@@ -2,11 +2,21 @@ import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText,
 import { shell, signOut } from './main.js';
 import { agreementPdf } from './pdf.js';
 
-let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk = false;
+let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk = false, S = null, selDay = '', selSlot = '';
 const sections = () => [
   ['overview', 'Overview', 'home'], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
   ['forms', 'Forms', 'form'], ['agreement', 'Agreement', 'pen', { draft: 'soon', void: '—', sent: 'sign', signed: 'done' }[W.contract.status], W.contract.status === 'signed'],
-  ['results', 'Ads & results', 'chart'], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'], ['messages', 'Messages', 'chat', W.msgs.length || '']];
+  ['results', 'Ads & results', 'chart'], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
+  ['support', 'Support', 'ticket', unreadT() || openT() || '', !!unreadT()], ['meetings', 'Meetings', 'cal', upMeet().length || ''], ['messages', 'Messages', 'chat', W.msgs.length || '']];
+
+/* ---------- tickets and meetings, as the client sees them ---------- */
+const unreadC = t => { const l = t.thread.at(-1); return l?.from === 'staff' && !(t.seenClient >= l.at); };
+const unreadT = () => (W.tickets || []).filter(unreadC).length, openT = () => (W.tickets || []).filter(t => t.status !== 'closed').length;
+const upMeet = () => (W.meetings || []).filter(m => m.status === 'booked' && Date.parse(m.end) > Date.now()).sort((a, b) => a.start.localeCompare(b.start));
+const TST = { open: ['Waiting on us', 'warn'], answered: ['Answered', 'ok'], closed: ['Closed', ''] };
+const CATS = { question: 'Question', problem: 'Something is broken', request: 'A request', billing: 'Billing', other: 'Other' };
+const TOPICS = ['Results review', 'Ads and creative', 'Setup and access', 'Billing', 'Something else'];
+const since = iso => { const a = ago(iso); return a === 'now' ? 'just now' : a + ' ago'; };
 
 /* ---------- state of one checklist item, same rules as the server ---------- */
 const items = () => [...T.checklist, ...(W.staff.customItems || [])].filter(i => !(W.staff.hidden || []).includes(i.id));
@@ -32,14 +42,19 @@ function palette() {
   setPalette([
     ...sections().map(([r, t, i]) => ({ t: t, i, h: 'Go to', k: r, run: () => nav(r) })),
     ...items().filter(i => i.owner !== 'staff').map(i => ({ t: i.title, i: 'check', h: KIND[i.kind] || 'Item', run: () => { open.add(i.id); nav('start'); setTimeout(() => $(`[data-item="${i.id}"]`)?.scrollIntoView({ block: 'center' }), 80); } })),
+    { t: 'Open a ticket', i: 'ticket', h: 'Action', run: () => nav('support', 'new') }, { t: 'Book a meeting', i: 'cal', h: 'Action', run: () => nav('meetings') },
     { t: 'Message the team', i: 'chat', h: 'Action', run: () => nav('messages') }, { t: 'Sign out', i: 'out', h: 'Action', run: signOut },
   ]);
 }
 const nav = (r, a = '') => { location.hash = '#' + r + (a ? '/' + a : ''); };
 function go() {
   [route, arg] = (location.hash.slice(1) || 'overview').split('/'); if (!sections().some(s => s[0] === route)) route = 'overview';
+  if (route === 'meetings') { S = null; selSlot = ''; loadSlots(); }
   paint();
+  const t = route === 'support' && (W.tickets || []).find(x => x.id === arg);
+  if (t && unreadC(t)) { t.seenClient = new Date().toISOString(); api('PUT', 'client/ticket', { id: t.id, seen: true }).catch(() => { }); }
 }
+async function loadSlots() { try { S = await api('GET', 'client/slots'); } catch (e) { S = { on: false, slots: [], err: e.message }; } if (route === 'meetings') stay(); }
 function paint() {
   $('#side').innerHTML = `<div class="who-card"><b>${esc(W.client.name)}</b><span>${esc(W.client.brands.map(b => b.name).join(' · '))}</span></div><h6>Your project</h6>` +
     sections().map(([r, t, i, badge, ok]) => `<button class="si ${r === route ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${badge !== undefined && badge !== '' ? `<em class="${ok ? 'ok' : ''}">${esc(badge)}</em>` : ''}</button>`).join('') +
@@ -48,7 +63,7 @@ function paint() {
   tabbar();
   const title = sections().find(s => s[0] === route)[1];
   $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
-  const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, invoices, files, messages })[route](); v.scrollTop = 0;
+  const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
 }
@@ -58,7 +73,7 @@ const PRIMARY = ['overview', 'start', 'agreement', 'results'], SHORT = { start: 
 function tabbar() {
   const all = sections(), prim = all.filter(s => PRIMARY.includes(s[0])), more = all.filter(s => !PRIMARY.includes(s[0]));
   $('#bnav').innerHTML = prim.map(([r, t, i, badge]) => `<button class="${r === route ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${SHORT[r] || t}</span>${r === 'agreement' && W.contract.status === 'sent' ? '<i>!</i>' : ''}</button>`).join('')
-    + `<button class="${more.some(s => s[0] === route) ? 'on' : ''}" data-more aria-label="More">${ic('list')}<span>More</span>${W.msgs.length ? `<i>${W.msgs.length}</i>` : ''}</button>`;
+    + `<button class="${more.some(s => s[0] === route) ? 'on' : ''}" data-more aria-label="More">${ic('list')}<span>More</span>${unreadT() ? `<i>${unreadT()}</i>` : ''}</button>`;
   $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
   $('#bnav [data-more]').onclick = () => modal(`<h3>More</h3><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">${more.map(([r, t, i, badge]) => `<button class="btn" style="justify-content:flex-start;height:52px" data-go="${r}">${ic(i)}<span style="flex:1;text-align:left">${t}</span>${badge ? `<span class="mono" style="color:var(--mute)">${esc(badge)}</span>` : ''}</button>`).join('')}<button class="btn" style="justify-content:flex-start;height:52px" data-go="__out">${ic('out')}<span>Sign out</span></button></div>`, {
     onMount: (m, close) => $$('[data-go]', m).forEach(b => b.onclick = () => { close(); b.dataset.go === '__out' ? signOut() : nav(b.dataset.go); }),
@@ -79,6 +94,9 @@ function overview() {
     ${n ? `<div class="next"><div class="t"><span class="chipx" style="opacity:.6">Next step · ${esc(KIND[n.kind] || '')}</span><h3>${esc(n.title)}</h3><p>${esc(n.why)}</p></div><button class="btn light" data-open="${esc(n.id)}">Do it now ${ic('arrow')}</button><canvas id="nxcode" aria-hidden="true"></canvas></div>`
       : c === 'sent' ? `<div class="next"><div class="t"><span class="chipx" style="opacity:.6">Next step</span><h3>Read and sign your agreement</h3><p>It takes five minutes. You get a PDF copy straight after.</p></div><button class="btn light" data-nav="agreement">Open agreement ${ic('arrow')}</button><canvas id="nxcode" aria-hidden="true"></canvas></div>` : ''}
     <div class="sec"><div class="sh"><h2>The next 12 weeks</h2></div><div class="tl">${tl.map(t => `<div class="${t.state === 'now' ? 'now' : t.state === 'done' ? 'done' : ''}"><div class="w">WEEKS ${esc(t.weeks)}${t.state === 'now' ? ' · NOW' : t.state === 'done' ? ' · DONE' : ''}</div><h4>${esc(t.title)}</h4><p>${esc(t.body)}</p></div>`).join('')}</div></div>
+    <div class="sec"><div class="sh"><h2>Need us?</h2></div><div class="grid g2">
+      <div class="card"><h3 style="font-size:18px">${ic('ticket')} Open a ticket</h3><p class="small" style="margin-top:6px">One topic, one thread. We answer within a working day and email you when we do.${openT() ? ` You have ${openT()} open.` : ''}</p><div class="acts"><button class="btn sm dark" data-newticket>New ticket ${ic('arrow')}</button>${openT() ? '<button class="btn sm ghost" data-nav="support">See tickets</button>' : ''}</div></div>
+      <div class="card"><h3 style="font-size:18px">${ic('cal')} Book a call</h3><p class="small" style="margin-top:6px">${upMeet()[0] ? `Next call: <b style="color:var(--ink)">${esc(mwhen(upMeet()[0].start))}</b>.` : 'Pick a free time. It goes straight into our calendar.'}</p><div class="acts"><button class="btn sm dark" data-nav="meetings">${upMeet()[0] ? 'Manage calls' : 'Pick a time'} ${ic('arrow')}</button></div></div></div></div>
     ${last ? `<div class="sec"><div class="sh"><h2>Latest from us</h2><button class="more btn sm ghost" data-nav="messages">Reply ${ic('arrow')}</button></div><div class="msg" style="max-width:none"><small>${esc(last.name)} · ${ago(last.at)} ago</small>${esc(last.text)}</div></div>` : ''}</div>`;
 }
 
@@ -203,6 +221,65 @@ function messages() {
     <div class="fld"><textarea class="in" id="msgText" placeholder="Write to us…" aria-label="Message"></textarea></div><div class="acts"><button class="btn dark" data-send>${ic('send')} Send</button></div></div>`;
 }
 
+/* ---------- support tickets ---------- */
+const trow = t => `<div class="row" data-ticket="${esc(t.id)}" tabindex="0"><span class="tno">#${t.no}</span><div class="n"><b>${esc(t.subject)}</b><span>${esc(CATS[t.cat] || '')} · ${t.thread.length} message${t.thread.length > 1 ? 's' : ''} · ${since(t.updated)}</span></div>${t.priority === 'urgent' ? '<span class="pillx bad">urgent</span>' : ''}<span class="pillx ${TST[t.status][1]}">${TST[t.status][0]}</span>${unreadC(t) ? '<i class="dotu" title="New reply"></i>' : ''}</div>`;
+function support() {
+  const all = W.tickets || [], t = all.find(x => x.id === arg);
+  if (arg === 'new') return `<div class="page"><p class="eyebrow mono">Support · new ticket</p><h1>What do you<span> need?</span></h1><p class="lead">One topic per ticket. The whole team sees it, and you get an email when we answer.</p>
+    <div class="card" style="margin-top:24px"><div class="fgrid">
+      <div class="fld full"><label for="tk-s">Subject <span class="req">*</span></label><input class="in" id="tk-s" maxlength="140" placeholder="e.g. The pixel is not firing on checkout"></div>
+      <div class="fld"><label for="tk-c">Type</label><select class="in" id="tk-c">${Object.entries(CATS).map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select></div>
+      <div class="fld"><label for="tk-p">How urgent</label><select class="in" id="tk-p"><option value="normal">Normal · within a working day</option><option value="urgent">Urgent · an ad or a sale is affected</option></select></div>
+      <div class="fld full"><label for="tk-t">Details <span class="req">*</span></label><textarea class="in" id="tk-t" style="min-height:170px" placeholder="What happened, what you expected, and any links."></textarea></div></div>
+      <div class="warnbox">${ic('shield')}<span>Never send a password here. If something can only be shared with a password, say so and we will set up a safe way.</span></div>
+      <div class="acts"><button class="btn green" data-tksend>${ic('send')} Send ticket</button><button class="btn ghost" data-nav="support">Cancel</button></div></div></div>`;
+  if (t) {
+    const [lab, tone] = TST[t.status];
+    return `<div class="page"><p class="eyebrow mono">Support · ticket #${t.no}</p><h1>${esc(t.subject)}<span>.</span></h1>
+      <div class="tk-head"><span class="pillx ${tone}">${lab}</span><span class="pillx">${esc(CATS[t.cat] || '')}</span>${t.priority === 'urgent' ? '<span class="pillx bad">urgent</span>' : ''}<span class="small">Opened ${esc(day(t.at))}</span></div>
+      <div class="thread" style="margin-top:26px">${t.thread.map(m => `<div class="msg ${m.from === 'client' ? 'me' : ''}"><small>${m.from === 'staff' ? `<span class="by">${esc(W.settings.studio)}</span> · ` : ''}${esc(m.name)} · ${esc(day(m.at))} ${esc(clock(m.at))}</small>${esc(m.text)}</div>`).join('')}</div>
+      ${t.status === 'answered' ? '<p class="small" style="margin-bottom:10px">We answered. Reply if you need more, or mark it as solved.</p>' : t.status === 'open' ? '<p class="small" style="margin-bottom:10px">With our team. You get an email when we answer.</p>' : ''}
+      <div class="fld"><textarea class="in" id="tkReply" placeholder="${t.status === 'closed' ? 'Write here to reopen this ticket…' : 'Write a reply…'}" aria-label="Reply"></textarea></div>
+      <div class="acts"><button class="btn dark" data-tkreply="${esc(t.id)}">${ic('send')} ${t.status === 'closed' ? 'Reply and reopen' : 'Send reply'}</button>${t.status !== 'closed' ? `<button class="btn ghost" data-tkclose="${esc(t.id)}">${ic('check')} Mark as solved</button>` : ''}<button class="btn ghost" data-nav="support">All tickets</button></div></div>`;
+  }
+  const op = all.filter(x => x.status !== 'closed'), cl = all.filter(x => x.status === 'closed');
+  return `<div class="page"><p class="eyebrow mono">Support</p><h1>Ask us<span> anything.</span></h1><p class="lead">One ticket per topic. We answer within a working day, and you get an email when we do. For a conversation, book a call.</p>
+    <div class="acts" style="margin-top:20px"><button class="btn green" data-newticket>${ic('plus')} New ticket</button><button class="btn" data-nav="meetings">${ic('cal')} Book a call</button></div>
+    <div class="sec"><div class="sh"><h2>Open<em>${op.length}</em></h2></div>${op.map(trow).join('') || '<div class="empty"><b>No open tickets.</b>Press “New ticket” whenever you need us.</div>'}</div>
+    ${cl.length ? `<div class="sec"><div class="sh"><h2>Solved<em>${cl.length}</em></h2></div>${cl.map(trow).join('')}</div>` : ''}</div>`;
+}
+
+/* ---------- meetings: free slots in the studio's time zone ---------- */
+const tzOf = () => W.settings.tz || 'Africa/Cairo', here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const inTz = (iso, o, tz = tzOf()) => new Date(iso).toLocaleString('en-GB', { timeZone: tz, ...o });
+const clock = (iso, tz) => inTz(iso, { hour: '2-digit', minute: '2-digit', hour12: false }, tz);
+const mwhen = iso => `${inTz(iso, { weekday: 'short', day: 'numeric', month: 'short' })}, ${clock(iso)}`;
+const city = tz => tz.split('/').pop().replace(/_/g, ' ');
+const mrow = (m, past) => `<div class="meet ${past ? 'past' : ''}"><div class="d"><span>${inTz(m.start, { month: 'short' })}</span><b>${inTz(m.start, { day: 'numeric' })}</b><span>${inTz(m.start, { weekday: 'short' })}</span></div>
+  <div class="n"><b>${esc(m.topic)}</b><span class="small">${clock(m.start)}–${clock(m.end)} ${esc(city(tzOf()))} time${here !== tzOf() ? ` · ${clock(m.start, here)} your time` : ''}${m.note ? ' · ' + esc(m.note) : ''}</span></div>
+  ${m.status === 'cancelled' ? `<span class="pillx bad">cancelled</span>` : past ? '<span class="pillx">done</span>' : `<span class="pillx ok">booked</span><button class="btn sm ghost" data-mcancel="${esc(m.id)}">Cancel</button>`}</div>`;
+function meetings() {
+  const up = upMeet(), past = (W.meetings || []).filter(m => !up.includes(m)).slice(0, 8);
+  let pick;
+  if (!S) pick = '<p class="small">Finding free times…</p>';
+  else if (!S.on) pick = `<div class="empty"><b>Booking is paused.</b>${esc(S.err || 'Open a ticket and we will find a time with you.')}</div>`;
+  else if (!S.slots.length) pick = '<div class="empty"><b>No free times in the next weeks.</b>Open a ticket and we will find one.</div>';
+  else {
+    const days = [...new Set(S.slots.map(s => s.day))]; if (!days.includes(selDay)) selDay = days[0];
+    const d = iso => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short' }).split(' ');
+    pick = `<div class="days" role="tablist">${days.map(x => { const [wd, dn, mo] = d(x); return `<button class="${x === selDay ? 'on' : ''}" data-day="${x}"><span>${wd.replace(',', '')}</span><b>${dn}</b><span>${mo}</span></button>`; }).join('')}</div>
+      <div class="slots">${S.slots.filter(s => s.day === selDay).map(s => `<button class="${s.start === selSlot ? 'on' : ''}" data-slot="${esc(s.start)}">${clock(s.start)}${here !== tzOf() ? `<small>${clock(s.start, here)} yours</small>` : ''}</button>`).join('')}</div>
+      <p class="small" style="margin-top:10px">Times are ${esc(city(tzOf()))} time. Each call is ${S.length} minutes.</p>
+      <div class="fgrid" style="margin-top:6px"><div class="fld"><label for="mt-t">What about</label><select class="in" id="mt-t">${TOPICS.map(x => `<option>${x}</option>`).join('')}</select></div>
+      <div class="fld full"><label for="mt-n">Anything we should prepare (optional)</label><textarea class="in" id="mt-n" style="min-height:70px"></textarea></div></div>
+      <div class="acts"><button class="btn green" data-book ${selSlot ? '' : 'disabled'}>${ic('cal')} ${selSlot ? `Book ${esc(mwhen(selSlot))}` : 'Pick a time first'}</button></div>`;
+  }
+  return `<div class="page"><p class="eyebrow mono">Meetings</p><h1>Book a call<span> with us.</span></h1><p class="lead">Pick a free time. It goes into our calendar straight away, and you get an email with a calendar file.</p>
+    ${up.length ? `<div class="sec"><div class="sh"><h2>Coming up<em>${up.length}</em></h2></div>${up.map(m => mrow(m)).join('')}</div>` : ''}
+    <div class="sec"><div class="sh"><h2>Pick a time</h2></div><div class="card">${pick}</div></div>
+    ${past.length ? `<div class="sec"><div class="sh"><h2>Earlier</h2></div>${past.map(m => mrow(m, true)).join('')}</div>` : ''}</div>`;
+}
+
 /* ---------- events ---------- */
 const saving = n => { const s = $('#save'); s.classList.toggle('busy', n); $('span', s).textContent = n ? 'Saving…' : 'Saved'; };
 const flush = {};
@@ -220,8 +297,13 @@ function onInput(e) {
   else if (el.closest('[data-formkey]') && el.dataset.f) { const box = el.closest('[data-formkey]'), key = box.dataset.formkey, v = {}; $$('[data-f]', box).forEach(x => v[x.dataset.f] = x.value); W.answers.forms[key] = v; saveField({ forms: { [key]: v } }); }
 }
 async function onClick(e) {
-  const t = e.target.closest('button,a,[data-toggle]'); if (!t) return;
+  const t = e.target.closest('button,a,[data-toggle],[data-ticket]'); if (!t) return;
   if (t.dataset.nav) return nav(t.dataset.nav);
+  if (t.dataset.ticket) return nav('support', t.dataset.ticket);
+  if (t.dataset.newticket !== undefined) return nav('support', 'new');
+  if (t.dataset.day) { selDay = t.dataset.day; selSlot = ''; return stay(); }
+  if (t.dataset.slot) { selSlot = t.dataset.slot; const keep = [$('#mt-t')?.value, $('#mt-n')?.value]; stay(); if (keep[0]) { $('#mt-t').value = keep[0]; $('#mt-n').value = keep[1]; } return; }
+  if (t.dataset.tksend !== undefined || t.dataset.tkreply || t.dataset.tkclose || t.dataset.book !== undefined || t.dataset.mcancel) return support$(t);
   if (t.dataset.copy) return copyText(t.dataset.copy);
   if (t.dataset.open) { open.add(t.dataset.open); nav('start'); return setTimeout(() => $(`[data-item="${t.dataset.open}"]`)?.scrollIntoView({ block: 'center' }), 80); }
   if (t.dataset.form) return nav('forms', t.dataset.form);
@@ -234,8 +316,34 @@ async function onClick(e) {
   }
   if (t.dataset.send !== undefined) { const v = $('#msgText').value.trim(); if (!v) return; try { await api('POST', 'client/message', { text: v }); await refresh(); toast('Sent'); } catch (er) { toast(er.message, true); } }
 }
-async function refresh() { try { W = await api('GET', 'client/workspace'); } catch { } const keep = $('#view').scrollTop; paint(); $('#view').scrollTop = keep; }
+// the actions that talk to the server: send, reply, solve, book, cancel. The button stays disabled while it runs.
+async function support$(t) {
+  const d = t.dataset; t.disabled = true;
+  try {
+    if (d.tksend !== undefined) {
+      const r = await api('POST', 'client/ticket', { subject: $('#tk-s').value, cat: $('#tk-c').value, priority: $('#tk-p').value, text: $('#tk-t').value });
+      W.tickets = [r.ticket, ...(W.tickets || [])]; toast(`Ticket #${r.ticket.no} sent. We will email you.`); return nav('support', r.ticket.id);
+    }
+    if (d.tkreply) { const r = await api('POST', 'client/reply', { id: d.tkreply, text: $('#tkReply').value }); putTicket(r.ticket); toast('Sent'); return stay(); }
+    if (d.tkclose) { const r = await api('PUT', 'client/ticket', { id: d.tkclose, status: 'closed' }); putTicket(r.ticket); toast('Marked as solved'); return stay(); }
+    if (d.book !== undefined) {
+      const r = await api('POST', 'client/meeting', { start: selSlot, topic: $('#mt-t').value, note: $('#mt-n').value });
+      W.meetings = [r.meeting, ...(W.meetings || [])]; selSlot = ''; toast('Booked. Check your email for the calendar file.'); S = null; stay(); return loadSlots();
+    }
+    if (d.mcancel) {
+      const m = W.meetings.find(x => x.id === d.mcancel); if (!confirm(`Cancel the call on ${mwhen(m.start)}?`)) return;
+      const r = await api('PUT', 'client/meeting', { id: d.mcancel }); Object.assign(m, r.meeting); toast('Cancelled. We are told by email.'); S = null; stay(); return loadSlots();
+    }
+  } catch (er) { toast(er.message, true); if (d.book !== undefined && er.code === 409) { S = null; selSlot = ''; loadSlots(); } }
+  finally { t.disabled = false; }
+}
+const putTicket = t => { W.tickets = (W.tickets || []).map(x => x.id === t.id ? t : x); };
+const stay = () => { const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; };
+async function refresh() { try { W = await api('GET', 'client/workspace'); } catch { } stay(); }
 async function poll() {
   if (document.hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || route === 'agreement') return;
-  try { const n = await api('GET', 'client/workspace'); const changed = JSON.stringify([n.staff, n.contract.status, n.msgs.length]) !== JSON.stringify([W.staff, W.contract.status, W.msgs.length]); if (changed) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); W = n; const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; } } catch { }
+  try {
+    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status)]);
+    if (sig(n) !== sig(W)) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); const before = unreadT(); W = n; if (unreadT() > before) toast('We answered a ticket'); stay(); }
+  } catch { }
 }

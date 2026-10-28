@@ -23,13 +23,17 @@ Email: band.digi.tech@gmail.com · Instagram: [@band.cairo](https://www.instagra
 
 `/portal/` is a private area on the same site. Clients sign in with their email and an access code a staff member makes for them. Staff sign in with one shared code.
 
-- **Clients:** a checklist of what we need to start (access by invite, never a password), forms, the agreement with a typed and drawn e-signature and a PDF download, ads and results, invoices, links and messages.
-- **Staff:** overview, one workspace per client, verify each item, edit and send the agreement, countersign, enter results and ads, invoices, activity, settings.
+- **Clients:** a checklist of what we need to start (access by invite, never a password), forms, the agreement with a typed and drawn e-signature and a PDF download, ads and results, invoices, links, support tickets, booking a call, and messages.
+- **Staff:** overview, one workspace per client, verify each item, edit and send the agreement, countersign, enter results and ads, invoices, a support inbox, booked calls, a PDF of each client's data, activity, settings.
 
-Code: `portal/` (front end, plain ES modules), `api/[...path].js` (one serverless function), `server/` (routes, auth, storage, the default checklist and agreement in `seed.js`).
+**Tickets and calls.** A client opens a ticket (one topic, its own thread); staff answer it from the Support inbox. A client books a call from the free hours set in Settings (Cairo time by default). Email goes through the studio Gmail: new tickets, client replies and bookings reach the studio inbox (a booking comes as a calendar invite plus an "Add to Google Calendar" link), and clients get an email when staff answer or a call is booked or cancelled. Without the Gmail settings below, everything still works in the portal and the emails are only written to the server log.
+
+Code: `portal/` (front end, plain ES modules), `api/index.js` (one serverless function), `server/` (routes, auth, storage, `mail.js` for Gmail and calendar invites, `slots.js` for free call times, the default checklist and agreement in `seed.js`).
 
 Run it on your machine: copy `.env.example` to `.env.local`, set `STAFF_CODE` and `SESSION_SECRET`, then `node dev.mjs` and open http://localhost:3000/portal/. Data is kept in `.data/store.json`.
 
 Deploy on Vercel: import this repo, set `STAFF_CODE` and `SESSION_SECRET` under Environment Variables, and add Upstash Redis from the Marketplace (it sets `KV_REST_API_URL` and `KV_REST_API_TOKEN`). Without Redis the API answers 503 on purpose.
+
+Email: turn on 2-Step Verification for the studio Gmail, create an app password at https://myaccount.google.com/apppasswords, and set `GMAIL_USER` (the Gmail address) and `GMAIL_APP_PASSWORD` in Vercel, then redeploy. Settings in the staff portal has a "Send a test email" button.
 
 The agreement text in `server/seed.js` is a draft. Have a lawyer read it before the first client signs.

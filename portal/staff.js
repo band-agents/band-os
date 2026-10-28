@@ -2,8 +2,8 @@ import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText,
 import { shell, signOut } from './main.js';
 import { agreementPdf, clientDataPdf } from './pdf.js';
 
-let me, O, T, C = null, route = 'overview', arg = '', tab = 'checklist', bc = null, open = new Set(), lastLog = null;
-const nav = (r, a = '', t = '') => { location.hash = '#' + r + (a ? '/' + a : '') + (t ? '/' + t : ''); };
+let me, O, T, C = null, route = 'overview', arg = '', tab = 'checklist', sub = '', bc = null, open = new Set(), lastLog = null;
+const nav = (r, a = '', t = '', s = '') => { location.hash = '#' + r + (a ? '/' + a : '') + (t ? '/' + t : '') + (s ? '/' + s : ''); };
 
 export async function mount(who) {
   me = who;
@@ -30,28 +30,46 @@ const palette = () => setPalette([
   { t: 'Sign out', i: 'out', h: 'Action', run: signOut }]);
 
 async function go() {
-  [route, arg, tab] = (location.hash.slice(1) || 'overview').split('/'); tab = tab || 'checklist';
-  if (!['overview', 'clients', 'client', 'activity', 'settings'].includes(route)) route = 'overview';
+  [route, arg, tab, sub] = (location.hash.slice(1) || 'overview').split('/'); tab = tab || 'checklist'; sub = sub || '';
+  if (!['overview', 'clients', 'client', 'tickets', 'meetings', 'activity', 'settings'].includes(route)) route = 'overview';
   if (route === 'client') { try { C = await api('GET', 'staff/clients/' + arg); } catch (e) { toast(e.message, true); return nav('clients'); } } else C = null;
+  if (['tickets', 'meetings'].includes(route)) await reload().catch(() => { });
   paint();
+  const t = route === 'client' && tab === 'tickets' && C.tickets.find(x => x.id === sub);
+  if (t && unreadS(t)) { t.seenStaff = new Date().toISOString(); api('PUT', `staff/clients/${arg}/ticket`, { tid: t.id, seen: true }).then(reload).then(side).catch(() => { }); }
 }
+
+/* ---------- tickets and meetings, shared helpers ---------- */
+const unreadS = t => { const l = t.thread.at(-1); return l?.from === 'client' && !(t.seenStaff >= l.at); };
+const TST = { open: ['Waiting on us', 'warn'], answered: ['Waiting on client', 'ok'], closed: ['Closed', ''] };
+const CATS = { question: 'Question', problem: 'Problem', request: 'Request', billing: 'Billing', other: 'Other' };
+const since = iso => { const a = ago(iso); return a === 'now' ? 'just now' : a + ' ago'; };
+const bk = () => ({ tz: 'Africa/Cairo', days: [0, 1, 2, 3, 4], from: '11:00', to: '17:00', length: 30, notice: 24, ahead: 21, max: 3, blocked: [], on: true, ...(O.settings.booking || {}) });
+const inTz = (iso, o) => new Date(iso).toLocaleString('en-GB', { timeZone: bk().tz, ...o });
+const clock = iso => inTz(iso, { hour: '2-digit', minute: '2-digit', hour12: false });
+const mwhen = iso => `${inTz(iso, { weekday: 'short', day: 'numeric', month: 'short' })}, ${clock(iso)}`;
+const waiting = () => O.tickets.filter(t => t.status === 'open').length;
+const trow = (t, cid, name) => `<div class="row" data-tk="${esc(cid)}/${esc(t.id)}" tabindex="0"><span class="tno">#${t.no}</span><div class="n"><b>${esc(t.subject)}</b><span>${name ? `${esc(name)} · ` : ''}${esc(CATS[t.cat] || '')} · ${since(t.updated)}</span></div>${t.priority === 'urgent' ? '<span class="pillx bad">urgent</span>' : ''}<span class="pillx ${TST[t.status][1]}">${TST[t.status][0]}</span>${t.unread || (t.thread && unreadS(t)) ? '<i class="dotu" title="New from the client"></i>' : ''}</div>`;
+const mrow = (m, withClient, past) => `<div class="meet ${past ? 'past' : ''}" ${withClient ? `data-meetc="${esc(m.cid)}"` : ''} style="${withClient ? 'cursor:pointer' : ''}"><div class="d"><span>${inTz(m.start, { month: 'short' })}</span><b>${inTz(m.start, { day: 'numeric' })}</b><span>${inTz(m.start, { weekday: 'short' })}</span></div>
+  <div class="n"><b>${withClient ? esc(m.client) + ' · ' : ''}${esc(m.topic)}</b><span class="small">${clock(m.start)}–${clock(m.end)} · ${esc(m.byName)} (${esc(m.by)})${m.note ? ' · ' + esc(m.note) : ''}</span></div>
+  ${m.status === 'cancelled' ? `<span class="pillx bad">cancelled${m.cancelledBy ? ' by ' + esc(m.cancelledBy) : ''}</span>` : past ? '<span class="pillx">done</span>' : `<span class="pillx ok">booked</span>${withClient ? '' : `<button class="btn sm ghost danger" data-mcancel="${esc(m.id)}">Cancel</button>`}`}</div>`;
 function tabbar() {
   const on = r => route === r || (r === 'clients' && route === 'client');
-  $('#bnav').innerHTML = [['overview', 'Overview', 'home'], ['clients', 'Clients', 'users'], ['activity', 'Activity', 'clock'], ['settings', 'Settings', 'settings']]
-    .map(([r, t, i]) => `<button class="${on(r) ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${t}</span>${r === 'clients' && O.clients.some(c => c.awaiting || c.help) ? '<i>•</i>' : ''}</button>`).join('');
+  $('#bnav').innerHTML = [['overview', 'Overview', 'home'], ['clients', 'Clients', 'users'], ['tickets', 'Support', 'ticket'], ['meetings', 'Calls', 'cal'], ['settings', 'Settings', 'settings']]
+    .map(([r, t, i]) => `<button class="${on(r) ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${t}</span>${r === 'clients' && O.clients.some(c => c.awaiting || c.help) ? '<i>•</i>' : r === 'tickets' && waiting() ? `<i>${waiting()}</i>` : ''}</button>`).join('');
   $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
 }
 function side() {
   tabbar();
   $('#side').innerHTML = `<div class="who-card"><b>${esc(me.name)}</b><span>Staff</span></div><h6>Studio</h6>
-    ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em>${n}</em>` : ''}</button>`).join('')}
-    <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting || c.help || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
+    ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['tickets', 'Support inbox', 'ticket', waiting() || '', waiting()], ['meetings', 'Calls', 'cal', O.meetings.length || ''], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n, hot]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em class="${hot ? 'hot' : ''}">${n}</em>` : ''}</button>`).join('')}
+    <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help || c.tickets ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting + c.help + c.tickets || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
     <div class="sfoot"><span class="mono">n · new client</span><span class="mono">⌘K · jump to anything</span></div>`;
   $$('#side [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav)); $$('#side [data-client]').forEach(b => b.onclick = () => nav('client', b.dataset.client));
 }
 function paint() {
-  side(); const v = $('#view'), t = { overview, clients, client, activity, settings }[route]();
-  $('#crumbs').innerHTML = route === 'client' ? `<a data-nav="clients">Clients</a><i>/</i><span>${esc(C.client.name)}</span>` : `<span>${{ overview: 'Overview', clients: 'Clients', activity: 'Activity', settings: 'Settings' }[route]}</span>`;
+  side(); const v = $('#view'), t = { overview, clients, client, tickets: inbox, meetings: calls, activity, settings }[route]();
+  $('#crumbs').innerHTML = route === 'client' ? `<a data-nav="clients">Clients</a><i>/</i><span>${esc(C.client.name)}</span>` : `<span>${{ overview: 'Overview', clients: 'Clients', tickets: 'Support inbox', meetings: 'Calls', activity: 'Activity', settings: 'Settings' }[route]}</span>`;
   $('#crumbs a')?.addEventListener('click', () => nav('clients'));
   v.innerHTML = t; v.scrollTop = 0; bc?.stop(); bc = null; const cv = $('#hcode'); if (cv) bc = barcode(cv, { color: '#EDEDE6', level: Math.min(1, .3 + O.log.filter(l => Date.now() - new Date(l.at) < 864e5).length / 12) }); palette(); if (route === 'settings') loadTeam();
 }
@@ -63,16 +81,28 @@ const brandChips = c => c.brands.map(b => `<span class="brand"><i></i>${esc(b.na
 const cpill = s => `<span class="pillx ${s === 'signed' ? 'live' : s === 'sent' ? 'warn' : ''}">${{ draft: 'agreement draft', sent: 'awaiting signature', signed: 'signed', void: 'agreement void' }[s]}</span>`;
 function row(c) {
   return `<div class="row" data-client="${c.id}" tabindex="0"><div class="n"><b>${esc(c.name)}</b><span>${brandChips(c)}</span></div>${cpill(c.contract)}
-    ${c.awaiting ? `<span class="pillx warn">${c.awaiting} to review</span>` : ''}${c.help ? `<span class="pillx bad">${c.help} need help</span>` : ''}<div style="width:120px"><div class="bar-p"><i style="width:${pctOf(c)}%"></i></div><span class="small mono">${c.done}/${c.total} · ${pctOf(c)}%</span></div></div>`;
+    ${c.tickets ? `<span class="pillx warn">${c.tickets} ticket${c.tickets > 1 ? 's' : ''}</span>` : ''}${c.awaiting ? `<span class="pillx warn">${c.awaiting} to review</span>` : ''}${c.help ? `<span class="pillx bad">${c.help} need help</span>` : ''}<div style="width:120px"><div class="bar-p"><i style="width:${pctOf(c)}%"></i></div><span class="small mono">${c.done}/${c.total} · ${pctOf(c)}%</span></div></div>`;
 }
 const feed = (n = 14) => `<div class="feed">${O.log.slice(0, n).map(l => `<div><time>${ago(l.at)}</time><span><b>${esc(l.who)}</b> ${esc(l.what)}</span></div>`).join('') || '<p class="small">Nothing yet.</p>'}</div>`;
 function overview() {
-  const C0 = O.clients, sum = k => C0.reduce((a, c) => a + c[k], 0), sign = C0.filter(c => c.contract === 'sent').length, need = C0.filter(c => c.awaiting || c.help || c.fix || c.contract === 'sent');
+  const C0 = O.clients, sum = k => C0.reduce((a, c) => a + c[k], 0), sign = C0.filter(c => c.contract === 'sent').length, need = C0.filter(c => c.awaiting || c.help || c.fix || c.tickets || c.contract === 'sent');
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${greet()},<span> ${esc(me.name)}.</span></h1></div><canvas id="hcode" aria-hidden="true"></canvas></div>
     <div class="grid g4" style="margin-top:30px">${[['Clients', C0.length, 'in the portal'], ['To review', sum('awaiting'), 'items sent by clients'], ['Waiting to sign', sign, 'agreements out'], ['Need help', sum('help'), 'items flagged']].map(([t, v, k], n) => `<div class="card stat"><div class="v" style="${n && v ? 'color:var(--green)' : ''}">${v}</div><div class="k">${t}<br><span class="mini">${k}</span></div></div>`).join('')}</div>
     <div class="split" style="margin-top:44px;grid-template-columns:1.5fr 1fr"><div><div class="sh"><h2>Needs you<em>${need.length}</em></h2></div>${need.map(row).join('') || '<div class="empty"><b>All clear.</b>Nothing is waiting on us.</div>'}
+      ${waiting() ? `<div class="sh" style="margin-top:34px"><h2>Tickets waiting<em>${waiting()}</em></h2><button class="btn sm ghost" data-nav="tickets">All</button></div>${O.tickets.filter(t => t.status === 'open').slice(0, 4).map(t => trow(t, t.cid, t.client)).join('')}` : ''}
+      ${O.meetings.length ? `<div class="sh" style="margin-top:34px"><h2>Next calls<em>${O.meetings.length}</em></h2><button class="btn sm ghost" data-nav="meetings">All</button></div>${O.meetings.slice(0, 3).map(m => mrow(m, true)).join('')}` : ''}
       <div class="sh" style="margin-top:34px"><h2>All clients<em>${C0.length}</em></h2><button class="btn sm" data-new>${ic('plus')} New client</button></div>${C0.map(row).join('') || '<div class="empty"><b>No clients yet.</b>Press <span class="mono">N</span> to create the first workspace.</div>'}</div>
       <div><div class="sh"><h2>Activity</h2><button class="btn sm ghost" data-nav="activity">All</button></div><div class="card" style="padding:6px 18px">${feed(10)}</div></div></div></div>`;
+}
+function inbox() {
+  const op = O.tickets.filter(t => t.status === 'open'), an = O.tickets.filter(t => t.status === 'answered');
+  return `<div class="page"><p class="eyebrow mono">Support inbox</p><h1>Tickets<span>.</span></h1><p class="lead">Every open ticket, newest activity first. Solved ones stay on each client's Tickets tab.</p>
+    <div class="sec"><div class="sh"><h2>Waiting on us<em>${op.length}</em></h2></div>${op.map(t => trow(t, t.cid, t.client)).join('') || '<div class="empty"><b>Inbox zero.</b>Nothing is waiting on us.</div>'}</div>
+    ${an.length ? `<div class="sec"><div class="sh"><h2>Waiting on the client<em>${an.length}</em></h2></div>${an.map(t => trow(t, t.cid, t.client)).join('')}</div>` : ''}</div>`;
+}
+function calls() {
+  return `<div class="page"><p class="eyebrow mono">Calls</p><h1>Booked<span> calls.</span></h1><p class="lead">Times in ${esc(bk().tz.split('/').pop().replace(/_/g, ' '))} time. Clients book from their portal; set the hours in Settings.</p>
+    <div class="sec">${O.meetings.map(m => mrow(m, true)).join('') || '<div class="empty"><b>No calls booked.</b>Clients see your free hours under Meetings.</div>'}</div></div>`;
 }
 function clients() { return `<div class="page"><p class="eyebrow mono">Clients</p><h1>Every workspace<span>.</span></h1><div style="margin-top:28px">${O.clients.map(row).join('') || '<div class="empty"><b>No clients yet.</b>Press <span class="mono">N</span>.</div>'}</div></div>`; }
 function activity() { return `<div class="page"><p class="eyebrow mono">Activity</p><h1>What happened<span>.</span></h1><div class="card" style="margin-top:28px;padding:6px 18px">${feed(60)}</div></div>`; }
@@ -107,11 +137,11 @@ async function reload() { O = await api('GET', 'staff/overview'); }
 async function reloadClient() { C = await api('GET', 'staff/clients/' + arg); await reload(); }
 
 /* ---------- one client ---------- */
-const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
+const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
 function client() {
   const s = C.summary;
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
-    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
+    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${k === 'tickets' && C.summary.tickets ? ` <span class="mono" style="color:var(--green)">${C.summary.tickets}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, tickets: ctickets, meetings: cmeetings, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
 function checklist() {
@@ -128,6 +158,29 @@ function checklist() {
 function answers() {
   const forms = T.forms.flatMap(f => f.perBrand ? C.client.brands.map(b => ({ f, key: `${f.id}:${b.id}`, title: `${f.title} · ${b.name}` })) : [{ f, key: f.id, title: f.title }]);
   return forms.map(({ f, key, title }) => { const v = C.answers.forms[key] || {}, has = f.fields.some(x => v[x.id]); return `<div class="card" style="margin-bottom:12px"><h3>${esc(title)} ${has ? '' : '<span class="pillx">empty</span>'}</h3>${has ? `<dl class="ans">${f.fields.filter(x => v[x.id]).map(x => `<dt>${esc(x.label)}</dt><dd>${ansVal(v[x.id])}</dd>`).join('')}</dl>` : ''}</div>`; }).join('');
+}
+
+/* tickets for this client: the list, or one thread with the reply box */
+function ctickets() {
+  const t = C.tickets.find(x => x.id === sub);
+  if (!t) {
+    const op = C.tickets.filter(x => x.status !== 'closed'), cl = C.tickets.filter(x => x.status === 'closed');
+    return (op.map(x => trow(x, C.client.id)).join('') || '<div class="empty"><b>No open tickets.</b>The client opens them from Support in their portal.</div>') +
+      (cl.length ? `<div class="sh" style="margin-top:26px"><h2>Solved<em>${cl.length}</em></h2></div>${cl.map(x => trow(x, C.client.id)).join('')}` : '');
+  }
+  const [lab, tone] = TST[t.status];
+  return `<div style="max-width:820px"><button class="btn sm ghost" data-tab="tickets">${ic('back')} All tickets</button>
+    <h2 style="margin-top:16px;font-size:24px;letter-spacing:-.02em">#${t.no} · ${esc(t.subject)}</h2>
+    <div class="tk-head"><span class="pillx ${tone}">${lab}</span><span class="pillx">${esc(CATS[t.cat] || '')}</span>${t.priority === 'urgent' ? '<span class="pillx bad">urgent</span>' : ''}<span class="small">Opened ${esc(day(t.at))} by ${esc(t.by)}</span>
+      <span style="flex:1"></span><select class="in" data-tkstatus="${esc(t.id)}" style="width:auto;height:34px">${Object.entries(TST).map(([k, [l]]) => `<option value="${k}" ${k === t.status ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="thread" style="margin-top:22px">${t.thread.map(m => `<div class="msg ${m.from === 'staff' ? 'me' : ''}"><small>${esc(m.name)} · ${esc(day(m.at))} ${esc(new Date(m.at).toTimeString().slice(0, 5))}</small>${esc(m.text)}</div>`).join('')}</div>
+    <div class="fld"><textarea class="in" id="tkReply" style="min-height:120px" placeholder="Reply to ${esc(C.client.name)}. They get it by email too."></textarea></div>
+    <div class="acts"><button class="btn dark" data-tkreply="${esc(t.id)}">${ic('send')} Send reply</button><button class="btn green" data-tkreply="${esc(t.id)}" data-andclose="1">${ic('check')} Send and close</button></div></div>`;
+}
+function cmeetings() {
+  const now = Date.now(), up = C.meetings.filter(m => m.status === 'booked' && Date.parse(m.end) > now).sort((a, b) => a.start.localeCompare(b.start)), rest = C.meetings.filter(m => !up.includes(m));
+  return (up.map(m => mrow(m)).join('') || '<div class="empty"><b>No calls booked.</b>The client books from Meetings in their portal.</div>') +
+    (rest.length ? `<div class="sh" style="margin-top:26px"><h2>Earlier and cancelled</h2></div>${rest.map(m => mrow(m, false, true)).join('')}` : '');
 }
 
 /* agreement editor: the text on the left, the client's view on the right */
@@ -176,7 +229,7 @@ function csettings() {
     <div class="card" style="margin-top:14px"><h3 style="color:var(--red)">Delete workspace</h3><p class="small">Removes everything: answers, signed agreement, results. This cannot be undone.</p><div class="acts"><button class="btn sm danger" data-del>${ic('trash')} Delete ${esc(c.name)}</button></div></div>`;
 }
 function settings() {
-  const s = O.settings;
+  const s = O.settings, b = bk();
   return `<div class="page"><p class="eyebrow mono">Settings</p><h1>The studio<span>.</span></h1><div class="card" style="margin-top:28px"><div class="fgrid">
     <div class="fld"><label>Studio name</label><input class="in" id="st-studio" value="${esc(s.studio)}"></div><div class="fld"><label>Studio email</label><input class="in" id="st-email" value="${esc(s.studioEmail)}"></div>
     <div class="fld full"><label>Our Meta Business ID (shown to clients in “Add band. as a partner”)</label><input class="in" id="st-bm" inputmode="numeric" value="${esc(s.bandBmId)}" placeholder="16-digit number from Business settings"></div>
@@ -185,7 +238,17 @@ function settings() {
     <div class="acts"><button class="btn green" data-savesettings>Save settings</button></div></div>
     <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">Everyone can sign in with the team code. A personal code signs in under that person's own name, so the activity log says who did what.</p>
     <div id="team" style="margin-top:12px"><p class="small">Loading…</p></div>
-    <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Personal code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div></div>`;
+    <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Personal code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div>
+    <div class="card" style="margin-top:14px"><h3>Calls clients can book</h3><p class="small">Clients see these hours under Meetings and pick a slot. Each booking emails ${esc(s.studioEmail)} a calendar invite. Times are ${esc(b.tz)} time.</p>
+    <label class="chk" style="margin-top:14px"><input type="checkbox" id="bk-on" ${b.on ? 'checked' : ''}><span>Clients can book calls</span></label>
+    <div class="fld" style="margin-top:14px"><label>Days</label><div class="daycb">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => `<label><input type="checkbox" data-bkday="${i}" ${b.days.includes(i) ? 'checked' : ''}>${d}</label>`).join('')}</div></div>
+    <div class="fgrid" style="grid-template-columns:repeat(3,1fr)"><div class="fld"><label>From</label><input class="in" id="bk-from" type="time" value="${esc(b.from)}"></div><div class="fld"><label>Until</label><input class="in" id="bk-to" type="time" value="${esc(b.to)}"></div>
+      <div class="fld"><label>Call length</label><select class="in" id="bk-len">${[15, 20, 30, 45, 60].map(n => `<option value="${n}" ${n === b.length ? 'selected' : ''}>${n} minutes</option>`).join('')}</select></div>
+      <div class="fld"><label>Book at least (hours ahead)</label><input class="in" id="bk-notice" type="number" min="0" value="${b.notice}"></div><div class="fld"><label>Show this many days</label><input class="in" id="bk-ahead" type="number" min="1" value="${b.ahead}"></div><div class="fld"><label>Calls per client at once</label><input class="in" id="bk-max" type="number" min="1" value="${b.max}"></div>
+      <div class="fld full"><label>Days off (YYYY-MM-DD, comma separated)</label><input class="in" id="bk-off" value="${esc(b.blocked.join(', '))}" placeholder="2026-12-25, 2027-01-07"></div></div>
+    <div class="acts"><button class="btn green" data-savebooking>Save hours</button></div></div>
+    <div class="card" style="margin-top:14px"><h3>Email</h3>${O.mail ? `<p class="small">Connected. New tickets, client replies and bookings go to <b>${esc(s.studioEmail)}</b>; clients get an email when you answer.</p><div class="acts"><button class="btn" data-testmail>${ic('send')} Send a test email</button></div>`
+      : `<div class="warnbox">${ic('alert')}<span>Not connected yet, so nothing is emailed. Everything still shows up here in the portal. To connect Gmail: turn on 2-Step Verification for ${esc(s.studioEmail)}, create an app password at myaccount.google.com/apppasswords, then add <b>GMAIL_USER</b> and <b>GMAIL_APP_PASSWORD</b> in Vercel and redeploy.</span></div>`}</div></div>`;
 }
 async function loadTeam() {
   const el = $('#team'); if (!el) return;
@@ -208,8 +271,22 @@ function onInput(e) {
 const put = async (body, msg = 'Saved') => { try { const r = await api('PUT', `staff/clients/${arg}/staffdata`, body); C.staff = r.staff; C.summary = r.summary; await reload(); toast(msg); return true; } catch (er) { toast(er.message, true); return false; } };
 const stay = () => { const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; };
 async function onClick(e) {
-  const t = e.target.closest('button,a,[data-toggle],.row'); if (!t) return; const d = t.dataset;
+  const t = e.target.closest('button,a,[data-toggle],.row,[data-meetc]'); if (!t) return; const d = t.dataset;
   if (d.nav) return nav(d.nav); if (d.client) return nav('client', d.client); if (d.new !== undefined) return newClient(); if (d.tab) return nav('client', arg, d.tab);
+  if (d.tk) { const [cid, tid] = d.tk.split('/'); return nav('client', cid, 'tickets', tid); }
+  if (d.meetc) return nav('client', d.meetc, 'meetings');
+  if (d.tkreply) {
+    const v = $('#tkReply').value.trim(); if (!v) return toast('Write a reply first.', true); t.disabled = true;
+    try { await api('POST', `staff/clients/${arg}/reply`, { tid: d.tkreply, text: v, close: !!d.andclose }); await reloadClient(); toast(d.andclose ? 'Sent and closed' : 'Sent'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return;
+  }
+  if (d.mcancel) {
+    const m = C.meetings.find(x => x.id === d.mcancel); if (!confirm(`Cancel the call with ${C.client.name} on ${mwhen(m.start)}? They get an email.`)) return;
+    try { await api('PUT', `staff/clients/${arg}/meeting`, { mid: d.mcancel }); await reloadClient(); toast('Cancelled. The client is emailed.'); stay(); } catch (er) { toast(er.message, true); } return;
+  }
+  if (d.savebooking !== undefined) {
+    try { O.settings = await api('PUT', 'staff/booking', { on: $('#bk-on').checked, days: $$('[data-bkday]').filter(x => x.checked).map(x => +x.dataset.bkday), from: $('#bk-from').value, to: $('#bk-to').value, length: $('#bk-len').value, notice: $('#bk-notice').value, ahead: $('#bk-ahead').value, max: $('#bk-max').value, blocked: $('#bk-off').value }); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return;
+  }
+  if (d.testmail !== undefined) { t.disabled = true; try { await api('POST', 'staff/testmail', {}); toast(`Sent. Check ${O.settings.studioEmail}.`); } catch (er) { toast(er.message, true); } t.disabled = false; return; }
   if (d.toggle !== undefined) { open.has(d.toggle) ? open.delete(d.toggle) : open.add(d.toggle); return t.closest('.item').classList.toggle('open'); }
   if (d.verify !== undefined) { const id = t.closest('[data-item]').dataset.item, comment = $('[data-vc]', t.closest('[data-item]')).value, v = { ...C.staff.verify }; v[id] = { state: d.verify, comment }; if (await put({ verify: v }, d.verify ? 'Marked ' + d.verify : 'Cleared')) stay(); return; }
   if (d.auto) { const a = { ...(C.staff.auto || {}) }; a[d.auto] = !a[d.auto]; if (await put({ auto: a })) stay(); return; }
@@ -239,7 +316,9 @@ async function onClick(e) {
   if (d.savesettings !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { studio: $('#st-studio').value, studioEmail: $('#st-email').value, bandBmId: $('#st-bm').value, governingLaw: $('#st-law').value, contractTitle: $('#st-title').value }); toast('Saved'); } catch (er) { toast(er.message, true); } }
 }
 document.addEventListener('change', async e => {
-  const x = e.target; if (!x.dataset?.cv || !C) return;
+  const x = e.target;
+  if (x.dataset?.tkstatus && C) { try { await api('PUT', `staff/clients/${arg}/ticket`, { tid: x.dataset.tkstatus, status: x.value }); await reloadClient(); toast('Updated'); stay(); } catch (er) { toast(er.message, true); } return; }
+  if (!x.dataset?.cv || !C) return;
   const body = { [x.dataset.cv]: x.value }; try { await api('PATCH', 'staff/clients/' + arg, body); await reloadClient(); $('#cprev').innerHTML = md(rend($('#ctext').value)); toast('Saved'); } catch (er) { toast(er.message, true); }
 });
 async function contract(action) {
@@ -274,7 +353,7 @@ async function poll() {
   try {
     const n = await api('GET', 'staff/overview'), head = n.log[0];
     if (head && head.at !== lastLog) { lastLog = head.at; if (head.who !== me.name) toast(`${head.who} ${head.what}`); }
-    const changed = JSON.stringify(n.clients) !== JSON.stringify(O.clients); O = n;
+    const changed = JSON.stringify([n.clients, n.tickets, n.meetings]) !== JSON.stringify([O.clients, O.tickets, O.meetings]); O = n;
     if (changed && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') && !$('.modal')) { if (route === 'client') { await reloadClient().catch(() => { }); } stay(); } else side();
   } catch { }
 }

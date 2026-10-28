@@ -1,6 +1,8 @@
 import { store, mode } from './store.js';
 import { configured, sessionOf, setSession, clearSession, sha, same, hashCode, newCode, newId, newSalt } from './auth.js';
 import { GROUPS, CHECKLIST, FORMS, TIMELINE, DEFAULT_SETTINGS, CONTRACT } from './seed.js';
+import { send, letter, mailReady, ics, gcalLink } from './mail.js';
+import { BOOKING, freeSlots, when } from './slots.js';
 
 const MAX_BODY = 400_000;
 const bad = (code, msg) => Object.assign(new Error(msg), { code });
@@ -38,12 +40,12 @@ const vars = (c, s) => ({
 export const render = (text, v) => String(text).replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? `{{${k}}}`);
 
 async function bundle(id) {
-  const [c, answers, st, contract, msgs] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199)]);
+  const [c, answers, st, contract, msgs, tickets] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`)]);
   if (!c) throw bad(404, 'Unknown client');
-  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse() };
+  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [] };
 }
 const items = (st) => [...CHECKLIST, ...(st.customItems || []).map(i => ({ ...i, custom: true }))].filter(i => !(st.hidden || []).includes(i.id));
-function summarize({ c, answers, st, contract }) {
+function summarize({ c, answers, st, contract, tickets = [] }) {
   const all = items(st).filter(i => i.required !== false);
   const stateOf = i => {
     const v = st.verify[i.id]?.state; if (v) return v;
@@ -57,7 +59,7 @@ function summarize({ c, answers, st, contract }) {
     id: c.id, name: c.name, brands: c.brands, status: c.status, startDate: c.startDate, createdAt: c.createdAt,
     total: all.length, done, verified, help: all.filter(i => stateOf(i) === 'help').length,
     awaiting: all.filter(i => stateOf(i) === 'submitted' && i.owner !== 'staff').length, fix: all.filter(i => stateOf(i) === 'needs-fix').length,
-    contract: contract?.status || 'draft', lastActive: answers.updatedAt,
+    contract: contract?.status || 'draft', lastActive: answers.updatedAt, tickets: tickets.filter(t => t.status === 'open').length,
   };
 }
 
@@ -101,11 +103,12 @@ H.open['GET template'] = async (req) => { if (!sessionOf(req)) throw bad(401, 'S
 
 // ---------- client ----------
 const clientWorkspace = async id => {
-  const { c, answers, st, contract, msgs } = await bundle(id), s = await settings(), v = vars(c, s);
+  const { c, answers, st, contract, msgs, tickets } = await bundle(id), s = await settings(), v = vars(c, s);
   const visible = contract && ['sent', 'signed'].includes(contract.status);
   const sig = contract?.signature;
   return {
-    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId }, summary: summarize({ c, answers, st, contract }),
+    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz }, summary: summarize({ c, answers, st, contract, tickets }),
+    tickets, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30),
     contract: visible ? { status: contract.status, title: contract.title, text: contract.status === 'signed' ? contract.signedText : render(contract.text, v), sentAt: contract.sentAt, hash: contract.hash,
       signature: sig ? { name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, docHash: sig.docHash } : null,
       countersign: contract.countersign || null } : { status: contract?.status === 'void' ? 'void' : 'draft' },
@@ -180,7 +183,10 @@ H.staff['GET overview'] = async () => {
   const rows = [];
   for (const id of ids) { try { rows.push(summarize(await bundle(id))); } catch { } }
   rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-  return { clients: rows, log: await store.lrange('log', 0, 59), settings: await settings(), mode };
+  const tickets = [];
+  for (const id of ids) for (const t of (await store.get(`tickets:${id}`)) || []) if (t.status !== 'closed') tickets.push({ ...brief(t), cid: id, client: rows.find(r => r.id === id)?.name || '' });
+  tickets.sort((a, b) => b.updated.localeCompare(a.updated));
+  return { clients: rows, log: await store.lrange('log', 0, 59), settings: await settings(), mode, mail: mailReady(), tickets, meetings: upcoming(await meetingsAll()) };
 };
 H.staff['POST clients'] = async (req, res, s) => {
   const b = await readBody(req), set = await settings();
@@ -206,8 +212,9 @@ H.staff['POST clients'] = async (req, res, s) => {
   return { client: pubClient(c), code };
 };
 H.staff['GET client'] = async (req, res, s, q) => {
-  const { c, answers, st, contract, msgs } = await bundle(q.id), set = await settings();
-  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract }), settings: set };
+  const { c, answers, st, contract, msgs, tickets } = await bundle(q.id), set = await settings();
+  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets }), settings: set,
+    tickets, meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
 };
 H.staff['PATCH client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -232,7 +239,7 @@ H.staff['PUT staffdata'] = async (req, res, s, q) => {
   for (const k of Object.keys(b)) { const v = cleanStaff(k, b[k]); if (v !== undefined) st[k] = v; }
   await store.set(`staff:${q.id}`, st);
   if (b.note) await log(s.name, clip(b.note, 120), q.id);
-  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`) }) };
+  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [] }) };
 };
 H.staff['PUT contract'] = async (req, res, s, q) => {
   const b = await readBody(req), { c, contract } = await bundle(q.id), set = await settings();
@@ -255,7 +262,8 @@ H.staff['POST message'] = async (req, res, s, q) => {
 H.staff['DELETE client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
   if (b.confirm !== c.name) throw bad(400, 'Type the client name to confirm.');
-  for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`]) await store.del(k);
+  for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`, `tickets:${q.id}`]) await store.del(k);
+  await store.set('meetings', (await meetingsAll()).filter(m => m.cid !== q.id));
   for (const x of c.contacts || []) await store.del(`idx:email:${x.email}`);
   await store.srem('clients', q.id); await log(s.name, `deleted ${c.name}`);
   return { ok: true };
@@ -283,6 +291,126 @@ H.staff['PUT settings'] = async (req) => {
   const b = await readBody(req), cur = await settings();
   const next = { ...cur, studio: clip(b.studio ?? cur.studio, 40), studioEmail: clip(b.studioEmail ?? cur.studioEmail, 120), bandBmId: clip(b.bandBmId ?? cur.bandBmId, 40).replace(/\D/g, ''), governingLaw: clip(b.governingLaw ?? cur.governingLaw, 120), contractTitle: clip(b.contractTitle ?? cur.contractTitle, 120) };
   await store.set('settings', next); return next;
+};
+
+// ---------- support: tickets ----------
+// A ticket is one topic with its own thread. open = waiting on us, answered = waiting on the client, closed = solved.
+const TCATS = { question: 'Question', problem: 'Problem', request: 'Request', billing: 'Billing', other: 'Other' };
+const brief = t => { const l = t.thread.at(-1); return { id: t.id, no: t.no, subject: t.subject, cat: t.cat, priority: t.priority, status: t.status, updated: t.updated, unread: l?.from === 'client' && !(t.seenStaff >= l.at) }; };
+const portal = req => { const host = req.headers['x-forwarded-host'] || req.headers.host || ''; return `${/^(localhost|127\.)/.test(host) ? 'http' : 'https'}://${host}/portal/`; };
+const nameOf = (c, email) => c.contacts.find(x => x.email === email)?.name || c.name;
+const emailsOf = c => c.contacts.map(x => x.email).filter(Boolean);
+async function ticketOf(cid, id) { const all = (await store.get(`tickets:${cid}`)) || [], t = all.find(x => x.id === id); if (!t) throw bad(404, 'No such ticket'); return [all, t]; }
+const saveTickets = (cid, all) => store.set(`tickets:${cid}`, all.slice(0, 150));
+const toStudio = (req, cid, t, title, text, who, email, set, c) => send({ to: set.studioEmail, replyTo: email, subject: `${t.priority === 'urgent' ? 'URGENT · ' : ''}${t.thread.length > 1 ? 'Re: ' : ''}Ticket #${t.no} · ${c.name} · ${t.subject}`,
+  ...letter({ title, lines: [`${TCATS[t.cat]}${t.priority === 'urgent' ? ', marked urgent' : ''}. From ${who} (${email}).`, `Subject: ${t.subject}`], quote: text, button: { label: 'Answer in the portal', url: `${portal(req)}#client/${cid}/tickets/${t.id}` } }) });
+
+H.client['POST ticket'] = async (req, res, s) => {
+  const b = await readBody(req), subject = clip(b.subject, 140).trim(), text = clip(b.text, 5000).trim();
+  if (subject.length < 3) throw bad(400, 'Give the ticket a short subject.');
+  if (!text) throw bad(400, 'Tell us what it is about.');
+  const c = await store.get(`client:${s.cid}`), all = (await store.get(`tickets:${s.cid}`)) || [], set = await settings();
+  if (all.filter(t => t.status !== 'closed').length >= 20) throw bad(429, 'You have 20 open tickets. Close the solved ones first.');
+  const at = now(), who = nameOf(c, s.email);
+  const t = { id: newId(6), no: await store.incr('seq:ticket'), subject, cat: TCATS[b.cat] ? b.cat : 'question', priority: b.priority === 'urgent' ? 'urgent' : 'normal', status: 'open', at, updated: at, by: s.email, seenClient: at, seenStaff: '', thread: [{ from: 'client', name: who, text, at }] };
+  all.unshift(t); await saveTickets(s.cid, all); await log(c.name, `opened ticket #${t.no}: ${subject}`, s.cid);
+  await toStudio(req, s.cid, t, `${c.name} opened ticket #${t.no}`, text, who, s.email, set, c);
+  return { ticket: t };
+};
+H.client['POST reply'] = async (req, res, s) => {
+  const b = await readBody(req), text = clip(b.text, 5000).trim(); if (!text) throw bad(400, 'Write something first.');
+  const c = await store.get(`client:${s.cid}`), [all, t] = await ticketOf(s.cid, b.id), at = now(), who = nameOf(c, s.email), set = await settings();
+  t.thread = [...t.thread, { from: 'client', name: who, text, at }].slice(-200); Object.assign(t, { status: 'open', updated: at, seenClient: at });
+  await saveTickets(s.cid, all); await log(c.name, `replied on ticket #${t.no}`, s.cid);
+  await toStudio(req, s.cid, t, `${who} replied on ticket #${t.no}`, text, who, s.email, set, c);
+  return { ticket: t };
+};
+H.client['PUT ticket'] = async (req, res, s) => {
+  const b = await readBody(req), [all, t] = await ticketOf(s.cid, b.id);
+  if (['open', 'closed'].includes(b.status) && b.status !== t.status) { t.status = b.status; t.updated = now(); const c = await store.get(`client:${s.cid}`); await log(c.name, `${b.status === 'closed' ? 'closed' : 'reopened'} ticket #${t.no}`, s.cid); }
+  if (b.seen) t.seenClient = now();
+  await saveTickets(s.cid, all); return { ticket: t };
+};
+H.staff['POST reply'] = async (req, res, s, q) => {
+  const b = await readBody(req), text = clip(b.text, 5000).trim(); if (!text) throw bad(400, 'Write something first.');
+  const { c } = await bundle(q.id), [all, t] = await ticketOf(q.id, b.tid), at = now(), set = await settings();
+  t.thread = [...t.thread, { from: 'staff', name: s.name, text, at }].slice(-200); Object.assign(t, { status: b.close ? 'closed' : 'answered', updated: at, seenStaff: at });
+  await saveTickets(q.id, all); await log(s.name, `answered ticket #${t.no} for ${c.name}`, q.id);
+  await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `Re: ${t.subject} (ticket #${t.no})`,
+    ...letter({ title: `${set.studio} answered your ticket`, lines: [`Ticket #${t.no}: ${t.subject}`, `${s.name} wrote:`], quote: text, button: { label: 'Open the ticket', url: `${portal(req)}#support/${t.id}` },
+      small: b.close ? 'We marked this ticket as solved. Reply in the portal to reopen it.' : 'Please reply in the portal, so the whole team sees it.' }) });
+  return { ticket: t };
+};
+H.staff['PUT ticket'] = async (req, res, s, q) => {
+  const b = await readBody(req), [all, t] = await ticketOf(q.id, b.tid);
+  if (['open', 'answered', 'closed'].includes(b.status) && b.status !== t.status) { t.status = b.status; t.updated = now(); await log(s.name, `set ticket #${t.no} to ${b.status}`, q.id); }
+  if (b.seen) t.seenStaff = now();
+  await saveTickets(q.id, all); return { ticket: t };
+};
+
+// ---------- support: meetings ----------
+// Clients pick a free slot from the hours set in Settings. The studio's Gmail gets an invite from the client
+// (Yes / No buttons, and it lands in the calendar), plus a one-click Google Calendar link as a fallback.
+function booking(s) { return { ...BOOKING, ...(s.booking || {}) }; }
+async function meetingsAll() { return (await store.get('meetings')) || []; }
+const upcoming = (all, cid) => all.filter(m => m.status === 'booked' && Date.parse(m.end) > Date.now() && (!cid || m.cid === cid)).sort((a, b) => a.start.localeCompare(b.start));
+const saveMeetings = all => store.set('meetings', all.sort((a, b) => b.start.localeCompare(a.start)).slice(0, 600));
+
+async function meetingMail(req, m, c, set, cfg, cancelledBy) {
+  const at = `${when(m.start, cfg.tz)} (${cfg.tz.split('/').pop().replace('_', ' ')} time)`, title = `${c.name} × ${set.studio} · ${m.topic}`, cancel = !!cancelledBy;
+  const details = [`Topic: ${m.topic}`, m.note && `Note: ${m.note}`, `Booked by ${m.byName} (${m.by}) in the ${set.studio} portal.`].filter(Boolean).join('\n');
+  const guests = [...new Set([m.by, ...emailsOf(c)])], base = { uid: m.uid, seq: m.seq, start: m.start, end: m.end, title, description: details, status: cancel ? 'CANCELLED' : 'CONFIRMED' };
+  const studioInvite = ics({ ...base, method: cancel ? 'CANCEL' : 'REQUEST', organizer: { name: m.byName, email: m.by }, attendees: [{ name: set.studio, email: set.studioEmail }] });
+  await send({ to: set.studioEmail, replyTo: m.by, subject: cancel ? `Cancelled: ${c.name} · ${at}` : `Meeting booked: ${c.name} · ${at}`, invite: { method: cancel ? 'CANCEL' : 'REQUEST', content: studioInvite },
+    ...letter({ title: cancel ? `${cancelledBy} cancelled the meeting with ${c.name}` : `${m.byName} from ${c.name} booked a meeting`, lines: [`${at}, ${Math.round((Date.parse(m.end) - Date.parse(m.start)) / 60000)} minutes.`, `Topic: ${m.topic}`], quote: m.note || undefined,
+      button: cancel ? undefined : { label: 'Add to Google Calendar', url: gcalLink({ start: m.start, end: m.end, title, details, guests }) },
+      small: cancel ? 'The slot is free again in the portal.' : 'The invite is attached: press Yes and it is in the calendar. If it does not show up, the button adds it with the client as a guest, and Google sends them the invite.' }) });
+  const clientCopy = ics({ ...base, method: cancel ? 'CANCEL' : 'PUBLISH', organizer: { name: set.studio, email: set.studioEmail }, attendees: guests.map(email => ({ email })) });
+  await send({ to: guests, replyTo: set.studioEmail, subject: cancel ? `Cancelled: your meeting with ${set.studio} on ${at}` : `Booked: your meeting with ${set.studio} on ${at}`, invite: { method: cancel ? 'CANCEL' : 'PUBLISH', content: clientCopy },
+    ...letter({ title: cancel ? 'Your meeting is cancelled' : 'Your meeting is booked', lines: [at, `Topic: ${m.topic}`, cancel ? `Cancelled by ${cancelledBy}.` : 'The calendar file is attached. We send the video link before the call.'], button: { label: cancel ? 'Book another time' : 'See it in the portal', url: `${portal(req)}#meetings` } }) });
+}
+async function cancelMeeting(cid, mid, who) {
+  const all = await meetingsAll(), m = all.find(x => x.id === mid && x.cid === cid);
+  if (!m) throw bad(404, 'No such meeting'); if (m.status !== 'booked') throw bad(409, 'This meeting is already cancelled.');
+  Object.assign(m, { status: 'cancelled', seq: (m.seq || 0) + 1, cancelledBy: who, cancelledAt: now() }); await saveMeetings(all); return m;
+}
+
+H.client['GET slots'] = async () => { const cfg = booking(await settings()); return { tz: cfg.tz, length: cfg.length, on: cfg.on, slots: cfg.on ? freeSlots(cfg, upcoming(await meetingsAll())) : [] }; };
+H.client['POST meeting'] = async (req, res, s) => {
+  const b = await readBody(req), set = await settings(), cfg = booking(set);
+  if (!cfg.on) throw bad(409, 'Booking is closed right now. Open a ticket and we will find a time.');
+  const all = await meetingsAll(), slot = freeSlots(cfg, upcoming(all)).find(x => x.start === b.start);
+  if (!slot) throw bad(409, 'That time was just taken. Pick another one.');
+  if (upcoming(all, s.cid).length >= cfg.max) throw bad(429, `You already have ${cfg.max} meetings booked. Cancel one to book another.`);
+  const c = await store.get(`client:${s.cid}`), id = newId(8);
+  const m = { id, uid: `${id}@portal.band`, seq: 0, cid: s.cid, client: c.name, start: slot.start, end: slot.end, topic: clip(b.topic, 100).trim() || 'Catch-up', note: clip(b.note, 1000).trim(), by: s.email, byName: nameOf(c, s.email), status: 'booked', at: now() };
+  all.push(m); await saveMeetings(all); await log(c.name, `booked a meeting for ${when(m.start, cfg.tz)}`, s.cid);
+  await meetingMail(req, m, c, set, cfg);
+  return { meeting: m };
+};
+H.client['PUT meeting'] = async (req, res, s) => {
+  const b = await readBody(req), set = await settings(), cfg = booking(set), c = await store.get(`client:${s.cid}`), who = nameOf(c, s.email);
+  const m = await cancelMeeting(s.cid, b.id, who); await log(c.name, `cancelled the meeting on ${when(m.start, cfg.tz)}`, s.cid);
+  await meetingMail(req, m, c, set, cfg, who); return { meeting: m };
+};
+H.staff['PUT meeting'] = async (req, res, s, q) => {
+  const b = await readBody(req), set = await settings(), cfg = booking(set), { c } = await bundle(q.id);
+  const m = await cancelMeeting(q.id, b.mid, s.name); await log(s.name, `cancelled the meeting with ${c.name} on ${when(m.start, cfg.tz)}`, q.id);
+  await meetingMail(req, m, c, set, cfg, s.name); return { meeting: m };
+};
+H.staff['PUT booking'] = async (req) => {
+  const b = await readBody(req), cur = await settings(), old = booking(cur), hm = (v, d) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : d, n = (v, lo, hi, d) => { const x = Math.round(Number(v)); return Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d; };
+  const next = { ...old, on: !!b.on, days: [...new Set((Array.isArray(b.days) ? b.days : []).map(Number).filter(d => d >= 0 && d <= 6))], from: hm(b.from, old.from), to: hm(b.to, old.to),
+    length: [15, 20, 30, 45, 60].includes(Number(b.length)) ? Number(b.length) : old.length, notice: n(b.notice, 0, 336, old.notice), ahead: n(b.ahead, 1, 90, old.ahead), max: n(b.max, 1, 10, old.max),
+    blocked: [].concat(b.blocked || []).flatMap(x => String(x).split(/[,\s]+/)).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x)).slice(0, 60) };
+  if (next.from >= next.to) throw bad(400, 'The day has to end after it starts.');
+  const all = { ...cur, booking: next }; await store.set('settings', all); return all;
+};
+H.staff['POST testmail'] = async (req, res, s) => {
+  if (!mailReady()) throw bad(409, 'Email is not set up yet. Add GMAIL_USER and GMAIL_APP_PASSWORD in Vercel, then redeploy.');
+  const set = await settings();
+  if (!await send({ to: set.studioEmail, subject: `Test from the ${set.studio} portal`, ...letter({ title: 'Email works.', lines: [`${s.name} sent this test from the portal settings.`, 'New tickets, replies and meeting bookings arrive here.'] }) })) throw bad(502, 'Gmail refused it. Check GMAIL_USER and the app password.');
+  return { ok: true };
 };
 
 // ---------- router ----------

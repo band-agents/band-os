@@ -254,6 +254,33 @@ body.staff .ad{background:var(--card)}
 .msg.me{align-self:flex-end;background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .msg small{display:block;font:500 10.5px 'JetBrains Mono',monospace;opacity:.6;margin-bottom:4px}
 
+/* ---------- support: tickets and meetings ---------- */
+.row .tno{font:500 11px 'JetBrains Mono',monospace;color:var(--mute);min-width:40px}
+.row .dotu{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);flex:none}
+.tk-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.msg .by{color:var(--green);font-weight:700}
+.days{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
+.days button{flex:none;width:66px;padding:10px 0 9px;border-radius:14px;border:1px solid var(--rule);text-align:center;line-height:1.15;transition:all .15s}
+.days button b{display:block;font-size:21px;letter-spacing:-.02em}
+.days button span{display:block;font:500 10px 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.days button:hover{border-color:var(--ink)}
+.days button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}.days button.on span{color:inherit;opacity:.7}
+.slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:14px}
+.slots button{height:44px;border-radius:12px;border:1px solid var(--rule);font-weight:700;font-variant-numeric:tabular-nums;line-height:1.1;transition:all .15s}
+.slots button small{display:block;font:500 9.5px 'JetBrains Mono',monospace;color:var(--mute)}
+.slots button:hover{border-color:var(--green)}
+.slots button.on{background:var(--green);border-color:var(--green);color:#fff}.slots button.on small{color:inherit;opacity:.8}
+.meet{display:flex;align-items:center;gap:16px;padding:14px 16px;border:1px solid var(--rule);border-radius:14px;margin-bottom:8px;background:var(--card,var(--paper))}
+.meet .d{width:52px;flex:none;text-align:center;line-height:1.1}
+.meet .d b{display:block;font-size:24px;letter-spacing:-.02em}
+.meet .d span{display:block;font:500 10px 'JetBrains Mono',monospace;text-transform:uppercase;color:var(--mute)}
+.meet .n{flex:1;min-width:0}.meet .n b{display:block;font-size:15.5px}
+.meet.past{opacity:.55}
+.daycb{display:flex;gap:6px;flex-wrap:wrap}
+.daycb label{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border:1px solid var(--rule);border-radius:999px;font-weight:700;font-size:13px;cursor:pointer}
+.daycb input{accent-color:var(--green)}
+@media (max-width:860px){.meet{flex-wrap:wrap}.meet .n{flex:1 1 60%}.meet .btn{flex:1 1 100%}.slots{grid-template-columns:repeat(3,1fr)}}
+
 /* ---------- staff extras ---------- */
 .row{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--rule);border-radius:14px;margin-bottom:8px;background:var(--card);cursor:pointer;transition:border-color .15s,transform .2s var(--ease)}
 .row:hover{border-color:var(--green);transform:translateX(2px)}

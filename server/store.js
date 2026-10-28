@@ -62,6 +62,11 @@ export const store = {
     if (mode === 'redis') return ((await redis('LRANGE', k, a, b)) || []).map(x => JSON.parse(x));
     return (load().lists[k] || []).slice(a, b === -1 ? undefined : b + 1).map(x => JSON.parse(x));
   },
+  // a counter that never resets: ticket numbers
+  async incr(k) {
+    if (mode === 'redis') return redis('INCR', k);
+    const d = load(), n = Number(d.kv[k] || 0) + 1; d.kv[k] = String(n); save(); return n;
+  },
   // a counter that forgets itself: used for login rate limits
   async hit(k, ttl) {
     if (mode === 'redis') { const n = await redis('INCR', k); if (n === 1) await redis('EXPIRE', k, ttl); return n; }
