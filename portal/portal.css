@@ -283,6 +283,18 @@ body.staff .ad{background:var(--card)}
 .daycb input{accent-color:var(--green)}
 @media (max-width:860px){.meet{flex-wrap:wrap}.meet .n{flex:1 1 60%}.meet .btn{flex:1 1 100%}.slots{grid-template-columns:repeat(3,1fr)}}
 
+/* ---------- updates feed ---------- */
+.post{background:var(--card,var(--paper));border:1px solid var(--rule);border-radius:16px;padding:20px 22px;margin-bottom:12px}
+.post.pinned{border-color:var(--green);box-shadow:inset 3px 0 0 var(--green)}
+.post .ph{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.post .ph .pillx .ic{width:11px;height:11px}
+.post .ph .small{margin-left:auto}
+.post h3{font-size:21px;letter-spacing:-.015em;line-height:1.2;margin:14px 0 10px}
+.post img{display:block;width:100%;max-height:380px;object-fit:cover;border-radius:12px;margin:0 0 12px;background:var(--soft)}
+.post .pb{white-space:pre-wrap;word-wrap:break-word;color:var(--ink2);font-size:15px;line-height:1.65}
+.post .acts{margin-top:14px}
+@media (max-width:860px){.post{padding:16px}.post .ph .small{margin-left:0;flex-basis:100%}.post h3{font-size:19px}}
+
 /* ---------- staff extras ---------- */
 .row{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--rule);border-radius:14px;margin-bottom:8px;background:var(--card);cursor:pointer;transition:border-color .15s,transform .2s var(--ease)}
 .row:hover{border-color:var(--green);transform:translateX(2px)}

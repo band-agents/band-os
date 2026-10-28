@@ -108,7 +108,7 @@ const clientWorkspace = async id => {
   const sig = contract?.signature;
   return {
     client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz }, summary: summarize({ c, answers, st, contract, tickets, events }),
-    tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30),
+    tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30), feed: (await feedFor(id)).slice(0, 80),
     contract: visible ? { status: contract.status, title: contract.title, text: contract.status === 'signed' ? contract.signedText : render(contract.text, v), sentAt: contract.sentAt, hash: contract.hash,
       signature: sig ? { name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, docHash: sig.docHash } : null,
       countersign: contract.countersign || null } : { status: contract?.status === 'void' ? 'void' : 'draft' },
@@ -218,7 +218,7 @@ H.staff['POST clients'] = async (req, res, s) => {
 H.staff['GET client'] = async (req, res, s, q) => {
   const { c, answers, st, contract, msgs, tickets, events } = await bundle(q.id), set = await settings();
   return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events }), settings: set,
-    tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
+    tickets, events, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
 };
 H.staff['PATCH client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -266,7 +266,7 @@ H.staff['POST message'] = async (req, res, s, q) => {
 H.staff['DELETE client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
   if (b.confirm !== c.name) throw bad(400, 'Type the client name to confirm.');
-  for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`, `tickets:${q.id}`, `events:${q.id}`]) await store.del(k);
+  for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`, `tickets:${q.id}`, `events:${q.id}`, `feed:${q.id}`]) await store.del(k);
   await store.set('meetings', (await meetingsAll()).filter(m => m.cid !== q.id));
   for (const x of c.contacts || []) await store.del(`idx:email:${x.email}`);
   await store.srem('clients', q.id); await log(s.name, `deleted ${c.name}`);
@@ -452,6 +452,57 @@ H.staff['PUT event'] = async (req, res, s, q) => {
   if (ESTATES.includes(b.status)) e.status = b.status; if (b.comment !== undefined) e.comment = clip(b.comment, 1000).trim();
   e.seen = now(); await saveEvents(q.id, all); await log(s.name, `set the event "${e.title}" to ${e.status}`, q.id);
   return { event: e };
+};
+
+// ---------- feed: updates staff post for one client (tailored) or for every client (news) ----------
+const KINDS = ['update', 'result', 'news', 'tip', 'heads-up'];
+const feedKey = target => target === 'all' ? 'feed:all' : `feed:${target}`;
+const feedOf = async target => (await store.get(feedKey(target))) || [];
+const saveFeed = (target, all) => store.set(feedKey(target), all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 300));
+// what one client sees: their own posts plus the ones for everyone, pinned first, newest first
+async function feedFor(cid) {
+  const [mine, all] = await Promise.all([feedOf(cid), feedOf('all')]);
+  return [...mine.map(p => ({ ...p, target: cid })), ...all.map(p => ({ ...p, target: 'all' }))].sort((a, b) => (b.pinned - a.pinned) || b.at.localeCompare(a.at));
+}
+async function checkTarget(t) { if (t === 'all') return null; if (!okId(t)) throw bad(400, 'Pick who the post is for.'); const c = await store.get(`client:${t}`); if (!c) throw bad(404, 'Unknown client'); return c; }
+const cleanPost = b => {
+  const title = clip(b.title, 140).trim(), body = clip(b.body, 6000).trim();
+  if (title.length < 2) throw bad(400, 'Give the post a title.'); if (!body) throw bad(400, 'Write something in the post.');
+  return { title, body, kind: KINDS.includes(b.kind) ? b.kind : 'update', brand: clip(b.brand, 60).trim(), link: url(b.link), linkLabel: clip(b.linkLabel, 40).trim(), image: url(b.image), pinned: !!b.pinned };
+};
+async function mailPost(req, p, clients, set) {
+  for (const c of clients) await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `${set.studio} · ${p.title}`,
+    ...letter({ title: p.title, lines: p.body.split(/\n{2,}/).slice(0, 6), button: { label: 'Read it in your portal', url: `${portal(req)}#feed` }, small: `Posted by ${p.by} for ${p.target === 'all' ? 'all our clients' : c.name}.` }) });
+}
+
+H.staff['GET feed'] = async () => {
+  const ids = await store.smembers('clients'), posts = (await feedOf('all')).map(p => ({ ...p, target: 'all', client: 'All clients' }));
+  for (const id of ids) { const c = await store.get(`client:${id}`); for (const p of await feedOf(id)) posts.push({ ...p, target: id, client: c?.name || '' }); }
+  return { posts: posts.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200) };
+};
+H.staff['POST post'] = async (req, res, s) => {
+  const b = await readBody(req), target = String(b.target || ''), c = await checkTarget(target), set = await settings();
+  const p = { id: newId(7), ...cleanPost(b), by: s.name, at: now(), target };
+  const all = await feedOf(target); all.push(p); await saveFeed(target, all);
+  await log(s.name, `posted "${p.title}" for ${c ? c.name : 'all clients'}`, c?.id);
+  if (b.email) await mailPost(req, p, c ? [c] : (await Promise.all((await store.smembers('clients')).map(id => store.get(`client:${id}`)))).filter(x => x && x.status !== 'closed'), set);
+  return { post: p };
+};
+H.staff['PUT post'] = async (req, res, s) => {
+  const b = await readBody(req), target = String(b.target || ''); await checkTarget(target);
+  const all = await feedOf(target), p = all.find(x => x.id === b.id); if (!p) throw bad(404, 'No such post');
+  Object.assign(p, b.pinOnly ? { pinned: !!b.pinned } : cleanPost(b), { edited: now() }); await saveFeed(target, all);
+  return { post: p };
+};
+H.staff['DELETE post'] = async (req, res, s) => {
+  const b = await readBody(req), target = String(b.target || ''); await checkTarget(target);
+  const all = await feedOf(target), p = all.find(x => x.id === b.id); if (!p) throw bad(404, 'No such post');
+  await saveFeed(target, all.filter(x => x.id !== b.id)); await log(s.name, `removed the post "${p.title}"`);
+  return { ok: true };
+};
+H.client['PUT feedseen'] = async (req, res, s) => {
+  const a = (await store.get(`answers:${s.cid}`)) || emptyAnswers(); a.feedSeen = now(); await store.set(`answers:${s.cid}`, a);
+  return { feedSeen: a.feedSeen };
 };
 
 // ---------- router ----------

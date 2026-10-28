@@ -4,7 +4,7 @@ import { agreementPdf } from './pdf.js';
 
 let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk = false, S = null, selDay = '', selSlot = '';
 const sections = () => [
-  ['overview', 'Overview', 'home'], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
+  ['overview', 'Overview', 'home'], ['feed', 'Updates', 'news', unreadF() || '', !!unreadF()], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
   ['forms', 'Forms', 'form'], ['agreement', 'Agreement', 'pen', { draft: 'soon', void: '—', sent: 'sign', signed: 'done' }[W.contract.status], W.contract.status === 'signed'],
   ['results', 'Ads & results', 'chart'], ['events', 'Events', 'flag', upEv().length || ''], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
   ['support', 'Support', 'ticket', unreadT() || openT() || '', !!unreadT()], ['meetings', 'Meetings', 'cal', upMeet().length || ''], ['messages', 'Messages', 'chat', W.msgs.length || '']];
@@ -18,6 +18,13 @@ const CATS = { question: 'Question', problem: 'Something is broken', request: 'A
 const TOPICS = ['Results review', 'Ads and creative', 'Setup and access', 'Billing', 'Something else'];
 const since = iso => { const a = ago(iso); return a === 'now' ? 'just now' : a + ' ago'; };
 const today = () => new Date().toISOString().slice(0, 10);
+const unseen = p => p.at > (W.answers.feedSeen || ''), unreadF = () => (W.feed || []).filter(unseen).length;
+const KINDF = { update: ['Update', ''], result: ['Result', 'live'], news: ['News', 'dark'], tip: ['Tip', 'ok'], 'heads-up': ['Heads-up', 'warn'] };
+const post = (p, seen) => `<article class="post ${p.pinned ? 'pinned' : ''}"><div class="ph"><span class="pillx ${KINDF[p.kind]?.[1] || ''}">${KINDF[p.kind]?.[0] || 'Update'}</span>
+  <span class="pillx ${p.target === 'all' ? '' : 'ok'}">${p.target === 'all' ? 'For all clients' : 'For you'}${p.brand ? ' · ' + esc(p.brand) : ''}</span>${p.pinned ? `<span class="pillx dark">${ic('pin')} Pinned</span>` : ''}
+  <span class="small">${esc(p.by)} · ${esc(day(p.at))}</span>${!seen && unseen(p) ? '<i class="dotu" title="New"></i>' : ''}</div>
+  <h3>${esc(p.title)}</h3>${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : ''}<div class="pb">${esc(p.body)}</div>
+  ${p.link ? `<div class="acts"><a class="btn sm dark" href="${esc(p.link)}" target="_blank" rel="noopener">${esc(p.linkLabel || 'Open')} ${ic('arrow')}</a></div>` : ''}</article>`;
 const upEv = () => (W.events || []).filter(e => (e.end || e.start) >= today());
 const EST = { new: ['Sent to us', ''], planned: ['In our plan', 'ok'], live: ['Ads running', 'live'], done: ['Done', ''] };
 const SEGMENTS = ['Product launch', 'Sale or promo', 'Opening', 'Holiday or season', 'In-store event', 'Collaboration', 'Other'];
@@ -55,6 +62,8 @@ function go() {
   [route, arg] = (location.hash.slice(1) || 'overview').split('/'); if (!sections().some(s => s[0] === route)) route = 'overview';
   if (route === 'meetings') { S = null; selSlot = ''; loadSlots(); }
   paint();
+  // opening Updates marks everything as read, but this visit still shows which posts were new
+  if (route === 'feed' && unreadF()) api('PUT', 'client/feedseen', {}).then(r => { W.answers.feedSeen = r.feedSeen; }).catch(() => { });
   const t = route === 'support' && (W.tickets || []).find(x => x.id === arg);
   if (t && unreadC(t)) { t.seenClient = new Date().toISOString(); api('PUT', 'client/ticket', { id: t.id, seen: true }).catch(() => { }); }
 }
@@ -67,7 +76,7 @@ function paint() {
   tabbar();
   const title = sections().find(s => s[0] === route)[1];
   $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
-  const v = $('#view'); v.innerHTML = ({ overview, start, forms, agreement, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
+  const v = $('#view'); v.innerHTML = ({ overview, feed, start, forms, agreement, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
 }
@@ -98,6 +107,7 @@ function overview() {
     ${n ? `<div class="next"><div class="t"><span class="chipx" style="opacity:.6">Next step · ${esc(KIND[n.kind] || '')}</span><h3>${esc(n.title)}</h3><p>${esc(n.why)}</p></div><button class="btn light" data-open="${esc(n.id)}">Do it now ${ic('arrow')}</button><canvas id="nxcode" aria-hidden="true"></canvas></div>`
       : c === 'sent' ? `<div class="next"><div class="t"><span class="chipx" style="opacity:.6">Next step</span><h3>Read and sign your agreement</h3><p>It takes five minutes. You get a PDF copy straight after.</p></div><button class="btn light" data-nav="agreement">Open agreement ${ic('arrow')}</button><canvas id="nxcode" aria-hidden="true"></canvas></div>` : ''}
     <div class="sec"><div class="sh"><h2>The next 12 weeks</h2></div><div class="tl">${tl.map(t => `<div class="${t.state === 'now' ? 'now' : t.state === 'done' ? 'done' : ''}"><div class="w">WEEKS ${esc(t.weeks)}${t.state === 'now' ? ' · NOW' : t.state === 'done' ? ' · DONE' : ''}</div><h4>${esc(t.title)}</h4><p>${esc(t.body)}</p></div>`).join('')}</div></div>
+    ${W.feed?.length ? `<div class="sec"><div class="sh"><h2>Latest from the team${unreadF() ? `<em>${unreadF()} new</em>` : ''}</h2><button class="more btn sm ghost" data-nav="feed">All updates ${ic('arrow')}</button></div>${post(W.feed.find(p => !p.pinned) || W.feed[0], true)}</div>` : ''}
     <div class="sec"><div class="sh"><h2>Need us?</h2></div><div class="grid g2">
       <div class="card"><h3 style="font-size:18px">${ic('ticket')} Open a ticket</h3><p class="small" style="margin-top:6px">One topic, one thread. We answer within a working day and email you when we do.${openT() ? ` You have ${openT()} open.` : ''}</p><div class="acts"><button class="btn sm dark" data-newticket>New ticket ${ic('arrow')}</button>${openT() ? '<button class="btn sm ghost" data-nav="support">See tickets</button>' : ''}</div></div>
       <div class="card"><h3 style="font-size:18px">${ic('cal')} Book a call</h3><p class="small" style="margin-top:6px">${upMeet()[0] ? `Next call: <b style="color:var(--ink)">${esc(mwhen(upMeet()[0].start))}</b>.` : 'Pick a free time. It goes straight into our calendar.'}</p><div class="acts"><button class="btn sm dark" data-nav="meetings">${upMeet()[0] ? 'Manage calls' : 'Pick a time'} ${ic('arrow')}</button></div></div></div></div>
@@ -223,6 +233,13 @@ function messages() {
   return `<div class="page"><p class="eyebrow mono">Messages</p><h1>Talk to<span> the team.</span></h1><p class="lead">For quick questions. For anything urgent, email ${esc(W.settings.studioEmail)}.</p>
     <div class="thread" style="margin-top:28px">${W.msgs.length ? W.msgs.map(m => `<div class="msg ${m.from === 'client' ? 'me' : ''}"><small>${esc(m.name)} · ${esc(day(m.at))} ${ago(m.at)}</small>${esc(m.text)}</div>`).join('') : '<div class="empty"><b>No messages yet.</b>Say hello.</div>'}</div>
     <div class="fld"><textarea class="in" id="msgText" placeholder="Write to us…" aria-label="Message"></textarea></div><div class="acts"><button class="btn dark" data-send>${ic('send')} Send</button></div></div>`;
+}
+
+/* ---------- updates: what the team shares with this client, and news for everyone ---------- */
+function feed() {
+  const F = W.feed || [];
+  return `<div class="page"><p class="eyebrow mono">Updates</p><h1>What is<span> happening.</span></h1><p class="lead">News from the team about your ads and your brand, plus things we share with all our clients.</p>
+    <div class="sec">${F.map(p => post(p)).join('') || '<div class="empty"><b>Nothing posted yet.</b>Updates from the team show up here.</div>'}</div></div>`;
 }
 
 /* ---------- events: launches, sales and openings we plan ads around ---------- */
@@ -397,7 +414,7 @@ async function refresh() { try { W = await api('GET', 'client/workspace'); } cat
 async function poll() {
   if (document.hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || route === 'agreement') return;
   try {
-    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment)]);
-    if (sig(n) !== sig(W)) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); const before = unreadT(); W = n; if (unreadT() > before) toast('We answered a ticket'); stay(); }
+    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned)]);
+    if (sig(n) !== sig(W)) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); const before = unreadT(), fb = unreadF(); W = n; if (unreadT() > before) toast('We answered a ticket'); if (unreadF() > fb) toast('New update from the team'); stay(); }
   } catch { }
 }

@@ -2,7 +2,7 @@ import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText,
 import { shell, signOut } from './main.js';
 import { agreementPdf, clientDataPdf } from './pdf.js';
 
-let me, O, T, C = null, route = 'overview', arg = '', tab = 'checklist', sub = '', bc = null, open = new Set(), lastLog = null;
+let FEED = [], me, O, T, C = null, route = 'overview', arg = '', tab = 'checklist', sub = '', bc = null, open = new Set(), lastLog = null;
 const nav = (r, a = '', t = '', s = '') => { location.hash = '#' + r + (a ? '/' + a : '') + (t ? '/' + t : '') + (s ? '/' + s : ''); };
 
 export async function mount(who) {
@@ -31,7 +31,8 @@ const palette = () => setPalette([
 
 async function go() {
   [route, arg, tab, sub] = (location.hash.slice(1) || 'overview').split('/'); tab = tab || 'checklist'; sub = sub || '';
-  if (!['overview', 'clients', 'client', 'tickets', 'meetings', 'activity', 'settings'].includes(route)) route = 'overview';
+  if (!['overview', 'clients', 'client', 'tickets', 'meetings', 'feed', 'activity', 'settings'].includes(route)) route = 'overview';
+  if (route === 'feed') { try { FEED = (await api('GET', 'staff/feed')).posts; } catch (e) { toast(e.message, true); FEED = []; } }
   if (route === 'client') { try { C = await api('GET', 'staff/clients/' + arg); } catch (e) { toast(e.message, true); return nav('clients'); } } else C = null;
   if (['tickets', 'meetings'].includes(route)) await reload().catch(() => { });
   paint();
@@ -62,14 +63,14 @@ function tabbar() {
 function side() {
   tabbar();
   $('#side').innerHTML = `<div class="who-card"><b>${esc(me.name)}</b><span>Staff</span></div><h6>Studio</h6>
-    ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['tickets', 'Support inbox', 'ticket', waiting() || '', waiting()], ['meetings', 'Calls', 'cal', O.meetings.length || ''], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n, hot]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em class="${hot ? 'hot' : ''}">${n}</em>` : ''}</button>`).join('')}
+    ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['tickets', 'Support inbox', 'ticket', waiting() || '', waiting()], ['meetings', 'Calls', 'cal', O.meetings.length || ''], ['feed', 'Updates', 'news', ''], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n, hot]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em class="${hot ? 'hot' : ''}">${n}</em>` : ''}</button>`).join('')}
     <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help || c.tickets || c.events ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting + c.help + c.tickets + (c.events || 0) || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
     <div class="sfoot"><span class="mono">n · new client</span><span class="mono">⌘K · jump to anything</span></div>`;
   $$('#side [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav)); $$('#side [data-client]').forEach(b => b.onclick = () => nav('client', b.dataset.client));
 }
 function paint() {
-  side(); const v = $('#view'), t = { overview, clients, client, tickets: inbox, meetings: calls, activity, settings }[route]();
-  $('#crumbs').innerHTML = route === 'client' ? `<a data-nav="clients">Clients</a><i>/</i><span>${esc(C.client.name)}</span>` : `<span>${{ overview: 'Overview', clients: 'Clients', tickets: 'Support inbox', meetings: 'Calls', activity: 'Activity', settings: 'Settings' }[route]}</span>`;
+  side(); const v = $('#view'), t = { overview, clients, client, tickets: inbox, meetings: calls, feed: updates, activity, settings }[route]();
+  $('#crumbs').innerHTML = route === 'client' ? `<a data-nav="clients">Clients</a><i>/</i><span>${esc(C.client.name)}</span>` : `<span>${{ overview: 'Overview', clients: 'Clients', tickets: 'Support inbox', meetings: 'Calls', feed: 'Updates', activity: 'Activity', settings: 'Settings' }[route]}</span>`;
   $('#crumbs a')?.addEventListener('click', () => nav('clients'));
   v.innerHTML = t; v.scrollTop = 0; bc?.stop(); bc = null; const cv = $('#hcode'); if (cv) bc = barcode(cv, { color: '#EDEDE6', level: Math.min(1, .3 + O.log.filter(l => Date.now() - new Date(l.at) < 864e5).length / 12) }); palette(); if (route === 'settings') loadTeam();
 }
@@ -138,11 +139,11 @@ async function reload() { O = await api('GET', 'staff/overview'); }
 async function reloadClient() { C = await api('GET', 'staff/clients/' + arg); await reload(); }
 
 /* ---------- one client ---------- */
-const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['events', 'Events'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
+const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['feed', 'Updates'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['events', 'Events'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
 function client() {
   const s = C.summary;
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
-    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
+    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, feed: cfeed, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
 function checklist() {
@@ -183,6 +184,49 @@ function cmeetings() {
   return (up.map(m => mrow(m)).join('') || '<div class="empty"><b>No calls booked.</b>The client books from Meetings in their portal.</div>') +
     (rest.length ? `<div class="sh" style="margin-top:26px"><h2>Earlier and cancelled</h2></div>${rest.map(m => mrow(m, false, true)).join('')}` : '');
 }
+
+/* updates feed: posts for one client, or for every client. Written in a modal, shown as cards. */
+const KINDF = { update: ['Update', ''], result: ['Result', 'live'], news: ['News', 'dark'], tip: ['Tip', 'ok'], 'heads-up': ['Heads-up', 'warn'] };
+const pcard = p => `<article class="post ${p.pinned ? 'pinned' : ''}" data-post="${esc(p.target)}/${esc(p.id)}"><div class="ph"><span class="pillx ${KINDF[p.kind]?.[1] || ''}">${KINDF[p.kind]?.[0] || 'Update'}</span>
+  <span class="pillx ${p.target === 'all' ? '' : 'ok'}">${p.target === 'all' ? 'All clients' : esc(p.client || C?.client.name || '')}${p.brand ? ' · ' + esc(p.brand) : ''}</span>${p.pinned ? `<span class="pillx dark">${ic('pin')} Pinned</span>` : ''}
+  <span class="small">${esc(p.by)} · ${esc(day(p.at))}${p.edited ? ' · edited' : ''}</span></div>
+  <h3>${esc(p.title)}</h3>${p.image ? `<img src="${esc(p.image)}" alt="" loading="lazy">` : ''}<div class="pb">${esc(p.body)}</div>
+  ${p.link ? `<p class="small" style="margin-top:10px">Button: <a href="${esc(p.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(p.linkLabel || 'Open')}</a></p>` : ''}
+  <div class="acts"><button class="btn sm" data-pedit>${ic('edit')} Edit</button><button class="btn sm ghost" data-ppin>${ic('pin')} ${p.pinned ? 'Unpin' : 'Pin to top'}</button><button class="btn sm ghost danger" data-pdel>${ic('trash')} Remove</button></div></article>`;
+function updates() {
+  return `<div class="page"><p class="eyebrow mono">Updates</p><h1>Tell clients<span> what is happening.</span></h1><p class="lead">Post to one client for news about their ads and brand, or to all clients for studio news and tips. Each client sees theirs under Updates in the portal.</p>
+    <div class="acts" style="margin-top:20px"><button class="btn green" data-pnew="">${ic('plus')} New post</button></div>
+    <div class="sec">${FEED.map(pcard).join('') || '<div class="empty"><b>Nothing posted yet.</b>Write the first update.</div>'}</div></div>`;
+}
+function cfeed() {
+  return `<div class="acts" style="margin:0 0 14px"><button class="btn sm green" data-pnew="${esc(C.client.id)}">${ic('plus')} New post for ${esc(C.client.name)}</button><span class="small">Below: what ${esc(C.client.name)} sees, including posts for all clients.</span></div>` +
+    (C.feed.map(p => pcard({ ...p, client: C.client.name })).join('') || '<div class="empty"><b>Nothing posted for them yet.</b></div>');
+}
+const postList = () => route === 'feed' ? FEED : C.feed;
+function composer(target, p) {
+  const brands = target && target !== 'all' ? (O.clients.find(c => c.id === target)?.brands || []) : [];
+  modal(`<h3>${p ? 'Edit post' : 'New post'}</h3><form id="pf" class="fgrid" style="margin-top:12px">
+    <div class="fld"><label>For</label><select class="in" name="target" ${p ? 'disabled' : ''}><option value="all">All clients</option>${O.clients.map(c => `<option value="${esc(c.id)}" ${c.id === target ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>
+    <div class="fld"><label>Kind</label><select class="in" name="kind">${Object.entries(KINDF).map(([k, [l]]) => `<option value="${k}" ${k === p?.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+    <div class="fld full"><label>Title</label><input class="in" name="title" required maxlength="140" value="${esc(p?.title || '')}" placeholder="e.g. Your winter ads are live"></div>
+    <div class="fld full"><label>Post</label><textarea class="in" name="body" required style="min-height:150px" placeholder="What happened, what it means for them, what comes next.">${esc(p?.body || '')}</textarea></div>
+    <div class="fld"><label>Brand (optional)</label><input class="in" name="brand" list="pf-b" value="${esc(p?.brand || '')}"><datalist id="pf-b">${brands.map(b => `<option value="${esc(b.name)}">`).join('')}</datalist></div>
+    <div class="fld"><label>Image URL (optional)</label><input class="in" name="image" type="url" value="${esc(p?.image || '')}" placeholder="https://"></div>
+    <div class="fld"><label>Button link (optional)</label><input class="in" name="link" type="url" value="${esc(p?.link || '')}" placeholder="https://"></div>
+    <div class="fld"><label>Button text</label><input class="in" name="linkLabel" maxlength="40" value="${esc(p?.linkLabel || '')}" placeholder="See the ad"></div>
+    <label class="chk full"><input type="checkbox" name="pinned" ${p?.pinned ? 'checked' : ''}><span>Pin to the top of their feed</span></label>
+    ${p ? '' : '<label class="chk full"><input type="checkbox" name="email"><span>Also email it to them</span></label>'}
+    <div class="full err" id="pferr" style="color:var(--red)"></div><div class="full acts"><button class="btn green" type="submit">${p ? 'Save' : 'Post'}</button><button type="button" class="btn ghost" data-close>Cancel</button></div></form>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close;
+      $('#pf', m).onsubmit = async e => {
+        e.preventDefault(); const f = new FormData(e.target), b = Object.fromEntries(f); b.pinned = f.has('pinned'); b.email = f.has('email'); b.target = p ? p.target : b.target;
+        try { await api(p ? 'PUT' : 'POST', 'staff/post', p ? { ...b, id: p.id } : b); close(); toast(p ? 'Saved' : b.email ? 'Posted and emailed' : 'Posted'); refreshFeed(); } catch (er) { $('#pferr', m).textContent = er.message; }
+      };
+    },
+  });
+}
+async function refreshFeed() { if (route === 'feed') FEED = (await api('GET', 'staff/feed')).posts; else await reloadClient(); stay(); }
 
 /* the client's events: launches, sales, openings. We set where each one stands and can leave them a note. */
 const EST = { new: ['New', 'warn'], planned: ['In our plan', 'ok'], live: ['Ads running', 'live'], done: ['Done', ''] };
@@ -292,6 +336,16 @@ async function onClick(e) {
   if (d.tk) { const [cid, tid] = d.tk.split('/'); return nav('client', cid, 'tickets', tid); }
   if (d.meetc) return nav('client', d.meetc, 'meetings');
   if (d.evc) return nav('client', d.evc, 'events');
+  if (d.pnew !== undefined) return composer(d.pnew || (C ? C.client.id : 'all'));
+  if (d.pedit !== undefined || d.ppin !== undefined || d.pdel !== undefined) {
+    const [target, id] = t.closest('[data-post]').dataset.post.split('/'), p = postList().find(x => x.id === id && x.target === target);
+    if (d.pedit !== undefined) return composer(target, p);
+    try {
+      if (d.ppin !== undefined) await api('PUT', 'staff/post', { target, id, pinOnly: true, pinned: !p.pinned });
+      else { if (!confirm(`Remove "${p.title}"${target === 'all' ? ' for all clients' : ''}?`)) return; await api('DELETE', 'staff/post', { target, id }); }
+      toast(d.ppin !== undefined ? (p.pinned ? 'Unpinned' : 'Pinned') : 'Removed'); refreshFeed();
+    } catch (er) { toast(er.message, true); } return;
+  }
   if (d.evsave !== undefined) {
     const box = t.closest('[data-ev]');
     try { await api('PUT', `staff/clients/${arg}/event`, { eid: box.dataset.ev, status: $('[data-evst]', box).value, comment: $('[data-evcm]', box).value }); await reloadClient(); toast('Saved. The client sees it.'); stay(); } catch (er) { toast(er.message, true); } return;
