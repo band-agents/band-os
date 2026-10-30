@@ -79,6 +79,9 @@ function paint() {
   const v = $('#view'); v.innerHTML = ({ overview, feed, start, forms, agreement, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
+  // opening Events counts as reading our replies there; the team sees "seen by the client"
+  if (route === 'events' && (W.events || []).some(e => (e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))))
+    api('PUT', 'client/eventseen', {}).then(() => { const t = new Date().toISOString(); W.events.forEach(e => { if ((e.replies || []).some(r => r.from === 'staff')) e.clientSeen = t; }); }).catch(() => { });
 }
 
 /* phone: the four things you use most live in a bottom bar, the rest under More */
@@ -251,8 +254,17 @@ const erow = (e, past) => { const [lab, tone] = EST[e.status] || EST.new; return
     <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${tone}">${lab}</span></div>
     ${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}
     ${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
-    ${e.comment ? `<div class="note ok" style="margin-top:10px">From ${esc(W.settings.studio)}: ${esc(e.comment)}</div>` : ''}</div>
+    <span class="small evsub">Added ${esc(evAt(e.at))}${e.updated && Date.parse(e.updated) - Date.parse(e.at) > 60e3 ? ` · changed ${esc(evAt(e.updated))}` : ''}</span>
+    ${evThread(e)}
+    <div class="evreply" data-ev="${esc(e.id)}"><textarea class="in" data-evtx placeholder="Write to ${esc(W.settings.studio)} about this event"></textarea>
+      <div class="acts" style="margin-top:8px"><button class="btn sm dark" data-evrep>${ic('send')} Send</button></div></div></div>
   <button class="btn sm ghost" data-evedit="${esc(e.id)}">${ic('edit')} Edit</button></div>`; };
+const evAt = iso => iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+// the conversation with us on an event (an older single note from us shows as our first reply)
+const evThread = e => {
+  const list = e.replies || (e.comment ? [{ from: 'staff', name: W.settings.studio, text: e.comment, at: e.seen || e.at }] : []);
+  return list.length ? `<div class="thread" style="margin:12px 0 0">${list.map(r => `<div class="msg ${r.from === 'client' ? 'me' : ''}"><small>${esc(r.from === 'staff' ? `${r.name} · ${W.settings.studio}` : r.name)} · ${esc(evAt(r.at))}</small>${esc(r.text)}</div>`).join('')}</div>` : '';
+};
 function events() {
   const all = W.events || [], e = all.find(x => x.id === arg);
   if (arg === 'new' || e) {
@@ -360,6 +372,11 @@ async function onClick(e) {
   if (t.dataset.evnew !== undefined) return nav('events', 'new');
   if (t.dataset.evedit) return nav('events', t.dataset.evedit);
   if (t.dataset.evsave !== undefined || t.dataset.evdel) return events$(t);
+  if (t.dataset.evrep !== undefined) {
+    const box = t.closest('[data-ev]'), text = $('[data-evtx]', box).value.trim(); if (!text) return toast('Write something first.', true); t.disabled = true;
+    try { const r = await api('POST', 'client/eventreply', { eid: box.dataset.ev, text }); W.events = W.events.map(x => x.id === r.event.id ? r.event : x); toast('Sent. The team is told.'); return stay(); }
+    catch (er) { toast(er.message, true); t.disabled = false; } return;
+  }
   if (t.dataset.day) { selDay = t.dataset.day; selSlot = ''; return stay(); }
   if (t.dataset.slot) { selSlot = t.dataset.slot; const keep = [$('#mt-t')?.value, $('#mt-n')?.value]; stay(); if (keep[0]) { $('#mt-t').value = keep[0]; $('#mt-n').value = keep[1]; } return; }
   if (t.dataset.tksend !== undefined || t.dataset.tkreply || t.dataset.tkclose || t.dataset.book !== undefined || t.dataset.mcancel) return support$(t);
@@ -414,7 +431,7 @@ async function refresh() { try { W = await api('GET', 'client/workspace'); } cat
 async function poll() {
   if (document.hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || route === 'agreement') return;
   try {
-    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned)]);
+    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment + (e.replies || []).length), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned)]);
     if (sig(n) !== sig(W)) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); const before = unreadT(), fb = unreadF(); W = n; if (unreadT() > before) toast('We answered a ticket'); if (unreadF() > fb) toast('New update from the team'); stay(); }
   } catch { }
 }

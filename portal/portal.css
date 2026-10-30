@@ -396,3 +396,11 @@ body.staff .ad{background:var(--card)}
   .win{position:static;display:block;border:0;box-shadow:none;width:auto}.view{overflow:visible}.agr{display:block}.paper{border:0;box-shadow:none;padding:0}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+/* events: when it was submitted, the reply box, and whether our reply was emailed and seen */
+.evsub{display:block;margin-top:2px;font:500 11px 'JetBrains Mono',monospace;color:var(--mute)}
+.msg small.evdeliv{display:block;margin:8px 0 0;opacity:.75}
+.msg small.evdeliv .ic{width:12px;height:12px;vertical-align:-2px;margin-right:4px}
+.evreply{margin-top:12px}
+.evreply textarea.in{min-height:76px}
+.evreply .acts{align-items:center}

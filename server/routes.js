@@ -469,6 +469,41 @@ H.staff['PUT event'] = async (req, res, s, q) => {
   e.seen = now(); await saveEvents(q.id, all); await log(s.name, `set the event "${e.title}" to ${e.status}`, q.id);
   return { event: e };
 };
+// a conversation on each event. Our replies are emailed from the studio Gmail to the address the client submitted the event with,
+// and each one records whether the email went out; the client opening their Events page marks our replies as seen.
+const replyThread = e => { if (!e.replies) { e.replies = e.comment ? [{ id: newId(6), from: 'staff', name: 'band.', text: e.comment, at: e.seen || e.at }] : []; e.comment = ''; } return e.replies; };
+H.staff['POST eventreply'] = async (req, res, s, q) => {
+  const b = await readBody(req), text = clip(b.text, 4000).trim(); if (!text) throw bad(400, 'Write a reply first.');
+  const all = await eventsOf(q.id), e = all.find(x => x.id === b.eid); if (!e) throw bad(404, 'No such event');
+  const c = await store.get(`client:${q.id}`), set = await settings(), at = now();
+  if (ESTATES.includes(b.status)) e.status = b.status;
+  // the person who submitted the event, if they are still a contact; otherwise every contact on the account
+  const to = emailsOf(c).includes(e.by) ? [e.by] : emailsOf(c);
+  const r = { id: newId(6), from: 'staff', name: s.name, text, at, mailedTo: to };
+  r.mailed = await send({ to, replyTo: set.studioEmail, subject: `Re: your event "${e.title}" · ${set.studio}`,
+    ...letter({ title: `${set.studio} replied about your event`, lines: [`${e.title}, ${e.end && e.end !== e.start ? `${e.start} to ${e.end}` : e.start}.`, `${s.name} wrote:`], quote: text,
+      button: { label: 'Open your events', url: `${portal(req)}#events` }, small: 'Reply in the portal, so the whole team sees it.' }) });
+  replyThread(e).push(r); e.replies = e.replies.slice(-100); e.seen = at;
+  await saveEvents(q.id, all); await log(s.name, `replied on the event "${e.title}"${r.mailed ? ` (emailed ${to.join(', ')})` : ' (not emailed)'}`, q.id);
+  return { event: e };
+};
+H.client['POST eventreply'] = async (req, res, s) => {
+  const b = await readBody(req), text = clip(b.text, 4000).trim(); if (!text) throw bad(400, 'Write something first.');
+  const all = await eventsOf(s.cid), e = all.find(x => x.id === b.eid); if (!e) throw bad(404, 'No such event');
+  const c = await store.get(`client:${s.cid}`), set = await settings(), at = now();
+  replyThread(e).push({ id: newId(6), from: 'client', name: nameOf(c, s.email), email: s.email, text, at }); e.replies = e.replies.slice(-100); e.clientSeen = at; e.updated = at;
+  await saveEvents(s.cid, all); await log(c.name, `replied on the event "${e.title}"`, s.cid);
+  await send({ to: set.studioEmail, replyTo: s.email, subject: `Event reply: ${c.name} · ${e.title}`,
+    ...letter({ title: `${nameOf(c, s.email)} replied on an event`, lines: [`${e.title}, ${e.start}.`], quote: text, button: { label: 'Open in the portal', url: `${portal(req)}#client/${s.cid}/events` } }) });
+  return { event: e };
+};
+// the client opened their Events page: our replies so far count as seen
+H.client['PUT eventseen'] = async (req, res, s) => {
+  const all = await eventsOf(s.cid), at = now(); let n = 0;
+  for (const e of all) if ((e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))) { e.clientSeen = at; n++; }
+  if (n) await saveEvents(s.cid, all);
+  return { ok: true, seen: n };
+};
 
 // ---------- feed: updates staff post for one client (tailored) or for every client (news) ----------
 const KINDS = ['update', 'result', 'news', 'tip', 'heads-up'];

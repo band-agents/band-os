@@ -232,11 +232,26 @@ async function refreshFeed() { if (route === 'feed') FEED = (await api('GET', 's
 const EST = { new: ['New', 'warn'], planned: ['In our plan', 'ok'], live: ['Ads running', 'live'], done: ['Done', ''] };
 const dShort = (s, o = {}) => new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', ...o });
 const evSpan = e => e.end && e.end !== e.start ? `${dShort(e.start, { day: 'numeric', month: 'short' })} – ${dShort(e.end, { day: 'numeric', month: 'short', year: 'numeric' })}` : dShort(e.start, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+// when something happened, to the minute, in the viewer's own time
+const at = iso => iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const edited = e => e.updated && e.at && Date.parse(e.updated) - Date.parse(e.at) > 60e3;
+// the conversation on an event; for our replies, whether the email went out and whether the client has opened it since
+const evThread = e => {
+  const list = e.replies || (e.comment ? [{ from: 'staff', name: 'band.', text: e.comment, at: e.seen || e.at }] : []);
+  if (!list.length) return '';
+  return `<div class="thread" style="margin:12px 0 0">${list.map(r => `<div class="msg ${r.from === 'staff' ? 'me' : ''}"><small>${esc(r.name)} · ${esc(at(r.at))}</small>${esc(r.text)}${r.from === 'staff' ? `<small class="evdeliv">${
+    r.mailed ? `${ic('check')} Emailed to ${esc((r.mailedTo || []).join(', '))}` : r.mailed === false ? `${ic('alert')} Not emailed${O.mail ? ' (Gmail refused it)' : ' (email not connected)'}: they see it in the portal` : 'Shown in the portal'}${
+    e.clientSeen && e.clientSeen >= r.at ? ` · seen by the client ${esc(at(e.clientSeen))}` : ' · not opened by the client yet'}</small>` : ''}</div>`).join('')}</div>`;
+};
 const erow = (e, withClient, past) => `<div class="meet ev ${past ? 'past' : ''}" ${withClient ? `data-evc="${esc(e.cid)}" style="cursor:pointer"` : ''}><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
-  <div class="n"><b>${withClient ? esc(e.client) + ' · ' : ''}${esc(e.title)}</b><span class="small">${esc(evSpan(e))}${e.brand ? ' · ' + esc(e.brand) : ''} · added by ${esc(e.by)}</span>
-    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${EST[e.status][1]}">${EST[e.status][0]}</span></div>
+  <div class="n"><b>${withClient ? esc(e.client) + ' · ' : ''}${esc(e.title)}</b><span class="small">${esc(evSpan(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</span>
+    <span class="small evsub">Submitted ${esc(at(e.at))} by ${esc(e.by)}${edited(e) ? ` · last changed ${esc(at(e.updated))}` : ''}</span>
+    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${EST[e.status][1]}">${EST[e.status][0]}</span>${(e.replies || []).length ? `<span class="pillx">${e.replies.length} repl${e.replies.length > 1 ? 'ies' : 'y'}</span>` : ''}</div>
     ${withClient ? '' : `${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
-    <div class="verify" data-ev="${esc(e.id)}"><select class="in" data-evst style="width:auto;height:38px">${Object.entries(EST).map(([k, [l]]) => `<option value="${k}" ${k === e.status ? 'selected' : ''}>${l}</option>`).join('')}</select><input class="in" data-evcm style="flex:1;min-width:200px;height:38px" placeholder="Note shown to the client (optional)" value="${esc(e.comment)}"><button class="btn sm green" data-evsave>Save</button></div>`}</div></div>`;
+    ${evThread(e)}
+    <div class="evreply" data-ev="${esc(e.id)}"><textarea class="in" data-evtx placeholder="Reply to ${esc(e.by)}. It goes to the portal and to their email."></textarea>
+      <div class="acts" style="margin-top:8px"><select class="in" data-evst style="width:auto;height:38px">${Object.entries(EST).map(([k, [l]]) => `<option value="${k}" ${k === e.status ? 'selected' : ''}>${l}</option>`).join('')}</select>
+      <button class="btn sm dark" data-evsend>${ic('send')} Send reply</button><button class="btn sm ghost" data-evsave>Save status only</button></div></div>`}</div></div>`;
 function cevents() {
   const now = new Date().toISOString().slice(0, 10), up = C.events.filter(e => (e.end || e.start) >= now), past = C.events.filter(e => !up.includes(e)).reverse();
   return (up.map(e => erow(e)).join('') || '<div class="empty"><b>No events coming up.</b>The client adds them under Events in their portal.</div>') +
@@ -348,7 +363,14 @@ async function onClick(e) {
   }
   if (d.evsave !== undefined) {
     const box = t.closest('[data-ev]');
-    try { await api('PUT', `staff/clients/${arg}/event`, { eid: box.dataset.ev, status: $('[data-evst]', box).value, comment: $('[data-evcm]', box).value }); await reloadClient(); toast('Saved. The client sees it.'); stay(); } catch (er) { toast(er.message, true); } return;
+    try { await api('PUT', `staff/clients/${arg}/event`, { eid: box.dataset.ev, status: $('[data-evst]', box).value }); await reloadClient(); toast('Status saved. The client sees it.'); stay(); } catch (er) { toast(er.message, true); } return;
+  }
+  if (d.evsend !== undefined) {
+    const box = t.closest('[data-ev]'), text = $('[data-evtx]', box).value.trim(); if (!text) return toast('Write a reply first.', true); t.disabled = true;
+    try {
+      const r = await api('POST', `staff/clients/${arg}/eventreply`, { eid: box.dataset.ev, text, status: $('[data-evst]', box).value }), last = r.event.replies.at(-1);
+      await reloadClient(); toast(last.mailed ? `Sent. Emailed to ${last.mailedTo.join(', ')}.` : 'Sent to the portal. Not emailed: email is not connected.', !last.mailed); stay();
+    } catch (er) { toast(er.message, true); t.disabled = false; } return;
   }
   if (d.tkreply) {
     const v = $('#tkReply').value.trim(); if (!v) return toast('Write a reply first.', true); t.disabled = true;
