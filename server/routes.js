@@ -264,10 +264,19 @@ H.staff['PUT contacts'] = async (req, res, s, q) => {
   await log(s.name, `updated the emails for ${c.name}: ${list.map(x => x.email).join(', ')}`, q.id);
   return { client: pubClient(c) };
 };
+// a new access code; the old one stops working at once. With email: true it goes straight to every email on the workspace.
 H.staff['POST resetcode'] = async (req, res, s, q) => {
-  const { c } = await bundle(q.id), code = newCode(); c.salt = newSalt(); c.codeHash = hashCode(code, c.salt);
-  await store.set(`client:${q.id}`, c); await log(s.name, `made a new access code for ${c.name}`, q.id);
-  return { code };
+  const b = await readBody(req), { c } = await bundle(q.id), code = newCode(); c.salt = newSalt(); c.codeHash = hashCode(code, c.salt);
+  await store.set(`client:${q.id}`, c);
+  let mailed = false;
+  if (b.email) {
+    const set = await settings();
+    mailed = await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `${set.studio} · your new portal access code`,
+      ...letter({ title: 'Your new access code', lines: [`${s.name} at ${set.studio} made a new access code for ${c.name}. The old one no longer works.`, `Sign in with ${c.contacts[0].email} and this code:`],
+        quote: code, button: { label: 'Open the portal', url: portal(req) }, small: 'Did not ask for this? Reply to this email and tell us.' }) });
+  }
+  await log(s.name, `made a new access code for ${c.name}${b.email ? (mailed ? ' and emailed it' : ' (the email failed)') : ''}`, q.id);
+  return { code, mailed, mailedTo: mailed ? emailsOf(c) : [] };
 };
 H.staff['PUT staffdata'] = async (req, res, s, q) => {
   const b = await readBody(req), { c, st } = await bundle(q.id);

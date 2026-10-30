@@ -130,10 +130,24 @@ function newClient() {
   });
 }
 const loginMsg = (c, code) => `Hi ${c.contacts[0]?.name || ''},\n\nYour band. portal is ready: ${location.origin}/portal/\nEmail: ${c.contacts.map(x => x.email).join(" or ")}\nAccess code: ${code}\n\nEverything we need from you is in "Start here". Your agreement will appear there too.\n\nband.`;
-function codeModal(c, code, fresh) {
-  modal(`<h3>${fresh ? 'Workspace ready' : 'New access code'}</h3><p class="small" style="margin-bottom:14px">This code is shown once. We only store a hash. Send it to ${esc(c.contacts.map(x => x.email).join(", "))} over a private channel.</p>
+function codeModal(c, code, fresh, mailed) {
+  modal(`<h3>${fresh ? 'Workspace ready' : 'New access code'}</h3><p class="small" style="margin-bottom:14px">${mailed ? `${ic('check')} Emailed to ${esc(c.contacts.map(x => x.email).join(", "))}. You can also copy it below.` : `This code is shown once. We only store a hash. Send it to ${esc(c.contacts.map(x => x.email).join(", "))} over a private channel.`}</p>
     <div class="codebox">${esc(code)}</div><div class="acts"><button class="btn green" data-copyall>${ic('copy')} Copy the message to send</button><button class="btn" data-copycode>Copy code</button><button class="btn ghost" data-close>Done</button></div>`, {
     onMount: (m, close) => { $('[data-close]', m).onclick = close; $('[data-copycode]', m).onclick = () => copyText(code); $('[data-copyall]', m).onclick = () => copyText(loginMsg(c, code)); },
+  });
+}
+// reset a client's access code: the old one stops working; email the new one to them, or copy it and send it yourself
+function resetCode() {
+  const c = C.client, to = c.contacts.map(x => x.email).join(', ');
+  modal(`<h3>Reset the access code</h3><p class="small" style="margin-bottom:14px">${esc(c.name)} signs in with <b>${esc(c.contacts[0]?.email)}</b>. A new code replaces the old one, which stops working straight away.</p>
+    <div class="acts" style="flex-direction:column;align-items:stretch">${O.mail ? `<button class="btn green" data-rmail>${ic('send')} Reset and email it to ${esc(to)}</button>` : ''}<button class="btn" data-rself>${ic('key')} Reset, I will send it myself</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close;
+      const go = async email => { $$('button', m).forEach(b => b.disabled = true);
+        try { const r = await api('POST', `staff/clients/${arg}/resetcode`, { email }); close(); codeModal(c, r.code, false, r.mailed); if (email && !r.mailed) toast('Reset, but the email failed. Copy the code and send it.', true); }
+        catch (er) { toast(er.message, true); $$('button', m).forEach(b => b.disabled = false); } };
+      $('[data-rmail]', m) && ($('[data-rmail]', m).onclick = () => go(true)); $('[data-rself]', m).onclick = () => go(false);
+    },
   });
 }
 async function reload() { O = await api('GET', 'staff/overview'); }
@@ -143,7 +157,7 @@ async function reloadClient() { C = await api('GET', 'staff/clients/' + arg); aw
 const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['feed', 'Updates'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['events', 'Events'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
 function client() {
   const s = C.summary;
-  return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
+  return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button><button class="btn sm" data-reset>${ic('key')} Reset access code</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
     <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, feed: cfeed, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
@@ -418,7 +432,7 @@ async function onClick(e) {
     if (contacts[0]?.email.trim().toLowerCase() !== C.client.contacts[0]?.email && !confirm(`Change the login to ${contacts[0]?.email}? They sign in with it from now on, with the same access code.`)) return;
     t.disabled = true; try { await api('PUT', `staff/clients/${arg}/contacts`, { contacts }); await reloadClient(); toast('Emails saved'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return;
   }
-  if (d.reset !== undefined) { if (!confirm('Make a new access code? The old one stops working immediately.')) return; try { const r = await api('POST', `staff/clients/${arg}/resetcode`, {}); codeModal(C.client, r.code, false); } catch (er) { toast(er.message, true); } return; }
+  if (d.reset !== undefined) return resetCode();
   if (d.del !== undefined) { const n = prompt(`Type "${C.client.name}" to delete this workspace for good.`); if (n === null) return; try { await api('DELETE', 'staff/clients/' + arg, { confirm: n }); await reload(); toast('Deleted'); nav('overview'); } catch (er) { toast(er.message, true); } return; }
   if (d.mycode !== undefined) {
     modal(`<h3>Change my code</h3><p class="small">At least 8 characters. Your old code stops working when you save.</p>
