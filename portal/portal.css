@@ -405,3 +405,19 @@ body.staff .ad{background:var(--card)}
 .evreply textarea.in{min-height:76px}
 .evreply .acts{align-items:center}
 .meet.ev.focus{box-shadow:0 0 0 2px var(--green);border-radius:14px}
+
+/* client alerts: a bell in the top bar that rings, and a bar on every page while something is new */
+.bar .bell{position:relative;width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.08);color:#fff;transition:background .2s}
+.bar .bell:hover{background:rgba(255,255,255,.16)}.bar .bell .ic{width:17px;height:17px}
+.bar .bell b{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:#E5484D;color:#fff;font:700 11px/19px Manrope,system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #141614}
+.bar .bell.on{background:var(--green);animation:bellGlow 1.8s ease-in-out infinite}
+.bar .bell.on .ic{animation:bellWig 1.8s ease-in-out infinite;transform-origin:50% 12%}
+@keyframes bellGlow{0%,100%{box-shadow:0 0 0 0 rgba(22,163,74,.55)}50%{box-shadow:0 0 0 9px rgba(22,163,74,0)}}
+@keyframes bellWig{0%,55%,100%{transform:rotate(0)}8%,24%{transform:rotate(16deg)}16%,32%{transform:rotate(-16deg)}40%{transform:rotate(6deg)}}
+.alertbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 20px;padding:12px 14px;border-radius:16px;background:var(--green);color:#fff;font-size:14px;box-shadow:0 10px 30px -12px rgba(22,163,74,.7)}
+.alertbar>b{margin-right:4px}
+.alertbar i.pulse{width:9px;height:9px;flex:none;border-radius:50%;background:#fff;animation:alertPulse 1.3s ease-in-out infinite}
+.alertbar button{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font:600 13px/1.2 inherit;text-align:left;cursor:pointer}
+.alertbar button:hover{background:rgba(255,255,255,.3)}.alertbar button .ic{width:14px;height:14px;flex:none}
+@keyframes alertPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+@media (prefers-reduced-motion:reduce){.bar .bell.on,.bar .bell.on .ic,.alertbar i.pulse{animation:none}}

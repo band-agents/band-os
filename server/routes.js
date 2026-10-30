@@ -22,7 +22,10 @@ async function readBody(req) {
 const ip = req => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
 const mask = s => s.includes(':') ? s.split(':').slice(0, 2).join(':') + ':…' : s.split('.').slice(0, 2).join('.') + '.x.x';
 const settings = async () => ({ ...DEFAULT_SETTINGS, ...(await store.get('settings') || {}) });
-const log = async (who, what, cid) => { await store.lpush('log', { at: now(), who, what, cid: cid || null }); await store.ltrim('log', 0, 199); };
+// live updates: every logged change bumps a counter; open pages read the counter every few seconds (one cheap read)
+// and only fetch the whole workspace when it moved
+const bump = cid => Promise.all([store.incr('rev:all'), cid ? store.incr(`rev:${cid}`) : null]);
+const log = async (who, what, cid) => { await store.lpush('log', { at: now(), who, what, cid: cid || null }); await store.ltrim('log', 0, 199); await bump(cid); };
 
 // ---------- shapes ----------
 const pubClient = c => { const { codeHash, salt, ...rest } = c; return rest; };
@@ -116,6 +119,8 @@ const clientWorkspace = async id => {
   };
 };
 H.client['GET workspace'] = async (req, res, s) => clientWorkspace(s.cid);
+H.client['GET pulse'] = async (req, res, s) => { const [a, b] = await Promise.all([store.get(`rev:${s.cid}`), store.get('rev:news')]); return { rev: `${a || 0}.${b || 0}` }; };
+H.staff['GET pulse'] = async () => ({ rev: String((await store.get('rev:all')) || 0) });
 H.client['PUT answers'] = async (req, res, s) => {
   const b = await readBody(req), a = (await store.get(`answers:${s.cid}`)) || emptyAnswers();
   for (const [id, v] of Object.entries(b.checklist || {})) {
@@ -301,7 +306,11 @@ H.staff['PUT contract'] = async (req, res, s, q) => {
 H.staff['POST message'] = async (req, res, s, q) => {
   const b = await readBody(req), text = clip(b.text, 3000).trim(); if (!text) throw bad(400, 'Say something first');
   await store.lpush(`msgs:${q.id}`, { from: 'staff', name: s.name, text, at: now() }); await store.ltrim(`msgs:${q.id}`, 0, 299);
-  return { ok: true };
+  const c = await store.get(`client:${q.id}`), set = await settings();
+  const mailed = await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `New message from ${set.studio}`,
+    ...letter({ title: `${s.name} sent you a message`, lines: [], quote: text, button: { label: 'Reply in the portal', url: `${portal(req)}#messages` } }) });
+  await log(s.name, `messaged ${c.name}`, q.id);
+  return { ok: true, mailed };
 };
 H.staff['DELETE client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -540,15 +549,47 @@ H.client['POST eventreply'] = async (req, res, s) => {
 H.client['PUT eventseen'] = async (req, res, s) => {
   const all = await eventsOf(s.cid), at = now(); let n = 0;
   for (const e of all) if ((e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))) { e.clientSeen = at; n++; }
-  if (n) await saveEvents(s.cid, all);
+  if (n) { await saveEvents(s.cid, all); await bump(s.cid); }
   return { ok: true, seen: n };
+};
+
+// ---------- reminders: a reply from us that the client has not answered after 30 minutes gets one reminder email ----------
+// A scheduler (GitHub Actions, every 10 minutes) calls GET /api/cron/remind with "Authorization: Bearer CRON_SECRET".
+// Each of our replies is reminded about once, and only within a day of being sent, so old threads never get a burst of email.
+const REMIND_AFTER = 30 * 60e3, REMIND_UNTIL = 24 * 3600e3;
+const due = at => { const age = Date.now() - Date.parse(at); return age >= REMIND_AFTER && age <= REMIND_UNTIL; };
+H.open['GET cron/remind'] = async (req) => {
+  const key = process.env.CRON_SECRET || '';
+  if (key.length < 16 || !same(req.headers.authorization || '', `Bearer ${key}`)) throw bad(401, 'Not allowed');
+  const set = await settings(), sent = [];
+  for (const cid of await store.smembers('clients')) {
+    const c = await store.get(`client:${cid}`); if (!c || c.status === 'closed') continue;
+    const evs = await eventsOf(cid), tks = (await store.get(`tickets:${cid}`)) || [], [lastMsg] = await store.lrange(`msgs:${cid}`, 0, 0);
+    const waiting = [], marks = [];
+    for (const e of evs) { const l = (e.replies || []).at(-1); if (l?.from === 'staff' && !l.reminded && e.status !== 'done' && due(l.at)) { waiting.push({ what: `Our reply on your event "${e.title}"`, text: l.text, url: `${portal(req)}#events/${e.id}` }); marks.push(l); } }
+    for (const t of tks) { const l = t.thread.at(-1); if (l?.from === 'staff' && !l.reminded && t.status !== 'closed' && due(l.at)) { waiting.push({ what: `Our answer on ticket #${t.no}: ${t.subject}`, text: l.text, url: `${portal(req)}#support/${t.id}` }); marks.push(l); } }
+    const msgMark = `remind:msg:${cid}`;
+    if (lastMsg?.from === 'staff' && due(lastMsg.at) && ((await store.get(msgMark)) || '') < lastMsg.at) waiting.push({ what: `Our message from ${lastMsg.name}`, text: lastMsg.text, url: `${portal(req)}#messages`, msg: lastMsg.at });
+    if (!waiting.length) continue;
+    const mailed = await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `Waiting for your reply · ${set.studio}`,
+      ...letter({ title: waiting.length > 1 ? `${waiting.length} replies from ${set.studio} are waiting for you` : `A reply from ${set.studio} is waiting for you`,
+        lines: waiting.map(w => `${w.what}: "${w.text.length > 160 ? w.text.slice(0, 157) + '…' : w.text}"`), button: { label: 'Reply in the portal', url: waiting[0].url },
+        small: 'We sent this because there was no answer after 30 minutes. One reminder per reply.' }) });
+    if (!mailed) continue;
+    const at = now(); marks.forEach(l => { l.reminded = at; });
+    if (marks.length) { await saveEvents(cid, evs); await store.set(`tickets:${cid}`, tks); }
+    const m = waiting.find(w => w.msg); if (m) await store.set(msgMark, m.msg);
+    await log('Portal', `reminded ${c.name} about ${waiting.length} unanswered repl${waiting.length > 1 ? 'ies' : 'y'}`, cid);
+    sent.push({ client: c.name, items: waiting.length });
+  }
+  return { ok: true, sent };
 };
 
 // ---------- feed: updates staff post for one client (tailored) or for every client (news) ----------
 const KINDS = ['update', 'result', 'news', 'tip', 'heads-up'];
 const feedKey = target => target === 'all' ? 'feed:all' : `feed:${target}`;
 const feedOf = async target => (await store.get(feedKey(target))) || [];
-const saveFeed = (target, all) => store.set(feedKey(target), all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 300));
+const saveFeed = async (target, all) => { await store.set(feedKey(target), all.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 300)); await (target === 'all' ? store.incr('rev:news') : bump(target)); };
 // what one client sees: their own posts plus the ones for everyone, pinned first, newest first
 async function feedFor(cid) {
   const [mine, all] = await Promise.all([feedOf(cid), feedOf('all')]);

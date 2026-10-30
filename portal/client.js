@@ -6,8 +6,8 @@ let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk 
 const sections = () => [
   ['overview', 'Overview', 'home'], ['feed', 'Updates', 'news', unreadF() || '', !!unreadF()], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
   ['forms', 'Forms', 'form'], ['agreement', 'Agreement', 'pen', { draft: 'soon', void: '—', sent: 'sign', signed: 'done' }[W.contract.status], W.contract.status === 'signed'],
-  ['results', 'Ads & results', 'chart'], ['events', 'Events', 'flag', upEv().length || ''], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
-  ['support', 'Support', 'ticket', unreadT() || openT() || '', !!unreadT()], ['meetings', 'Meetings', 'cal', upMeet().length || ''], ['messages', 'Messages', 'chat', W.msgs.length || '']];
+  ['results', 'Ads & results', 'chart'], ['events', 'Events', 'flag', (W.events || []).filter(unreadE).length || upEv().length || '', !!(W.events || []).some(unreadE)], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
+  ['support', 'Support', 'ticket', unreadT() || openT() || '', !!unreadT()], ['meetings', 'Meetings', 'cal', upMeet().length || ''], ['messages', 'Messages', 'chat', unreadM() || W.msgs.length || '', !!unreadM()]];
 
 /* ---------- tickets and meetings, as the client sees them ---------- */
 const unreadC = t => { const l = t.thread.at(-1); return l?.from === 'staff' && !(t.seenClient >= l.at); };
@@ -19,6 +19,56 @@ const TOPICS = ['Results review', 'Ads and creative', 'Setup and access', 'Billi
 const since = iso => { const a = ago(iso); return a === 'now' ? 'just now' : a + ' ago'; };
 const today = () => new Date().toISOString().slice(0, 10);
 const unseen = p => p.at > (W.answers.feedSeen || ''), unreadF = () => (W.feed || []).filter(unseen).length;
+
+/* ---------- alerts: everything new from the team that the client has not opened yet ---------- */
+const unreadE = e => { const l = (e.replies || []).at(-1); return l?.from === 'staff' && !(e.clientSeen >= l.at); };
+// messages have no read marker on the server, so this browser remembers the newest one the client has seen
+const msgKey = () => `band.msgSeen.${W.client.id}`;
+const msgSeen = () => { try { return localStorage.getItem(msgKey()) || ''; } catch { return ''; } };
+const unreadM = () => W.msgs.filter(m => m.from === 'staff' && m.at > msgSeen()).length;
+const alerts = () => [
+  ...(W.events || []).filter(unreadE).map(e => ({ id: 'e' + e.id + e.replies.length, t: `New reply on your event "${e.title}"`, i: 'flag', go: `events/${e.id}` })),
+  ...(W.tickets || []).filter(unreadC).map(t => ({ id: 't' + t.id + t.thread.length, t: `We answered ticket #${t.no}: ${t.subject}`, i: 'ticket', go: `support/${t.id}` })),
+  ...(unreadM() ? [{ id: 'm' + W.msgs.at(-1)?.at, t: `${unreadM()} new message${unreadM() > 1 ? 's' : ''} from the team`, i: 'chat', go: 'messages' }] : []),
+  ...(unreadF() ? [{ id: 'f' + unreadF(), t: `${unreadF()} new update${unreadF() > 1 ? 's' : ''} from the team`, i: 'news', go: 'feed' }] : []),
+];
+// a soft three-note chime; browsers only allow sound after the first click or key press on the page
+let actx = null;
+const unlockSound = () => { try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state !== 'running') actx.resume(); } catch { } };
+function chime() {
+  if (!actx || actx.state !== 'running') return;
+  const t0 = actx.currentTime;
+  [[784, 0], [1047, .13], [1568, .26]].forEach(([f, d]) => {
+    const o = actx.createOscillator(), g = actx.createGain(); o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, t0 + d); g.gain.linearRampToValueAtTime(.2, t0 + d + .02); g.gain.exponentialRampToValueAtTime(.001, t0 + d + .7);
+    o.connect(g).connect(actx.destination); o.start(t0 + d); o.stop(t0 + d + .75);
+  });
+}
+// something new arrived: chime, a toast, and a desktop notification when the tab is in the background
+function ring(fresh) {
+  chime(); toast(fresh.length > 1 ? `${fresh.length} new things from the team` : fresh[0].t);
+  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    try { const n = new Notification(`${W.settings.studio} replied`, { body: fresh.map(a => a.t).join('\n'), tag: 'band-portal', renotify: true }); n.onclick = () => { focus(); location.hash = '#' + fresh[0].go; n.close(); }; } catch { }
+  }
+}
+function paintBell() {
+  const a = alerts(), b = $('#bell'); if (!b) return;
+  b.classList.toggle('on', a.length > 0); $('#bellN').hidden = !a.length; $('#bellN').textContent = a.length;
+  b.setAttribute('aria-label', a.length ? `${a.length} new from the team` : 'Notifications');
+  document.title = `${a.length ? `(${a.length}) ` : ''}${W.client.name} · band. portal`;
+}
+function bellMenu() {
+  const a = alerts(), canAsk = 'Notification' in window && Notification.permission === 'default';
+  modal(`<h3>${a.length ? 'New from the team' : 'You are all caught up'}</h3><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">${a.map(x => `<button class="btn" style="justify-content:flex-start;height:auto;min-height:52px;text-align:left" data-go="${esc(x.go)}">${ic(x.i)}<span style="flex:1">${esc(x.t)}</span>${ic('arrow')}</button>`).join('') || '<p class="small">Replies, answers and updates from us show up here, with a sound.</p>'}</div>
+    ${canAsk ? `<div class="acts"><button class="btn green" data-notif>${ic('bell')} Alert me even when this tab is in the background</button></div>` : ''}<div class="acts"><button class="btn ghost" data-close>Close</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close; $$('[data-go]', m).forEach(b => b.onclick = () => { close(); location.hash = '#' + b.dataset.go; });
+      const n = $('[data-notif]', m); if (n) n.onclick = async () => { unlockSound(); const p = await Notification.requestPermission().catch(() => 'denied'); toast(p === 'granted' ? 'Done. We will alert you here.' : 'Alerts are blocked in this browser.', p !== 'granted'); close(); };
+    },
+  });
+}
+// a bar at the top of every page while something is new, without the item for the page you are on
+const alertBar = () => { const a = alerts().filter(x => x.go.split('/')[0] !== route); return a.length ? `<div class="alertbar" role="status"><i class="pulse"></i><b>New from ${esc(W.settings.studio)}</b>${a.slice(0, 3).map(x => `<button data-ago="${esc(x.go)}">${ic(x.i)}${esc(x.t)}</button>`).join('')}${a.length > 3 ? `<button data-bell>+${a.length - 3} more</button>` : ''}</div>` : ''; };
 const KINDF = { update: ['Update', ''], result: ['Result', 'live'], news: ['News', 'dark'], tip: ['Tip', 'ok'], 'heads-up': ['Heads-up', 'warn'] };
 const post = (p, seen) => `<article class="post ${p.pinned ? 'pinned' : ''}"><div class="ph"><span class="pillx ${KINDF[p.kind]?.[1] || ''}">${KINDF[p.kind]?.[0] || 'Update'}</span>
   <span class="pillx ${p.target === 'all' ? '' : 'ok'}">${p.target === 'all' ? 'For all clients' : 'For you'}${p.brand ? ' · ' + esc(p.brand) : ''}</span>${p.pinned ? `<span class="pillx dark">${ic('pin')} Pinned</span>` : ''}
@@ -41,11 +91,15 @@ export async function mount(who) {
   try { [W, T] = await Promise.all([api('GET', 'client/workspace'), api('GET', 'template')]); }
   catch (e) { toast(e.message, true); return; }
   document.title = `${W.client.name} · band. portal`;
-  $('#app').innerHTML = shell({ tag: 'Client', name: W.client.name }) + `
+  $('#app').innerHTML = shell({ tag: 'Client', name: W.client.name, extra: `<button class="bell" id="bell" aria-label="Notifications">${ic('bell')}<b id="bellN" hidden></b></button>` }) + `
     <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><span class="save" id="save"><i></i><span>Saved</span></span></div><div class="view" id="view" tabindex="-1"></div></section></div><nav class="bnav" id="bnav" aria-label="Sections"></nav>`;
   $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back();
   $('#view').addEventListener('click', onClick); $('#view').addEventListener('input', onInput); $('#view').addEventListener('change', onInput);
-  addEventListener('hashchange', go); setInterval(poll, 30000);
+  addEventListener('hashchange', go); pulse();
+  $('#bell').onclick = bellMenu;
+  $('#view').addEventListener('click', e => { const b = e.target.closest('[data-ago],[data-bell]'); if (!b) return; if (b.dataset.bell !== undefined) return bellMenu(); location.hash = '#' + b.dataset.ago; });
+  ['pointerdown', 'keydown'].forEach(k => addEventListener(k, unlockSound, { passive: true }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) stay(); });
   palette(); go();
 }
 const bust = () => { setPalette([]); palette(); };
@@ -80,10 +134,13 @@ function paint() {
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   // a link from one of our emails opens the events page on that event
   if (route === 'events' && arg) $('#ev-' + CSS.escape(arg))?.scrollIntoView({ block: 'center' });
+  (v.querySelector('.page') || v).insertAdjacentHTML('afterbegin', alertBar());
+  if (route === 'messages') { const last = [...W.msgs].reverse().find(m => m.from === 'staff'); if (last && last.at > msgSeen()) { try { localStorage.setItem(msgKey(), last.at); } catch { } } }
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
   // opening Events counts as reading our replies there; the team sees "seen by the client"
   if (route === 'events' && (W.events || []).some(e => (e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))))
-    api('PUT', 'client/eventseen', {}).then(() => { const t = new Date().toISOString(); W.events.forEach(e => { if ((e.replies || []).some(r => r.from === 'staff')) e.clientSeen = t; }); }).catch(() => { });
+    api('PUT', 'client/eventseen', {}).then(() => { const t = new Date().toISOString(); W.events.forEach(e => { if ((e.replies || []).some(r => r.from === 'staff')) e.clientSeen = t; }); paintBell(); }).catch(() => { });
+  paintBell();
 }
 
 /* phone: the four things you use most live in a bottom bar, the rest under More */
@@ -91,7 +148,7 @@ const PRIMARY = ['overview', 'start', 'agreement', 'results'], SHORT = { start: 
 function tabbar() {
   const all = sections(), prim = all.filter(s => PRIMARY.includes(s[0])), more = all.filter(s => !PRIMARY.includes(s[0]));
   $('#bnav').innerHTML = prim.map(([r, t, i, badge]) => `<button class="${r === route ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${SHORT[r] || t}</span>${r === 'agreement' && W.contract.status === 'sent' ? '<i>!</i>' : ''}</button>`).join('')
-    + `<button class="${more.some(s => s[0] === route) ? 'on' : ''}" data-more aria-label="More">${ic('list')}<span>More</span>${unreadT() ? `<i>${unreadT()}</i>` : ''}</button>`;
+    + `<button class="${more.some(s => s[0] === route) ? 'on' : ''}" data-more aria-label="More">${ic('list')}<span>More</span>${(n => n ? `<i>${n}</i>` : '')(alerts().filter(a => !PRIMARY.includes(a.go.split('/')[0])).length)}</button>`;
   $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
   $('#bnav [data-more]').onclick = () => modal(`<h3>More</h3><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">${more.map(([r, t, i, badge]) => `<button class="btn" style="justify-content:flex-start;height:52px" data-go="${r}">${ic(i)}<span style="flex:1;text-align:left">${t}</span>${badge ? `<span class="mono" style="color:var(--mute)">${esc(badge)}</span>` : ''}</button>`).join('')}<button class="btn" style="justify-content:flex-start;height:52px" data-go="__out">${ic('out')}<span>Sign out</span></button></div>`, {
     onMount: (m, close) => $$('[data-go]', m).forEach(b => b.onclick = () => { close(); b.dataset.go === '__out' ? signOut() : nav(b.dataset.go); }),
@@ -253,7 +310,7 @@ const span = e => e.end && e.end !== e.start ? `${dShort(e.start, { day: 'numeri
 const inDays = s => { const n = Math.round((Date.parse(s + 'T00:00:00Z') - Date.parse(today() + 'T00:00:00Z')) / 864e5); return n <= 0 ? 'on now' : n === 1 ? 'tomorrow' : `in ${n} days`; };
 const erow = (e, past) => { const [lab, tone] = EST[e.status] || EST.new, last = (e.replies || []).at(-1); return `<div class="meet ev ${past ? 'past' : ''} ${arg === e.id ? 'focus' : ''}" id="ev-${esc(e.id)}"><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
   <div class="n"><b>${esc(e.title)}</b><span class="small">${esc(span(e))}${past ? '' : ' · ' + inDays(e.start)}${e.brand ? ' · ' + esc(e.brand) : ''}</span>
-    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${tone}">${lab}</span>${last?.from === 'staff' ? '<span class="pillx ok">New reply from us</span>' : ''}</div>
+    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${tone}">${lab}</span>${last?.from === 'staff' ? '<span class="pillx warn">Waiting for your reply</span>' : ''}</div>
     ${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}
     ${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
     <span class="small evsub">Added ${esc(evAt(e.at))}${e.updated && Date.parse(e.updated) - Date.parse(e.at) > 60e3 ? ` · changed ${esc(evAt(e.updated))}` : ''}</span>
@@ -428,12 +485,31 @@ async function events$(t) {
   } catch (er) { toast(er.message, true); } finally { t.disabled = false; }
 }
 const putTicket = t => { W.tickets = (W.tickets || []).map(x => x.id === t.id ? t : x); };
-const stay = () => { const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; };
+// repaint for a live update without losing what someone is typing: unsaved text and the caret survive
+const stay = () => {
+  const v = $('#view'), k = v.scrollTop, a = document.activeElement;
+  const key = el => el.id ? '#' + CSS.escape(el.id) : el.matches('[data-evtx]') && el.closest('[data-ev]') ? `[data-ev="${el.closest('[data-ev]').dataset.ev}"] [data-evtx]` : null;
+  const drafts = [...v.querySelectorAll('textarea,input[type=text],input[type=email],input[type=url],input:not([type])')].filter(el => el.value !== el.defaultValue).map(el => [key(el), el.value]).filter(([x]) => x);
+  const focus = a && v.contains(a) && key(a), sel = focus && [a.selectionStart, a.selectionEnd];
+  paint(); v.scrollTop = k;
+  for (const [x, val] of drafts) { const el = $(x, v); if (el) el.value = val; }
+  if (focus) { const el = $(focus, v); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(...sel); } catch { } } }
+};
 async function refresh() { try { W = await api('GET', 'client/workspace'); } catch { } stay(); }
+// live: read the change counter every 4 seconds (30 in a background tab) and fetch everything only when it moved
+let rev = null;
+async function pulse() {
+  try { const { rev: r } = await api('GET', 'client/pulse'); if (rev !== null && r !== rev) await poll(); rev = r; } catch { }
+  setTimeout(pulse, document.hidden ? 30000 : 4000);
+}
 async function poll() {
-  if (document.hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') || route === 'agreement') return;
+  // forms and the agreement keep their own state, so there only the bell updates; conversations repaint and keep drafts
+  const busy = route === 'agreement' || route === 'start' || route === 'forms' || !!$('.modal') || (route === 'events' && /^(new|edit-)/.test(arg || ''));
   try {
     const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment + (e.replies || []).length), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned)]);
-    if (sig(n) !== sig(W)) { if (n.msgs.length > W.msgs.length) toast('New message from the team'); const before = unreadT(), fb = unreadF(); W = n; if (unreadT() > before) toast('We answered a ticket'); if (unreadF() > fb) toast('New update from the team'); stay(); }
+    if (sig(n) === sig(W)) return;
+    const had = new Set(alerts().map(a => a.id)); W = n;
+    const fresh = alerts().filter(a => !had.has(a.id)); if (fresh.length) ring(fresh);
+    if (busy) paintBell(); else stay();
   } catch { }
 }

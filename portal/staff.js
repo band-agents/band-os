@@ -14,7 +14,7 @@ export async function mount(who) {
     <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><button class="btn sm green" id="newBtn">${ic('plus')} New client</button></div><div class="view" id="view" tabindex="-1"></div></section></div><nav class="bnav" id="bnav" aria-label="Sections"></nav>`;
   $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back(); $('#newBtn').onclick = newClient;
   $('#view').addEventListener('click', onClick); $('#view').addEventListener('input', onInput);
-  addEventListener('hashchange', go); setInterval(poll, 20000); go();
+  addEventListener('hashchange', go); go(); pulse();
   addEventListener('keydown', e => { if (e.key === 'n' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) && !e.metaKey && !e.ctrlKey && !$('.modal')) { e.preventDefault(); newClient(); } });
 }
 
@@ -363,7 +363,16 @@ function onInput(e) {
   if (e.target.id === 'ctext') $('#cprev').innerHTML = md(rend(e.target.value));
 }
 const put = async (body, msg = 'Saved') => { try { const r = await api('PUT', `staff/clients/${arg}/staffdata`, body); C.staff = r.staff; C.summary = r.summary; await reload(); toast(msg); return true; } catch (er) { toast(er.message, true); return false; } };
-const stay = () => { const k = $('#view').scrollTop; paint(); $('#view').scrollTop = k; };
+// repaint for a live update without losing what someone is typing: unsaved text and the caret survive
+const stay = () => {
+  const v = $('#view'), k = v.scrollTop, a = document.activeElement;
+  const key = el => el.id ? '#' + CSS.escape(el.id) : el.matches('[data-evtx]') && el.closest('[data-ev]') ? `[data-ev="${el.closest('[data-ev]').dataset.ev}"] [data-evtx]` : null;
+  const drafts = [...v.querySelectorAll('textarea,input[type=text],input[type=email],input[type=url],input:not([type])')].filter(el => el.value !== el.defaultValue).map(el => [key(el), el.value]).filter(([x]) => x);
+  const focus = a && v.contains(a) && key(a), sel = focus && [a.selectionStart, a.selectionEnd];
+  paint(); v.scrollTop = k;
+  for (const [x, val] of drafts) { const el = $(x, v); if (el) el.value = val; }
+  if (focus) { const el = $(focus, v); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(...sel); } catch { } } }
+};
 async function onClick(e) {
   const t = e.target.closest('button,a,[data-toggle],.row,[data-meetc],[data-evc]'); if (!t) return; const d = t.dataset;
   if (d.nav) return nav(d.nav); if (d.client) return nav('client', d.client); if (d.new !== undefined) return newClient(); if (d.tab) return nav('client', arg, d.tab);
@@ -485,12 +494,19 @@ function addItem() {
     onMount: (m, close) => { $('[data-close]', m).onclick = close; $('#ai', m).onsubmit = async ev => { ev.preventDefault(); const f = Object.fromEntries(new FormData(ev.target)); const it = { group: f.group, kind: f.group, required: f.required === '1', title: f.title, why: f.why, steps: f.steps.split('\n').map(x => x.trim()).filter(Boolean), fields: f.field ? [{ id: 'v', label: f.field, type: 'text' }] : [] }; close(); if (await put({ customItems: [...C.staff.customItems, it] }, 'Added')) stay(); }; },
   });
 }
+// live: read the change counter every 4 seconds (30 in a background tab) and fetch the overview only when it moved
+let rev = null;
+async function pulse() {
+  try { const { rev: r } = await api('GET', 'staff/pulse'); if (rev !== null && r !== rev) await poll(); rev = r; } catch { }
+  setTimeout(pulse, document.hidden ? 30000 : 4000);
+}
 async function poll() {
-  if (document.hidden) return;
   try {
     const n = await api('GET', 'staff/overview'), head = n.log[0];
     if (head && head.at !== lastLog) { lastLog = head.at; if (head.who !== me.name) toast(`${head.who} ${head.what}`); }
-    const changed = JSON.stringify([n.clients, n.tickets, n.meetings, n.events]) !== JSON.stringify([O.clients, O.tickets, O.meetings, O.events]); O = n;
-    if (changed && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') && !$('.modal')) { if (route === 'client') { await reloadClient().catch(() => { }); } stay(); } else side();
+    const changed = route === 'client' || JSON.stringify([n.clients, n.tickets, n.meetings, n.events]) !== JSON.stringify([O.clients, O.tickets, O.meetings, O.events]); O = n;
+    // conversations (events, tickets, messages) update while you type; editors elsewhere wait until you leave the field
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '') && !(route === 'client' && ['events', 'tickets', 'messages'].includes(tab));
+    if (changed && !typing && !$('.modal')) { if (route === 'client') { await reloadClient().catch(() => { }); } stay(); } else side();
   } catch { }
 }

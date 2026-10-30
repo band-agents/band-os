@@ -1,0 +1,14 @@
+# Every 10 minutes, ask the portal to email clients who have not answered one of our replies after 30 minutes.
+# The portal decides who gets a reminder (once per reply, only within a day); this only knocks on the door.
+name: Portal reminders
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Send due reminders
+        run: curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://band-os-omega.vercel.app/api/cron/remind
