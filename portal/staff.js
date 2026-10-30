@@ -136,6 +136,56 @@ function codeModal(c, code, fresh, mailed) {
     onMount: (m, close) => { $('[data-close]', m).onclick = close; $('[data-copycode]', m).onclick = () => copyText(code); $('[data-copyall]', m).onclick = () => copyText(loginMsg(c, code)); },
   });
 }
+/* ---------- email the client about the page you are on ---------- */
+// each tab maps to the client's own page, with a ready message and what to include; staff edit both before sending
+const plain = t => String(t).replace(/^#+\s*/gm, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/\n{3,}/g, '\n\n').trim();
+const bullet = l => l.length ? l.map(x => '- ' + x).join('\n') : '';
+const money_ = (n, c) => `${Number(n || 0).toLocaleString('en-US')} ${c || C.client.currency || 'USD'}`;
+function pageMail() {
+  const c = C.client, first = c.contacts[0]?.name?.split(' ')[0] || 'there', hi = `Hi ${first},`, now = new Date().toISOString().slice(0, 10), studio = C.settings.studio;
+  const todo = items(C).filter(i => i.owner !== 'staff' && i.required !== false && !(C.staff.hidden || []).includes(i.id) && !['submitted', 'verified', 'na'].includes(stateOf(C, i)));
+  const k = C.contract || {}, up = C.events.filter(e => (e.end || e.start) >= now), P = C.staff.performance || [], inv = (C.staff.invoices || []).filter(x => x.status !== 'draft');
+  const M = {
+    agreement: ['agreement', k.status === 'signed' ? `Your signed agreement with ${studio}` : `Your agreement with ${studio}`,
+      k.status === 'signed' ? `${hi}\n\nHere is a copy of the agreement you signed. You can download the signed PDF from the Agreement page in your portal any time.`
+        : k.status === 'sent' ? `${hi}\n\nYour agreement is ready to sign. The full text is below. To sign, open the Agreement page in your portal, type your name and draw your signature.\n\nAny questions, just reply to this email.`
+        : `${hi}\n\nHere is the draft of our agreement, with everything we agreed. Have a read and tell us if anything should change. Once you are happy with it, we will send it to your portal to sign.`,
+      plain(k.status === 'signed' ? k.signedText : rend(k.text || ''))],
+    checklist: ['start', 'What we still need from you', `${hi}\n\nTo get your ads running, these are the things we still need from you. Each one has the steps in "Start here" in your portal.`, bullet(todo.map(i => i.title))],
+    answers: ['forms', 'Your forms', `${hi}\n\nA quick note about the forms in your portal.`, ''],
+    feed: ['feed', `Updates from ${studio}`, `${hi}\n\nWe posted new updates for you in the portal.`, bullet((C.feed || []).slice(0, 5).map(p => p.title))],
+    tickets: ['support', 'Your support tickets', `${hi}\n\nAn update on your tickets.`, bullet(C.tickets.filter(t => t.status !== 'closed').map(t => `#${t.no} ${t.subject} (${t.status === 'open' ? 'with us' : 'answered'})`))],
+    meetings: ['meetings', 'Your calls with us', `${hi}\n\nHere are your upcoming calls with us. You can book or move a call from Meetings in your portal.`, bullet(C.meetings.filter(m => m.status === 'booked' && Date.parse(m.end) > Date.now()).map(m => `${new Date(m.start).toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · ${m.topic}`))],
+    events: ['events', 'Your upcoming events', `${hi}\n\nThese are the events we are planning your ads around. Add anything new under Events in your portal, the earlier the better.`, bullet(up.map(e => `${e.start}${e.end && e.end !== e.start ? ' to ' + e.end : ''} · ${e.title} (${({ new: 'received', planned: 'in our plan', live: 'ads running', done: 'done' })[e.status] || e.status})`))],
+    results: ['results', 'Your ad results', `${hi}\n\nHere are your latest ad results. The charts are on Ads & results in your portal.`, bullet(P.slice(-6).reverse().map(x => `Week of ${x.date} · ${x.brand}: ${money_(x.spend)} spent, ${x.results} ${x.label || 'results'}${x.revenue ? `, ${money_(x.revenue)} revenue` : ''}`))],
+    billing: ['invoices', 'Your invoices', `${hi}\n\nA note about your invoices. You can open each one from Invoices in your portal.`, bullet(inv.map(x => `${x.no || 'Invoice'} · ${money_(x.amount, x.currency)} · ${x.status === 'paid' ? 'paid' : 'due ' + (x.due || '')}`))],
+    messages: ['messages', `A message from ${studio}`, `${hi}\n\n`, ''],
+    settings: ['overview', `Your ${studio} portal`, `${hi}\n\nYour portal is at ${location.origin}/portal/. Sign in with ${c.contacts[0]?.email} and your access code.`, ''],
+  };
+  return M[tab] || M.settings;
+}
+const PAGE_NAMES = { overview: 'Overview', start: 'Start here', forms: 'Forms', agreement: 'Agreement', results: 'Ads & results', events: 'Events', invoices: 'Invoices', support: 'Support', meetings: 'Meetings', messages: 'Messages', feed: 'Updates' };
+function mailPage() {
+  const c = C.client, [page, subject, text, quote] = pageMail();
+  if (!O.mail) return toast('Email is not connected yet. See Settings → Email.', true);
+  const draft = tab === 'agreement' && C.contract?.status !== 'sent' && C.contract?.status !== 'signed';
+  modal(`<h3>Email this page</h3><p class="small" style="margin-bottom:12px">From ${esc(C.settings.studioEmail)}. The email ends with a button that opens <b>${esc(PAGE_NAMES[page] || page)}</b> in their portal.${draft ? ' This agreement is still a draft: they can read it in the email, but they can only sign it after you press "Send to client".' : ''}</p>
+    <div class="fld"><label>To</label><div class="daycb" style="flex-wrap:wrap">${c.contacts.map(x => `<label><input type="checkbox" data-mto value="${esc(x.email)}" checked>${esc(x.name ? `${x.name} · ${x.email}` : x.email)}</label>`).join('')}</div></div>
+    <div class="fld" style="margin-top:12px"><label for="pm-s">Subject</label><input class="in" id="pm-s" value="${esc(subject)}"></div>
+    <div class="fld" style="margin-top:12px"><label for="pm-t">Message</label><textarea class="in" id="pm-t" style="min-height:130px">${esc(text)}</textarea></div>
+    <div class="fld" style="margin-top:12px"><label for="pm-q">From this page (shown in a box; clear it to leave it out)</label><textarea class="in mono" id="pm-q" style="min-height:${quote.length > 600 ? 260 : 110}px;font-size:12.5px">${esc(quote)}</textarea></div>
+    <div class="acts"><button class="btn green" data-pmsend>${ic('send')} Send email</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close; $('#pm-t', m).focus();
+      $('[data-pmsend]', m).onclick = async e => {
+        const to = $$('[data-mto]', m).filter(x => x.checked).map(x => x.value); if (!to.length) return toast('Pick at least one email.', true);
+        e.currentTarget.disabled = true;
+        try { const r = await api('POST', `staff/clients/${arg}/email`, { page, to, subject: $('#pm-s', m).value, text: $('#pm-t', m).value, quote: $('#pm-q', m).value }); close(); toast(`Emailed to ${r.to.join(', ')}`); }
+        catch (er) { toast(er.message, true); e.currentTarget.disabled = false; }
+      };
+    },
+  });
+}
 // reset a client's access code: the old one stops working; email the new one to them, or copy it and send it yourself
 function resetCode() {
   const c = C.client, to = c.contacts.map(x => x.email).join(', ');
@@ -158,7 +208,7 @@ const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['feed', 'Upda
 function client() {
   const s = C.summary;
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button><button class="btn sm" data-reset>${ic('key')} Reset access code</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
-    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}</div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, feed: cfeed, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
+    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}<button class="btn sm ghost" data-mailpage style="margin-left:auto">${ic('send')} Email this page</button></div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, feed: cfeed, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
 function checklist() {
@@ -442,6 +492,7 @@ async function onClick(e) {
     t.disabled = true; try { await api('PUT', `staff/clients/${arg}/contacts`, { contacts }); await reloadClient(); toast('Emails saved'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return;
   }
   if (d.reset !== undefined) return resetCode();
+  if (d.mailpage !== undefined) return mailPage();
   if (d.del !== undefined) { const n = prompt(`Type "${C.client.name}" to delete this workspace for good.`); if (n === null) return; try { await api('DELETE', 'staff/clients/' + arg, { confirm: n }); await reload(); toast('Deleted'); nav('overview'); } catch (er) { toast(er.message, true); } return; }
   if (d.mycode !== undefined) {
     modal(`<h3>Change my code</h3><p class="small">At least 8 characters. Your old code stops working when you save.</p>

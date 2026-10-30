@@ -25,7 +25,7 @@ const h = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&
 export function letter({ title, lines = [], quote, button, small }) {
   const text = [title, '', ...lines, ...(quote ? ['', ...quote.split('\n').map(l => '> ' + l)] : []), ...(button ? ['', `${button.label}: ${button.url}`] : []), ...(small ? ['', small] : []), '', 'band.'].join('\n');
   const html = `<div style="font:15px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#151515;max-width:560px">
-    <p style="font-size:19px;font-weight:700;margin:0 0 14px">${h(title)}</p>${lines.map(l => `<p style="margin:0 0 10px">${h(l)}</p>`).join('')}
+    <p style="font-size:19px;font-weight:700;margin:0 0 14px">${h(title)}</p>${lines.map(l => `<p style="margin:0 0 10px;white-space:pre-wrap">${h(l)}</p>`).join('')}
     ${quote ? `<div style="margin:16px 0;padding:12px 16px;background:#F4F4EE;border-left:3px solid #10A862;white-space:pre-wrap">${h(quote)}</div>` : ''}
     ${button ? `<p style="margin:20px 0"><a href="${h(button.url)}" style="display:inline-block;background:#0B0B0B;color:#fff;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:999px">${h(button.label)}</a></p>` : ''}
     ${small ? `<p style="margin:16px 0 0;color:#777;font-size:13px">${h(small)}</p>` : ''}<p style="margin:22px 0 0;font-weight:700">band.</p></div>`;

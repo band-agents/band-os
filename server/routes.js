@@ -303,6 +303,22 @@ H.staff['PUT contract'] = async (req, res, s, q) => {
   await store.set(`contract:${q.id}`, contract); await log(s.name, `agreement: ${act}`, q.id);
   return { contract: { ...contract, rendered: render(contract.text, vars(c, set)) } };
 };
+// email the client about one page of their portal. Staff write (or edit) the message and what to include from the page;
+// it goes from the studio Gmail to the chosen emails on the workspace, with a button that opens that page.
+const PAGES = { overview: 'Overview', start: 'Start here', forms: 'Forms', agreement: 'Agreement', results: 'Ads & results', events: 'Events', invoices: 'Invoices', files: 'Files & links', support: 'Support', meetings: 'Meetings', messages: 'Messages', feed: 'Updates' };
+H.staff['POST email'] = async (req, res, s, q) => {
+  const b = await readBody(req), { c } = await bundle(q.id), set = await settings(), all = emailsOf(c);
+  const to = [...new Set([].concat(b.to || []).map(x => String(x).trim().toLowerCase()))].filter(x => all.includes(x));
+  const subject = clip(b.subject, 200).trim(), text = clip(b.text, 8000).trim(), quote = clip(b.quote, 40_000).trim(), page = PAGES[b.page] ? b.page : 'overview';
+  if (!to.length) throw bad(400, 'Pick at least one email on this workspace.');
+  if (!subject || !text) throw bad(400, 'Write a subject and a message.');
+  if (!mailReady()) throw bad(409, 'Email is not connected yet.');
+  const ok = await send({ to, replyTo: set.studioEmail, subject,
+    ...letter({ title: subject, lines: text.split(/\n\s*\n/), quote: quote || undefined, button: { label: `Open ${PAGES[page]} in the portal`, url: `${portal(req)}#${page}` } }) });
+  if (!ok) throw bad(502, 'Gmail refused it. Try again in a minute.');
+  await log(s.name, `emailed ${to.join(', ')} about ${PAGES[page]}: "${subject}"`, q.id);
+  return { ok: true, to };
+};
 H.staff['POST message'] = async (req, res, s, q) => {
   const b = await readBody(req), text = clip(b.text, 3000).trim(); if (!text) throw bad(400, 'Say something first');
   await store.lpush(`msgs:${q.id}`, { from: 'staff', name: s.name, text, at: now() }); await store.ltrim(`msgs:${q.id}`, 0, 299);
