@@ -18,6 +18,7 @@
 <div id="pal"><div class="pbox"><input id="palIn" placeholder="Jump to…" autocomplete="off" spellcheck="false"><div class="list" id="palList"></div><div class="hint mono"><span>↑↓ move</span><span>↵ open</span><span>esc close</span></div></div></div>
 <div id="toast"></div>
 <noscript><p style="position:relative;color:#fff;padding:40px;font:16px/1.6 sans-serif">The portal needs JavaScript. Email band.digi.tech@gmail.com and we will help.</p></noscript>
+<script>/* the portal needs its server, which lives on Vercel; the GitHub Pages copy of the site sends people there */ if (/\.github\.io$/.test(location.hostname)) location.replace('https://band-os-omega.vercel.app/portal/' + location.hash);</script>
 <script type="module" src="main.js"></script>
 </body>
 </html>
