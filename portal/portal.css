@@ -404,3 +404,4 @@ body.staff .ad{background:var(--card)}
 .evreply{margin-top:12px}
 .evreply textarea.in{min-height:76px}
 .evreply .acts{align-items:center}
+.meet.ev.focus{box-shadow:0 0 0 2px var(--green);border-radius:14px}

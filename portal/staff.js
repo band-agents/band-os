@@ -36,6 +36,7 @@ async function go() {
   if (route === 'client') { try { C = await api('GET', 'staff/clients/' + arg); } catch (e) { toast(e.message, true); return nav('clients'); } } else C = null;
   if (['tickets', 'meetings'].includes(route)) await reload().catch(() => { });
   paint();
+  if (route === 'client' && tab === 'events' && sub) document.getElementById('ev-' + sub)?.scrollIntoView({ block: 'center' });
   const t = route === 'client' && tab === 'tickets' && C.tickets.find(x => x.id === sub);
   if (t && unreadS(t)) { t.seenStaff = new Date().toISOString(); api('PUT', `staff/clients/${arg}/ticket`, { tid: t.id, seen: true }).then(reload).then(side).catch(() => { }); }
 }
@@ -243,10 +244,10 @@ const evThread = e => {
     r.mailed ? `${ic('check')} Emailed to ${esc((r.mailedTo || []).join(', '))}` : r.mailed === false ? `${ic('alert')} Not emailed${O.mail ? ' (Gmail refused it)' : ' (email not connected)'}: they see it in the portal` : 'Shown in the portal'}${
     e.clientSeen && e.clientSeen >= r.at ? ` · seen by the client ${esc(at(e.clientSeen))}` : ' · not opened by the client yet'}</small>` : ''}</div>`).join('')}</div>`;
 };
-const erow = (e, withClient, past) => `<div class="meet ev ${past ? 'past' : ''}" ${withClient ? `data-evc="${esc(e.cid)}" style="cursor:pointer"` : ''}><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
+const erow = (e, withClient, past) => `<div class="meet ev ${past ? 'past' : ''} ${!withClient && sub === e.id ? 'focus' : ''}" id="ev-${esc(e.id)}" ${withClient ? `data-evc="${esc(e.cid)}/${esc(e.id)}" style="cursor:pointer"` : ''}><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
   <div class="n"><b>${withClient ? esc(e.client) + ' · ' : ''}${esc(e.title)}</b><span class="small">${esc(evSpan(e))}${e.brand ? ' · ' + esc(e.brand) : ''}</span>
     <span class="small evsub">Submitted ${esc(at(e.at))} by ${esc(e.by)}${edited(e) ? ` · last changed ${esc(at(e.updated))}` : ''}</span>
-    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${EST[e.status][1]}">${EST[e.status][0]}</span>${(e.replies || []).length ? `<span class="pillx">${e.replies.length} repl${e.replies.length > 1 ? 'ies' : 'y'}</span>` : ''}</div>
+    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${EST[e.status][1]}">${EST[e.status][0]}</span>${(e.replies || []).at(-1)?.from === 'client' ? '<span class="pillx warn">Client replied · waiting on us</span>' : ''}${(e.replies || []).length ? `<span class="pillx">${e.replies.length} repl${e.replies.length > 1 ? 'ies' : 'y'}</span>` : ''}</div>
     ${withClient ? '' : `${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
     ${evThread(e)}
     <div class="evreply" data-ev="${esc(e.id)}"><textarea class="in" data-evtx placeholder="Reply to ${esc(e.by)}. It goes to the portal and to their email."></textarea>
@@ -295,11 +296,15 @@ function messages() {
   return `<div class="thread">${C.msgs.map(m => `<div class="msg ${m.from === 'staff' ? 'me' : ''}"><small>${esc(m.name)} · ${esc(day(m.at))} ${ago(m.at)}</small>${esc(m.text)}</div>`).join('') || '<div class="empty"><b>No messages.</b></div>'}</div>
     <div class="fld"><textarea class="in" id="msgText" placeholder="Reply to ${esc(C.client.name)}…"></textarea></div><div class="acts"><button class="btn dark" data-send>${ic('send')} Send</button></div>`;
 }
+const ctRow = (x, i) => `<div class="fgrid ctrow" data-was="${esc(x.email)}" style="grid-template-columns:1fr 1.4fr auto;align-items:end;margin-top:8px"><div class="fld"><label>${i ? 'Name' : 'Name · login'}</label><input class="in" data-ctn value="${esc(x.name)}"></div><div class="fld"><label>Email</label><input class="in" data-cte type="email" value="${esc(x.email)}"></div><button class="btn sm ghost danger" data-ctdel aria-label="Remove">${ic('trash')}</button></div>`;
 function csettings() {
   const c = C.client;
   return `<div class="card"><h3>Workspace</h3><div class="fgrid"><div class="fld"><label>Name</label><input class="in" id="cs-name" value="${esc(c.name)}"></div><div class="fld"><label>Status</label><select class="in" id="cs-status">${['invited', 'active', 'paused', 'closed'].map(s => `<option ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
     <div class="fld full"><label>Brands (one per line)</label><textarea class="in" id="cs-brands">${esc(c.brands.map(b => b.name).join('\n'))}</textarea></div></div><div class="acts"><button class="btn green sm" data-savecs>Save</button></div></div>
     <div class="card" style="margin-top:14px"><h3>Private notes</h3><p class="small">Only staff see these.</p><textarea class="in" id="cs-notes" style="margin-top:10px;min-height:140px">${esc(C.staff.notes)}</textarea><div class="acts"><button class="btn green sm" data-savenotes>Save notes</button></div></div>
+    <div class="card" style="margin-top:14px"><h3>People and emails</h3><p class="small">The first email is their login. Every email here gets our replies and notifications. Change one and the login, their events and their tickets move to the new address; we email the new address to say so.</p>
+      <div id="cts" style="margin-top:12px">${c.contacts.map((x, i) => ctRow(x, i)).join('')}</div>
+      <div class="acts"><button class="btn sm ghost" data-ctadd>${ic('plus')} Add an email</button><button class="btn green sm" data-ctsave>Save emails</button></div></div>
     <div class="card" style="margin-top:14px"><h3>Access</h3><p class="small">Login: <b>${esc(c.contacts[0]?.email)}</b>. Codes are stored as hashes, so we cannot show the old one. Make a new one if it is lost; the old one stops working.</p><div class="acts"><button class="btn sm" data-reset>${ic('key')} Make a new access code</button></div></div>
     <div class="card" style="margin-top:14px"><h3 style="color:var(--red)">Delete workspace</h3><p class="small">Removes everything: answers, signed agreement, results. This cannot be undone.</p><div class="acts"><button class="btn sm danger" data-del>${ic('trash')} Delete ${esc(c.name)}</button></div></div>`;
 }
@@ -350,7 +355,7 @@ async function onClick(e) {
   if (d.nav) return nav(d.nav); if (d.client) return nav('client', d.client); if (d.new !== undefined) return newClient(); if (d.tab) return nav('client', arg, d.tab);
   if (d.tk) { const [cid, tid] = d.tk.split('/'); return nav('client', cid, 'tickets', tid); }
   if (d.meetc) return nav('client', d.meetc, 'meetings');
-  if (d.evc) return nav('client', d.evc, 'events');
+  if (d.evc) { const [cid, eid] = d.evc.split('/'); return nav('client', cid, 'events', eid); }
   if (d.pnew !== undefined) return composer(d.pnew || (C ? C.client.id : 'all'));
   if (d.pedit !== undefined || d.ppin !== undefined || d.pdel !== undefined) {
     const [target, id] = t.closest('[data-post]').dataset.post.split('/'), p = postList().find(x => x.id === id && x.target === target);
@@ -406,6 +411,13 @@ async function onClick(e) {
   if (d.spdf !== undefined) { try { const k = C.contract; await agreementPdf({ title: k.title, text: k.signedText, client: C.client.name, signature: k.signature, countersign: k.countersign, docHash: k.signature.docHash, studio: C.settings.studio }); } catch (er) { toast(er.message, true); } return; }
   if (d.savecs !== undefined) { try { const old = C.client.brands, names = $('#cs-brands').value.split('\n').map(x => x.trim()).filter(Boolean); await api('PATCH', 'staff/clients/' + arg, { name: $('#cs-name').value, status: $('#cs-status').value, brands: names.map((n, i) => ({ id: old[i]?.id || 'b' + (i + 1 + old.length), name: n })) }); await reloadClient(); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.savenotes !== undefined) return void (await put({ notes: $('#cs-notes').value }));
+  if (d.ctadd !== undefined) { $('#cts').insertAdjacentHTML('beforeend', ctRow({ name: '', email: '' }, $('#cts').children.length)); $('#cts').lastElementChild.querySelector('[data-cte]').focus(); return; }
+  if (d.ctdel !== undefined) { if ($('#cts').children.length < 2) return toast('Keep at least one email. It is their login.', true); t.closest('.ctrow').remove(); return; }
+  if (d.ctsave !== undefined) {
+    const contacts = [...$('#cts').children].map(row => ({ was: row.dataset.was, name: $('[data-ctn]', row).value, email: $('[data-cte]', row).value })).filter(x => x.email.trim());
+    if (contacts[0]?.email.trim().toLowerCase() !== C.client.contacts[0]?.email && !confirm(`Change the login to ${contacts[0]?.email}? They sign in with it from now on, with the same access code.`)) return;
+    t.disabled = true; try { await api('PUT', `staff/clients/${arg}/contacts`, { contacts }); await reloadClient(); toast('Emails saved'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return;
+  }
   if (d.reset !== undefined) { if (!confirm('Make a new access code? The old one stops working immediately.')) return; try { const r = await api('POST', `staff/clients/${arg}/resetcode`, {}); codeModal(C.client, r.code, false); } catch (er) { toast(er.message, true); } return; }
   if (d.del !== undefined) { const n = prompt(`Type "${C.client.name}" to delete this workspace for good.`); if (n === null) return; try { await api('DELETE', 'staff/clients/' + arg, { confirm: n }); await reload(); toast('Deleted'); nav('overview'); } catch (er) { toast(er.message, true); } return; }
   if (d.mycode !== undefined) {

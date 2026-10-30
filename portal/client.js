@@ -78,6 +78,8 @@ function paint() {
   $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
   const v = $('#view'); v.innerHTML = ({ overview, feed, start, forms, agreement, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
+  // a link from one of our emails opens the events page on that event
+  if (route === 'events' && arg) $('#ev-' + CSS.escape(arg))?.scrollIntoView({ block: 'center' });
   if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
   // opening Events counts as reading our replies there; the team sees "seen by the client"
   if (route === 'events' && (W.events || []).some(e => (e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))))
@@ -249,14 +251,14 @@ function feed() {
 const dShort = (s, o = {}) => new Date(s + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', ...o });
 const span = e => e.end && e.end !== e.start ? `${dShort(e.start, { day: 'numeric', month: 'short' })} – ${dShort(e.end, { day: 'numeric', month: 'short', year: 'numeric' })}` : dShort(e.start, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const inDays = s => { const n = Math.round((Date.parse(s + 'T00:00:00Z') - Date.parse(today() + 'T00:00:00Z')) / 864e5); return n <= 0 ? 'on now' : n === 1 ? 'tomorrow' : `in ${n} days`; };
-const erow = (e, past) => { const [lab, tone] = EST[e.status] || EST.new; return `<div class="meet ev ${past ? 'past' : ''}"><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
+const erow = (e, past) => { const [lab, tone] = EST[e.status] || EST.new, last = (e.replies || []).at(-1); return `<div class="meet ev ${past ? 'past' : ''} ${arg === e.id ? 'focus' : ''}" id="ev-${esc(e.id)}"><div class="d"><span>${dShort(e.start, { month: 'short' })}</span><b>${dShort(e.start, { day: 'numeric' })}</b><span>${dShort(e.start, { weekday: 'short' })}</span></div>
   <div class="n"><b>${esc(e.title)}</b><span class="small">${esc(span(e))}${past ? '' : ' · ' + inDays(e.start)}${e.brand ? ' · ' + esc(e.brand) : ''}</span>
-    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${tone}">${lab}</span></div>
+    <div class="tk-head" style="margin-top:8px">${e.segment ? `<span class="pillx dark">${esc(e.segment)}</span>` : ''}<span class="pillx ${tone}">${lab}</span>${last?.from === 'staff' ? '<span class="pillx ok">New reply from us</span>' : ''}</div>
     ${e.description ? `<p class="desc">${esc(e.description)}</p>` : ''}${e.audience || e.offer ? `<p class="small" style="margin-top:6px">${e.audience ? `<strong>For:</strong> ${esc(e.audience)}` : ''}${e.audience && e.offer ? ' · ' : ''}${e.offer ? `<strong>Offer:</strong> ${esc(e.offer)}` : ''}</p>` : ''}
     ${e.link ? `<a class="small" href="${esc(e.link)}" target="_blank" rel="noopener" style="color:var(--green);font-weight:700">${esc(e.link)}</a>` : ''}
     <span class="small evsub">Added ${esc(evAt(e.at))}${e.updated && Date.parse(e.updated) - Date.parse(e.at) > 60e3 ? ` · changed ${esc(evAt(e.updated))}` : ''}</span>
     ${evThread(e)}
-    <div class="evreply" data-ev="${esc(e.id)}"><textarea class="in" data-evtx placeholder="Write to ${esc(W.settings.studio)} about this event"></textarea>
+    <div class="evreply" data-ev="${esc(e.id)}"><textarea class="in" data-evtx placeholder="Message ${esc(W.settings.studio)} about this event. We get it by email."></textarea>
       <div class="acts" style="margin-top:8px"><button class="btn sm dark" data-evrep>${ic('send')} Send</button></div></div></div>
   <button class="btn sm ghost" data-evedit="${esc(e.id)}">${ic('edit')} Edit</button></div>`; };
 const evAt = iso => iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
@@ -266,7 +268,7 @@ const evThread = e => {
   return list.length ? `<div class="thread" style="margin:12px 0 0">${list.map(r => `<div class="msg ${r.from === 'client' ? 'me' : ''}"><small>${esc(r.from === 'staff' ? `${r.name} · ${W.settings.studio}` : r.name)} · ${esc(evAt(r.at))}</small>${esc(r.text)}</div>`).join('')}</div>` : '';
 };
 function events() {
-  const all = W.events || [], e = all.find(x => x.id === arg);
+  const all = W.events || [], e = String(arg || '').startsWith('edit-') && all.find(x => x.id === arg.slice(5));
   if (arg === 'new' || e) {
     const v = e || { title: '', segment: '', brand: W.client.brands.length === 1 ? W.client.brands[0].name : '', start: '', end: '', audience: '', offer: '', description: '', link: '' };
     return `<div class="page"><p class="eyebrow mono">Events · ${e ? 'edit' : 'new'}</p><h1>${e ? esc(e.title) : 'Tell us<span> what is coming.</span>'}</h1><p class="lead">A launch, a sale, an opening, a holiday. The earlier we know, the better the ads around it.</p>
@@ -370,7 +372,7 @@ async function onClick(e) {
   if (t.dataset.ticket) return nav('support', t.dataset.ticket);
   if (t.dataset.newticket !== undefined) return nav('support', 'new');
   if (t.dataset.evnew !== undefined) return nav('events', 'new');
-  if (t.dataset.evedit) return nav('events', t.dataset.evedit);
+  if (t.dataset.evedit) return nav('events', 'edit-' + t.dataset.evedit);
   if (t.dataset.evsave !== undefined || t.dataset.evdel) return events$(t);
   if (t.dataset.evrep !== undefined) {
     const box = t.closest('[data-ev]'), text = $('[data-evtx]', box).value.trim(); if (!text) return toast('Write something first.', true); t.disabled = true;

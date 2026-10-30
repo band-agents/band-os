@@ -234,6 +234,36 @@ H.staff['PATCH client'] = async (req, res, s, q) => {
   await store.set(`client:${q.id}`, c); await log(s.name, `updated ${c.name}`, q.id);
   return { client: pubClient(c) };
 };
+// the people on a workspace. The first email is the login and every email gets our notifications.
+// Changing an email moves the login and the events and tickets it submitted, so replies keep reaching the new address.
+H.staff['PUT contacts'] = async (req, res, s, q) => {
+  const b = await readBody(req), { c } = await bundle(q.id), set = await settings(), ok = x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+  const list = (Array.isArray(b.contacts) ? b.contacts : []).slice(0, 6).map(x => ({ was: clip(x.was, 200).trim().toLowerCase(), name: clip(x.name, 80).trim(), email: clip(x.email, 200).trim().toLowerCase() })).filter(x => x.email);
+  if (!list.length) throw bad(400, 'Keep at least one email. The first one is their login.');
+  const before = emailsOf(c), seen = new Set();
+  for (const x of list) {
+    if (!ok(x.email)) throw bad(400, `${clip(x.email, 60)} is not a valid email.`);
+    if (seen.has(x.email)) throw bad(400, `${clip(x.email, 60)} is in the list twice.`); seen.add(x.email);
+    const owner = await store.get(`idx:email:${x.email}`); if (owner && owner !== q.id) throw bad(409, `${clip(x.email, 60)} already has another workspace.`);
+  }
+  const moved = Object.fromEntries(list.filter(x => x.was && x.was !== x.email && before.includes(x.was)).map(x => [x.was, x.email]));
+  for (const e of before) if (!seen.has(e)) await store.del(`idx:email:${e}`);
+  for (const x of list) await store.set(`idx:email:${x.email}`, q.id);
+  c.contacts = list.map(({ name, email }) => ({ name, email }));
+  await store.set(`client:${q.id}`, c);
+  if (Object.keys(moved).length) {
+    const evs = await eventsOf(q.id), tks = (await store.get(`tickets:${q.id}`)) || [];
+    for (const e of evs) if (moved[e.by]) e.by = moved[e.by];
+    for (const t of tks) if (moved[t.by]) t.by = moved[t.by];
+    await saveEvents(q.id, evs); await store.set(`tickets:${q.id}`, tks);
+  }
+  const fresh = list.filter(x => !before.includes(x.email)).map(x => x.email);
+  if (fresh.length) await send({ to: fresh, replyTo: set.studioEmail, subject: `${set.studio} · your portal email`,
+    ...letter({ title: 'This email is now on your portal', lines: [`${c.name}: notifications from ${set.studio} now come to this address.`, fresh.includes(list[0].email) ? `Sign in with ${list[0].email} and your access code.` : `The login stays ${list[0].email}.`],
+      button: { label: 'Open the portal', url: portal(req) } }) });
+  await log(s.name, `updated the emails for ${c.name}: ${list.map(x => x.email).join(', ')}`, q.id);
+  return { client: pubClient(c) };
+};
 H.staff['POST resetcode'] = async (req, res, s, q) => {
   const { c } = await bundle(q.id), code = newCode(); c.salt = newSalt(); c.codeHash = hashCode(code, c.salt);
   await store.set(`client:${q.id}`, c); await log(s.name, `made a new access code for ${c.name}`, q.id);
@@ -455,7 +485,7 @@ H.client['POST event'] = async (req, res, s) => {
   const span = end && end !== start ? `${start} to ${end}` : start;
   await send({ to: set.studioEmail, replyTo: s.email, subject: `${old ? 'Event updated' : 'New event'}: ${c.name} · ${title} · ${span}`,
     ...letter({ title: `${nameOf(c, s.email)} ${old ? 'updated' : 'added'} an event`, lines: [`${title}, ${span}.`, ...[['Segment', e.segment], ['Brand', e.brand], ['Audience', e.audience], ['Offer', e.offer], ['Link', e.link]].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`)],
-      quote: e.description || undefined, button: { label: 'Open in the portal', url: `${portal(req)}#client/${s.cid}/events` } }) });
+      quote: e.description || undefined, button: { label: 'Open in the portal', url: `${portal(req)}#client/${s.cid}/events/${e.id}` } }) });
   return { event: e };
 };
 H.client['DELETE event'] = async (req, res, s) => {
@@ -482,7 +512,7 @@ H.staff['POST eventreply'] = async (req, res, s, q) => {
   const r = { id: newId(6), from: 'staff', name: s.name, text, at, mailedTo: to };
   r.mailed = await send({ to, replyTo: set.studioEmail, subject: `Re: your event "${e.title}" · ${set.studio}`,
     ...letter({ title: `${set.studio} replied about your event`, lines: [`${e.title}, ${e.end && e.end !== e.start ? `${e.start} to ${e.end}` : e.start}.`, `${s.name} wrote:`], quote: text,
-      button: { label: 'Open your events', url: `${portal(req)}#events` }, small: 'Reply in the portal, so the whole team sees it.' }) });
+      button: { label: 'Reply on this event', url: `${portal(req)}#events/${e.id}` }, small: 'Reply under the event in the portal. We get an email the moment you do.' }) });
   replyThread(e).push(r); e.replies = e.replies.slice(-100); e.seen = at;
   await saveEvents(q.id, all); await log(s.name, `replied on the event "${e.title}"${r.mailed ? ` (emailed ${to.join(', ')})` : ' (not emailed)'}`, q.id);
   return { event: e };
@@ -494,7 +524,7 @@ H.client['POST eventreply'] = async (req, res, s) => {
   replyThread(e).push({ id: newId(6), from: 'client', name: nameOf(c, s.email), email: s.email, text, at }); e.replies = e.replies.slice(-100); e.clientSeen = at; e.updated = at;
   await saveEvents(s.cid, all); await log(c.name, `replied on the event "${e.title}"`, s.cid);
   await send({ to: set.studioEmail, replyTo: s.email, subject: `Event reply: ${c.name} · ${e.title}`,
-    ...letter({ title: `${nameOf(c, s.email)} replied on an event`, lines: [`${e.title}, ${e.start}.`], quote: text, button: { label: 'Open in the portal', url: `${portal(req)}#client/${s.cid}/events` } }) });
+    ...letter({ title: `${nameOf(c, s.email)} replied on an event`, lines: [`${e.title}, ${e.start}.`], quote: text, button: { label: 'Reply on this event', url: `${portal(req)}#client/${s.cid}/events/${e.id}` } }) });
   return { event: e };
 };
 // the client opened their Events page: our replies so far count as seen
