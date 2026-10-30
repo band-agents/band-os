@@ -11,4 +11,7 @@ jobs:
     timeout-minutes: 3
     steps:
       - name: Send due reminders
-        run: curl -fsS -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" https://band-os-omega.vercel.app/api/cron/remind
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://band-os-omega.vercel.app/api/cron/remind
