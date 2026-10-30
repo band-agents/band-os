@@ -1,7 +1,7 @@
 import { store, mode } from './store.js';
 import { configured, sessionOf, setSession, clearSession, sha, same, hashCode, newCode, newId, newSalt } from './auth.js';
 import { GROUPS, CHECKLIST, FORMS, TIMELINE, DEFAULT_SETTINGS, CONTRACT } from './seed.js';
-import { send, letter, mailReady, ics, gcalLink } from './mail.js';
+import { send, letter, mailReady, mailWho, ics, gcalLink } from './mail.js';
 import { BOOKING, freeSlots, when } from './slots.js';
 
 const MAX_BODY = 400_000;
@@ -459,7 +459,7 @@ H.staff['PUT booking'] = async (req) => {
 H.staff['POST testmail'] = async (req, res, s) => {
   if (!mailReady()) throw bad(409, 'Email is not set up yet. Add GMAIL_USER and GMAIL_APP_PASSWORD in Vercel, then redeploy.');
   const set = await settings();
-  if (!await send({ to: set.studioEmail, subject: `Test from the ${set.studio} portal`, ...letter({ title: 'Email works.', lines: [`${s.name} sent this test from the portal settings.`, 'New tickets, replies and meeting bookings arrive here.'] }) })) throw bad(502, 'Gmail refused it. Check GMAIL_USER and the app password.');
+  if (!await send({ to: set.studioEmail, subject: `Test from the ${set.studio} portal`, ...letter({ title: 'Email works.', lines: [`${s.name} sent this test from the portal settings.`, 'New tickets, replies and meeting bookings arrive here.'] }) })) { const w = mailWho(); throw bad(502, `Gmail refused the sign-in as "${w.user}" with a ${w.passLength}-letter app password${w.passLength === 16 ? '' : ' (it should be 16)'}. Check both in Vercel.`); }
   return { ok: true };
 };
 

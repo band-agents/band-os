@@ -4,6 +4,8 @@ import nodemailer from 'nodemailer';
 
 const USER = () => (process.env.GMAIL_USER || '').trim(), PASS = () => (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
 export const mailReady = () => !!(USER() && PASS());
+// what the server signs in with, safe to show staff: the address, and only the length of the app password (Google's are 16 letters)
+export const mailWho = () => ({ user: USER(), passLength: PASS().length });
 let tx = null;
 
 export async function send({ to, subject, text, html, replyTo, invite }) {
