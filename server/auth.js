@@ -1,4 +1,5 @@
-// Sessions are a signed cookie. Staff get in with one shared code (STAFF_CODE, set in the host's environment, never in the repo).
+// Sessions are a signed cookie. Staff get in with the team code (STAFF_CODE, set in the host's environment, never in the repo) or a personal code;
+// a personal code made in Settings is temporary until its owner signs in and chooses their own.
 // Clients get in with their email and an access code a staff member made for them. Codes are stored as salted hashes.
 import { createHmac, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 

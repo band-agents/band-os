@@ -296,9 +296,9 @@ function settings() {
     <div class="fld"><label>Default governing law</label><input class="in" id="st-law" value="${esc(s.governingLaw)}"></div><div class="fld"><label>Agreement title</label><input class="in" id="st-title" value="${esc(s.contractTitle)}"></div></div>
     <div class="warnbox">${ic('alert')}<span>The default agreement text is a draft written for this service. Have a lawyer read it before the first client signs. Electronic signature rules depend on the country.</span></div>
     <div class="acts"><button class="btn green" data-savesettings>Save settings</button></div></div>
-    <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">Everyone can sign in with the team code. A personal code signs in under that person's own name, so the activity log says who did what.</p>
+    <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">A personal code signs in under that person's own name, so the activity log says who did what. The code you set here is temporary: the first time they sign in, they have to choose their own.</p>${me.personal ? `<div class="acts" style="margin-top:10px"><button class="btn sm" data-mycode>${ic('key')} Change my code</button></div>` : ''}
     <div id="team" style="margin-top:12px"><p class="small">Loading…</p></div>
-    <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Personal code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div>
+    <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Temporary code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div>
     <div class="card" style="margin-top:14px"><h3>Calls clients can book</h3><p class="small">Clients see these hours under Meetings and pick a slot. Each booking emails ${esc(s.studioEmail)} a calendar invite. Times are ${esc(b.tz)} time.</p>
     <label class="chk" style="margin-top:14px"><input type="checkbox" id="bk-on" ${b.on ? 'checked' : ''}><span>Clients can book calls</span></label>
     <div class="fld" style="margin-top:14px"><label>Days</label><div class="daycb">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => `<label><input type="checkbox" data-bkday="${i}" ${b.days.includes(i) ? 'checked' : ''}>${d}</label>`).join('')}</div></div>
@@ -312,7 +312,7 @@ function settings() {
 }
 async function loadTeam() {
   const el = $('#team'); if (!el) return;
-  try { const r = await api('GET', 'staff/team'); el.innerHTML = r.team.length ? `<table class="t"><tbody>${r.team.map(m => `<tr><td><b>${esc(m.name)}</b><br><span class="small">added ${esc(day(m.at))}</span></td><td class="r"><button class="btn sm ghost danger" data-rmstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">No personal codes yet.</p>'; }
+  try { const r = await api('GET', 'staff/team'); el.innerHTML = r.team.length ? `<table class="t"><tbody>${r.team.map(m => `<tr><td><b>${esc(m.name)}</b><br><span class="small">${m.temp ? 'temporary code · has not chosen their own yet' : m.changedAt ? `own code since ${esc(day(m.changedAt))}` : `added ${esc(day(m.at))}`}</span></td><td class="r"><button class="btn sm ghost danger" data-rmstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">No personal codes yet.</p>'; }
   catch (e) { el.innerHTML = `<p class="small">${esc(e.message)}</p>`; }
 }
 
@@ -386,7 +386,21 @@ async function onClick(e) {
   if (d.savenotes !== undefined) return void (await put({ notes: $('#cs-notes').value }));
   if (d.reset !== undefined) { if (!confirm('Make a new access code? The old one stops working immediately.')) return; try { const r = await api('POST', `staff/clients/${arg}/resetcode`, {}); codeModal(C.client, r.code, false); } catch (er) { toast(er.message, true); } return; }
   if (d.del !== undefined) { const n = prompt(`Type "${C.client.name}" to delete this workspace for good.`); if (n === null) return; try { await api('DELETE', 'staff/clients/' + arg, { confirm: n }); await reload(); toast('Deleted'); nav('overview'); } catch (er) { toast(er.message, true); } return; }
-  if (d.addstaff !== undefined) { try { await api('POST', 'staff/team', { name: $('#tm-name').value, code: $('#tm-code').value }); $('#tm-name').value = $('#tm-code').value = ''; toast('Added'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
+  if (d.mycode !== undefined) {
+    modal(`<h3>Change my code</h3><p class="small">At least 8 characters. Your old code stops working when you save.</p>
+      <div class="fld" style="margin-top:12px"><label>New code</label><input class="in" id="mc1" type="password" autocomplete="new-password"></div>
+      <div class="fld" style="margin-top:12px"><label>Type it again</label><input class="in" id="mc2" type="password" autocomplete="new-password"></div>
+      <div class="err" id="mcerr"></div><div class="acts"><button class="btn green" data-mcsave>Save</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+      onMount: (m, close) => {
+        $('[data-close]', m).onclick = close; $('#mc1', m).focus();
+        $('[data-mcsave]', m).onclick = async () => {
+          const a = $('#mc1', m).value; if (a !== $('#mc2', m).value) return void ($('#mcerr', m).textContent = 'The two codes are not the same.');
+          try { await api('POST', 'staff/mycode', { code: a }); close(); toast('Your code is changed'); } catch (er) { $('#mcerr', m).textContent = er.message; }
+        };
+      } });
+    return;
+  }
+  if (d.addstaff !== undefined) { try { await api('POST', 'staff/team', { name: $('#tm-name').value, code: $('#tm-code').value }); $('#tm-name').value = $('#tm-code').value = ''; toast('Added. Send them the temporary code privately.'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
   if (d.rmstaff) { if (!confirm('Remove this person? Their personal code stops working.')) return; try { await api('DELETE', 'staff/team', { id: d.rmstaff }); toast('Removed'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
   if (d.savesettings !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { studio: $('#st-studio').value, studioEmail: $('#st-email').value, bandBmId: $('#st-bm').value, governingLaw: $('#st-law').value, contractTitle: $('#st-title').value }); toast('Saved'); } catch (er) { toast(er.message, true); } }
 }

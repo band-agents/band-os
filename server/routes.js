@@ -72,12 +72,13 @@ H.open['POST login/staff'] = async (req, res) => {
   const b = await readBody(req), code = clip(b.code, 200);
   if (await store.hit(`rl:s:${sha(ip(req))}`, 600) > 8) throw bad(429, 'Too many tries. Wait ten minutes.');
   // the team code from the host's environment works for anyone; personal codes made in Settings sign in under their own name
-  let name = cfg.staffCode && same(sha(code), sha(process.env.STAFF_CODE)) ? (clip(b.name, 40).trim() || 'Staff') : null;
-  if (!name) { const u = ((await store.get('staffusers')) || []).find(x => same(hashCode(code, x.salt), x.hash)); name = u?.name || null; }
+  let name = cfg.staffCode && same(sha(code), sha(process.env.STAFF_CODE)) ? (clip(b.name, 40).trim() || 'Staff') : null, u = null;
+  if (!name) { u = ((await store.get('staffusers')) || []).find(x => same(hashCode(code, x.salt), x.hash)); name = u?.name || null; }
   if (!name) throw bad(401, 'That code is not right.');
-  setSession(req, res, { role: 'staff', name }, 60 * 60 * 24 * 7);
-  await log(name, 'signed in');
-  return { role: 'staff', name };
+  // a temporary code only lets the person choose their own (a short session, nothing else works until they do)
+  setSession(req, res, { role: 'staff', name, ...(u ? { uid: u.id } : {}), ...(u?.temp ? { temp: true } : {}) }, u?.temp ? 60 * 30 : 60 * 60 * 24 * 7);
+  await log(name, u?.temp ? 'signed in with a temporary code' : 'signed in');
+  return { role: 'staff', name, mustChange: !!u?.temp };
 };
 H.open['POST login/client'] = async (req, res) => {
   if (!configured().secret) throw bad(503, 'Login is not configured on this server yet.');
@@ -97,7 +98,7 @@ H.open['POST logout'] = async (req, res) => { clearSession(res); return { ok: tr
 H.open['GET me'] = async (req) => {
   const s = sessionOf(req); if (!s) return { role: null };
   if (s.role === 'client') { const c = await store.get(`client:${s.cid}`); return c ? { role: 'client', name: c.name, brands: c.brands } : { role: null }; }
-  return { role: 'staff', name: s.name };
+  return { role: 'staff', name: s.name, personal: !!s.uid, mustChange: !!s.temp };
 };
 H.open['GET template'] = async (req) => { if (!sessionOf(req)) throw bad(401, 'Sign in first'); return { groups: GROUPS, checklist: CHECKLIST, forms: FORMS, timeline: TIMELINE, contract: CONTRACT }; };
 
@@ -272,7 +273,7 @@ H.staff['DELETE client'] = async (req, res, s, q) => {
   await store.srem('clients', q.id); await log(s.name, `deleted ${c.name}`);
   return { ok: true };
 };
-H.staff['GET team'] = async () => ({ team: ((await store.get('staffusers')) || []).map(({ id, name, at }) => ({ id, name, at })) });
+H.staff['GET team'] = async () => ({ team: ((await store.get('staffusers')) || []).map(({ id, name, at, temp, changedAt }) => ({ id, name, at, temp: !!temp, changedAt })) });
 H.staff['POST team'] = async (req, res, s) => {
   const b = await readBody(req), name = clip(b.name, 40).trim(), code = clip(b.code, 100);
   if (name.length < 2) throw bad(400, 'Give the person a name.');
@@ -280,8 +281,8 @@ H.staff['POST team'] = async (req, res, s) => {
   const users = (await store.get('staffusers')) || [];
   if (users.some(x => x.name.toLowerCase() === name.toLowerCase())) throw bad(409, 'That name already has a code.');
   if (users.some(x => same(hashCode(code, x.salt), x.hash)) || (configured().staffCode && same(sha(code), sha(process.env.STAFF_CODE)))) throw bad(409, 'Pick a different code. This one is already in use.');
-  const salt = newSalt(); users.push({ id: newId(5), name, salt, hash: hashCode(code, salt), at: now() });
-  await store.set('staffusers', users.slice(0, 30)); await log(s.name, `added ${name} to the staff`);
+  const salt = newSalt(); users.push({ id: newId(5), name, salt, hash: hashCode(code, salt), at: now(), temp: true });
+  await store.set('staffusers', users.slice(0, 30)); await log(s.name, `added ${name} to the staff with a temporary code`);
   return { ok: true };
 };
 H.staff['DELETE team'] = async (req, res, s) => {
@@ -289,6 +290,21 @@ H.staff['DELETE team'] = async (req, res, s) => {
   if (!u) throw bad(404, 'Not found'); if (u.name === s.name) throw bad(400, 'You cannot remove yourself.');
   await store.set('staffusers', users.filter(x => x.id !== b.id)); await log(s.name, `removed ${u.name} from the staff`);
   return { ok: true };
+};
+// choose your own code: required after signing in with a temporary one, and open any time after that
+H.staff['POST mycode'] = async (req, res, s) => {
+  if (!s.uid) throw bad(400, 'You signed in with the team code. Personal codes are made in Settings, Staff team.');
+  const b = await readBody(req), code = clip(b.code, 100);
+  if (code.trim().length < 8) throw bad(400, 'Your code needs at least 8 characters.');
+  const users = (await store.get('staffusers')) || [], u = users.find(x => x.id === s.uid);
+  if (!u) throw bad(401, 'Sign in again.');
+  if (same(hashCode(code, u.salt), u.hash)) throw bad(400, 'Pick a code different from the temporary one.');
+  if (users.some(x => x.id !== u.id && same(hashCode(code, x.salt), x.hash)) || (configured().staffCode && same(sha(code), sha(process.env.STAFF_CODE)))) throw bad(409, 'Pick a different code. This one is already in use.');
+  u.salt = newSalt(); u.hash = hashCode(code, u.salt); delete u.temp; u.changedAt = now();
+  await store.set('staffusers', users);
+  setSession(req, res, { role: 'staff', name: u.name, uid: u.id }, 60 * 60 * 24 * 7);
+  await log(u.name, 'chose their own code');
+  return { ok: true, name: u.name };
 };
 H.staff['GET settings'] = async () => settings();
 H.staff['PUT settings'] = async (req) => {
@@ -521,6 +537,7 @@ export async function handle(req, res) {
     if (a === 'client' && b) { if (s?.role !== 'client') throw bad(401, 'Sign in first'); h = H.client[`${m} ${b}`]; }
     else if (a === 'staff') {
       if (s?.role !== 'staff') throw bad(401, 'Sign in first');
+      if (s.temp && `${m} ${b}` !== 'POST mycode') throw bad(403, 'Choose your own code first.');
       if (b === 'clients' && c) { const d = parts[3]; q.id = c; if (!okId(c)) throw bad(400, 'Bad id'); h = H.staff[`${m} ${d || 'client'}`]; }
       else h = H.staff[`${m} ${b}`];
     } else { key = `${m} ${parts.join('/')}`; h = H.open[key]; }

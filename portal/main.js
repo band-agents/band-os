@@ -13,6 +13,7 @@ async function boot() {
   let me = { role: null };
   try { me = await api('GET', 'me'); } catch { }
   document.body.classList.toggle('staff', me.role === 'staff');
+  if (me.role === 'staff' && me.mustChange) return chooseCode(me);
   if (me.role === 'client') return (await import('./client.js')).mount(me);
   if (me.role === 'staff') return (await import('./staff.js')).mount(me);
   login();
@@ -56,6 +57,33 @@ function login() {
       else await api('POST', 'login/staff', { name: $('#nm').value, code: $('#cd').value });
       el.hidden = true; bc?.stop(); history.replaceState(null, '', location.pathname); boot();
     } catch (err) { $('#lerr').textContent = err.message; go.disabled = false; $('#cd').select(); }
+  };
+}
+
+// signed in with a temporary code: choose your own before anything else opens
+function chooseCode(me) {
+  const el = $('#login'); el.hidden = false; $('#app').innerHTML = '';
+  el.innerHTML = `<div class="stage">
+    <div class="l"><div><canvas id="lcode" aria-hidden="true"></canvas><div class="wm" id="lwm"></div>
+      <h1>Welcome,<br><span>${esc(me.name)}.</span></h1><p>You signed in with a temporary code. Choose your own to continue. Only you will know it.</p></div>
+      <div class="meta mono"><i></i><span>Private · we store a hash, never the code</span></div></div>
+    <form class="r" id="cf" autocomplete="on">
+      <input type="text" autocomplete="username" value="${esc(me.name)}" hidden>
+      <div class="fld"><label for="n1">Your new code</label><input class="in code" id="n1" type="password" autocomplete="new-password" minlength="8" placeholder="8 characters or more" required></div>
+      <div class="fld" style="margin-top:14px"><label for="n2">Type it again</label><input class="in code" id="n2" type="password" autocomplete="new-password" required></div>
+      <div class="err" id="cerr" role="alert"></div>
+      <button class="btn light" id="cgo" type="submit">Save and enter ${ic('arrow')}</button>
+      <p class="small"><a href="#" id="cout">Sign out</a> · the temporary code stops working once you save.</p></form></div>`;
+  $('#lwm').innerHTML = wordmark('#EDEDE6'); drawIn($('#lwm svg'), 900);
+  bc?.stop(); bc = barcode($('#lcode'), { level: .6 }); $('#n1').focus();
+  $('#cout').onclick = e => { e.preventDefault(); signOut(); };
+  $('#cf').onsubmit = async e => {
+    e.preventDefault(); const go = $('#cgo'), a = $('#n1').value, b = $('#n2').value; $('#cerr').textContent = '';
+    if (a.trim().length < 8) return void ($('#cerr').textContent = 'Your code needs at least 8 characters.');
+    if (a !== b) return void ($('#cerr').textContent = 'The two codes are not the same.');
+    go.disabled = true;
+    try { await api('POST', 'staff/mycode', { code: a }); el.hidden = true; bc?.stop(); toast('Your code is saved'); boot(); }
+    catch (err) { $('#cerr').textContent = err.message; go.disabled = false; }
   };
 }
 
