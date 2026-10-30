@@ -146,3 +146,52 @@ export const STATE = {
   todo: ['To do', ''], submitted: ['Sent', 'ok'], help: ['Needs help', 'warn'], na: ['Not applicable', ''], verified: ['Verified', 'live'], 'needs-fix': ['Needs a fix', 'bad'],
 };
 export const KIND = { access: 'Access', assets: 'Material', data: 'Numbers', decide: 'Decision', admin: 'Admin' };
+
+/* ---------- private files (the studio's legal papers, pages signed by hand): fetched once per page load ---------- */
+const FILES = new Map();
+export const getFile = (scope, id) => { if (!FILES.has(id)) FILES.set(id, api('POST', `${scope}/file`, { id }).catch(e => { FILES.delete(id); throw e; })); return FILES.get(id); };
+export const keepFile = (id, f) => FILES.set(id, Promise.resolve(f));
+const dataBlob = d => { const [h, b] = d.split(','), bin = atob(b), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return new Blob([u], { type: h.slice(5, h.indexOf(';')) }); };
+// fill every <img data-file> under root; a PDF becomes a chip that opens it in a new tab
+export function showFiles(scope, root = document) {
+  root.querySelectorAll('img[data-file]:not([src])').forEach(im => getFile(scope, im.dataset.file).then(f => {
+    if (f.data.startsWith('data:application/pdf')) { const a = document.createElement('a'); a.className = 'pdfchip'; a.textContent = `${f.name || 'PDF'} · open`; a.target = '_blank'; a.rel = 'noopener'; a.href = URL.createObjectURL(dataBlob(f.data)); im.replaceWith(a); }
+    else im.src = f.data;
+  }).catch(() => { im.alt = 'Could not load this file'; }));
+}
+// a photo or a scan, made small enough to keep: images become JPEG (long side 2000px, then smaller until it fits); PDFs must already be small
+export async function fileData(file, max = 880_000) {
+  const read = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('Could not read that file.')); r.readAsDataURL(f); });
+  if (file.type === 'application/pdf') { const d = await read(file); if (d.length > max) throw new Error(`${file.name} is too big. Upload photos of the pages instead, or a PDF under about 650 KB.`); return d; }
+  if (!file.type.startsWith('image/')) throw new Error(`${file.name} is not a photo or a PDF.`);
+  const im = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error(`Could not open ${file.name}.`)); i.src = URL.createObjectURL(file); });
+  for (const [side, q] of [[2000, .82], [1700, .75], [1400, .7], [1100, .65]]) {
+    const k = Math.min(1, side / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement('canvas');
+    c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+    const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+    const d = c.toDataURL('image/jpeg', q); if (d.length <= max) return d;
+  }
+  throw new Error(`${file.name} is too big even after shrinking.`);
+}
+
+/* ---------- the client's legal details, filled in before signing (same fields as the server) ---------- */
+export const PARTY_F = [
+  ['name', 'Legal company name', 'As on your commercial register', true, 'full'],
+  ['form', 'Legal form', 'e.g. SAL, SARL, sole proprietorship', true],
+  ['country', 'Country of registration', 'e.g. Lebanon', true],
+  ['reg', 'Commercial register no.', 'The registration number', true],
+  ['tax', 'Tax / VAT no.', 'If you have one', false],
+  ['address', 'Registered address', 'Street, building, floor, city, country', true, 'full'],
+  ['signer', 'Who signs', 'Full name, as on their ID', true],
+  ['signerTitle', 'Their role', 'e.g. Co-founder, Managing Director', true],
+  ['email', 'Email for legal notices', 'name@company.com', true, 'full'],
+];
+export const partyOk = p => PARTY_F.every(([k, , , req]) => !req || String(p?.[k] || '').trim());
+export const BLANK = '…………………… (to be completed by the Client)';
+// the boxes a client (or staff, for them) fills in; the values go straight into the agreement
+export const partyFields = (p = {}) => `<div class="pf-grid">${PARTY_F.map(([k, l, ph, req, w]) => `<label class="pf ${w ? 'full' : ''}"><span>${l}${req ? '' : ' <em>optional</em>'}</span>${k === 'address'
+  ? `<textarea data-pf="${k}" rows="2" placeholder="${esc(ph)}">${esc(p[k] || '')}</textarea>`
+  : `<input data-pf="${k}" ${k === 'email' ? 'type="email" autocomplete="email"' : k === 'signer' ? 'autocomplete="name"' : k === 'name' ? 'autocomplete="organization"' : ''} ${k === 'form' ? 'list="pf-forms"' : ''} placeholder="${esc(ph)}" value="${esc(p[k] || '')}">`}</label>`).join('')}</div>
+  <datalist id="pf-forms"><option value="SAL (joint-stock company)"><option value="SARL (limited liability company)"><option value="Sole proprietorship"><option value="Partnership"></datalist>`;
+export const readParty = root => Object.fromEntries([...root.querySelectorAll('[data-pf]')].map(x => [x.dataset.pf, x.value]));
+export const partyMissing = b => PARTY_F.filter(([k, , , req]) => req && !String(b[k] || '').trim());

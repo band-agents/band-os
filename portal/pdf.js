@@ -3,51 +3,75 @@ const SRC = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js
 const load = () => window.jspdf ? Promise.resolve() : new Promise((ok, no) => { const s = document.createElement('script'); s.src = SRC; s.onload = ok; s.onerror = () => no(new Error('Could not load the PDF tool. Use Print instead.')); document.head.append(s); });
 const img = src => new Promise(ok => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => ok(null); i.src = src; });
 
-export async function agreementPdf({ title, text, client, signature, countersign, docHash, studio = 'band.' }) {
+// The agreement as a PDF: blank (to print and sign by hand), or signed (drawn in the portal, or by hand with the signed pages attached).
+// annex: the studio's legal papers [{ title, data }]; hand: photos or scans of the pages signed by hand [{ name, data }].
+export async function agreementPdf({ title, text, client, signature, countersign, docHash, studio = 'band.', blank = false, annex = [], hand = [] }) {
   await load(); const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'pt', format: 'a4' });
-  const M = 60, W = 595 - M * 2, BOT = 780; let y = 70;
+  const M = 60, W = 595 - M * 2, BOT = 770; let y = 70;
   const room = h => { if (y + h > BOT) { doc.addPage(); y = 70; } };
   const para = (s, { size = 10.5, bold = false, gap = 6, indent = 0, color = 40, lh = 1.5 } = {}) => {
     doc.setFont('helvetica', bold ? 'bold' : 'normal').setFontSize(size).setTextColor(color);
     for (const ln of doc.splitTextToSize(s, W - indent)) { room(size * lh); doc.text(ln, M + indent, y); y += size * lh; } y += gap;
   };
+  // jsPDF's built-in fonts have no "…", so the dotted blanks become plain dots
+  const clean = s => s.replace(/\*\*/g, '').replace(/…/g, '...');
   doc.setFont('helvetica', 'bold').setFontSize(9).setTextColor(120).text(`${studio.toUpperCase()}  ·  ${client.toUpperCase()}`, M, 40);
   for (const raw of String(text).split('\n')) {
-    const l = raw.trimEnd().replace(/\*\*/g, '');
+    const l = clean(raw.trimEnd());
     if (!l) continue;
-    if (l.startsWith('# ')) para(l.slice(2), { size: 22, bold: true, gap: 12, color: 10, lh: 1.25 });
+    if (l.startsWith('# ')) para(l.slice(2), { size: 20, bold: true, gap: 10, color: 10, lh: 1.25 });
     else if (l.startsWith('## ')) { y += 8; room(40); para(l.slice(3), { size: 12.5, bold: true, gap: 3, color: 10 }); }
     else if (l.startsWith('- ')) { room(16); doc.setFontSize(10.5).setTextColor(40).text('•', M + 4, y); const keep = y; para(l.slice(2), { indent: 16, gap: 2 }); if (y === keep) y += 14; }
     else para(l);
   }
-  // signatures
-  room(230); y += 18; doc.setDrawColor(200).line(M, y, M + W, y); y += 24;
+  // signatures: two columns, the Client on the left and the Studio on the right
+  room(250); y += 18; doc.setDrawColor(200).line(M, y, M + W, y); y += 24;
   para('Signatures', { size: 12.5, bold: true, color: 10, gap: 10 });
-  const top = y, col = W / 2 - 10;
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(120).text('FOR THE CLIENT', M, top);
-  if (signature) {
+  const top = y, col = W / 2 - 10, x2 = M + W / 2 + 10;
+  const lines = x => { doc.setFont('helvetica', 'normal').setFontSize(9.5).setTextColor(90); [['Name', 22], ['Title', 52], ['Signature', 92], ['Date', 122]].forEach(([l, d]) => { doc.text(l, x, top + d); doc.setDrawColor(160).line(x + 52, top + d + 2, x + col, top + d + 2); }); };
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(120).text('FOR THE CLIENT (SECOND PARTY)', M, top);
+  if (signature?.method === 'hand') {
+    doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(10).text(signature.name, M, top + 30);
+    doc.setFont('helvetica', 'normal').setFontSize(9.5).setTextColor(90).text([signature.title || '', `Signed by hand, uploaded ${new Date(signature.at).toUTCString()}`, 'The signed pages are attached at the end.'].filter(Boolean), M, top + 46);
+  } else if (signature) {
     const im = await img(signature.drawing);
     if (im) { const h = 52, w = Math.min(col, h * im.width / im.height); doc.addImage(signature.drawing, 'PNG', M, top + 8, w, h); }
     doc.setDrawColor(30).line(M, top + 66, M + col, top + 66);
     doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(10).text(signature.name, M, top + 82);
     doc.setFont('helvetica', 'normal').setFontSize(9.5).setTextColor(90).text([signature.title || '', `Signed ${new Date(signature.at).toUTCString()}`].filter(Boolean), M, top + 96);
-  }
-  const x2 = M + W / 2 + 10;
-  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(120).text(`FOR ${studio.toUpperCase()}`, x2, top);
-  doc.setDrawColor(30).line(x2, top + 66, x2 + col, top + 66);
+  } else lines(M);
+  doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(120).text(`FOR ${studio.toUpperCase()} (FIRST PARTY)`, x2, top);
   if (countersign) {
+    doc.setDrawColor(30).line(x2, top + 66, x2 + col, top + 66);
     doc.setFont('times', 'italic').setFontSize(22).setTextColor(10).text(countersign.name, x2, top + 52);
     doc.setFont('helvetica', 'normal').setFontSize(9.5).setTextColor(90).text(`Countersigned ${new Date(countersign.at).toUTCString()}`, x2, top + 82);
-  } else doc.setFont('helvetica', 'italic').setFontSize(10).setTextColor(150).text('Awaiting countersignature', x2, top + 52);
-  y = top + 120;
+  } else if (blank) lines(x2);
+  else { doc.setDrawColor(30).line(x2, top + 66, x2 + col, top + 66); doc.setFont('helvetica', 'italic').setFontSize(10).setTextColor(150).text('Awaiting countersignature', x2, top + 52); }
+  y = top + 145;
   if (signature) {
-    doc.setFillColor(246, 246, 240).roundedRect(M, y, W, 64, 6, 6, 'F');
+    room(70); doc.setFillColor(246, 246, 240).roundedRect(M, y, W, 64, 6, 6, 'F');
     doc.setFont('helvetica', 'bold').setFontSize(8.5).setTextColor(90).text('SIGNATURE RECORD', M + 12, y + 16);
-    doc.setFont('courier', 'normal').setFontSize(8).setTextColor(70).text(doc.splitTextToSize(`Signed electronically by typed name and drawn signature.\nTime: ${signature.at}   Network: ${signature.ip}\nDocument fingerprint (SHA-256): ${docHash || signature.docHash}`, W - 24), M + 12, y + 30);
+    doc.setFont('courier', 'normal').setFontSize(8).setTextColor(70).text(doc.splitTextToSize(`${signature.method === 'hand' ? `Signed by hand on a printed copy; ${hand.length || (signature.files || []).length} page(s) uploaded to the portal.` : 'Signed electronically by typed name and drawn signature.'}\nTime: ${signature.at}   Network: ${signature.ip}\nDocument fingerprint (SHA-256): ${docHash || signature.docHash}`, W - 24), M + 12, y + 30);
   }
+  // full pages after the agreement: the annexes, then the pages signed by hand
+  // a wide scan (like a commercial register extract) gets a landscape page so it stays readable
+  const page = async (heading, data) => {
+    const pdf = data.startsWith('data:application/pdf'), im = pdf ? null : await img(data), wide = im && im.width > im.height;
+    doc.addPage('a4', wide ? 'l' : 'p'); y = 60;
+    doc.setFont('helvetica', 'bold').setFontSize(13).setTextColor(10).text(heading, M, y); y += 22;
+    if (pdf || !im) return doc.setFont('helvetica', 'normal').setFontSize(10.5).setTextColor(110).text(pdf ? 'This document is a PDF. Open it from the Agreement page in the portal.' : 'This image could not be added.', M, y);
+    const pw = doc.internal.pageSize.getWidth() - M * 2, ph = doc.internal.pageSize.getHeight() - y - 50, k = Math.min(pw / im.width, ph / im.height);
+    doc.addImage(data, data.startsWith('data:image/png') ? 'PNG' : 'JPEG', M, y, im.width * k, im.height * k);
+  };
+  for (const [i, a] of annex.entries()) await page(`Annex ${i + 1}: ${a.title}`, a.data);
+  for (const [i, h] of hand.entries()) await page(`Signed copy · page ${i + 1} of ${hand.length}`, h.data);
   const n = doc.getNumberOfPages();
-  for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(150).text(`${title}  ·  page ${i} of ${n}`, M, 820); }
-  doc.save(`${client.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-agreement.pdf`);
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); const fy = doc.internal.pageSize.getHeight() - 22, fx = doc.internal.pageSize.getWidth() - M;
+    doc.setFont('helvetica', 'normal').setFontSize(8).setTextColor(150).text(`${title}  ·  page ${i} of ${n}`, M, fy);
+    if (blank) { doc.text('Initials', fx - 120, fy); doc.setDrawColor(170).line(fx - 86, fy + 1, fx, fy + 1); }
+  }
+  doc.save(`${client.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-agreement${blank ? '-to-sign' : ''}.pdf`);
 }
 
 // Everything a client has sent us, as one tidy file for staff. The caller hands over plain sections; this only lays them out.

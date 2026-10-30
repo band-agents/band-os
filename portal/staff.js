@@ -1,4 +1,4 @@
-import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText, setPalette, openPalette, md, chart, barcode, STATE, KIND } from './lib.js';
+import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText, setPalette, openPalette, md, chart, barcode, STATE, KIND, getFile, showFiles, fileData, PARTY_F, partyFields, partyOk, readParty, BLANK } from './lib.js';
 import { shell, signOut } from './main.js';
 import { agreementPdf, clientDataPdf } from './pdf.js';
 
@@ -73,7 +73,7 @@ function paint() {
   side(); const v = $('#view'), t = { overview, clients, client, tickets: inbox, meetings: calls, feed: updates, activity, settings }[route]();
   $('#crumbs').innerHTML = route === 'client' ? `<a data-nav="clients">Clients</a><i>/</i><span>${esc(C.client.name)}</span>` : `<span>${{ overview: 'Overview', clients: 'Clients', tickets: 'Support inbox', meetings: 'Calls', feed: 'Updates', activity: 'Activity', settings: 'Settings' }[route]}</span>`;
   $('#crumbs a')?.addEventListener('click', () => nav('clients'));
-  v.innerHTML = t; v.scrollTop = 0; bc?.stop(); bc = null; const cv = $('#hcode'); if (cv) bc = barcode(cv, { color: '#EDEDE6', level: Math.min(1, .3 + O.log.filter(l => Date.now() - new Date(l.at) < 864e5).length / 12) }); palette(); if (route === 'settings') loadTeam();
+  v.innerHTML = t; v.scrollTop = 0; bc?.stop(); bc = null; const cv = $('#hcode'); if (cv) bc = barcode(cv, { color: '#EDEDE6', level: Math.min(1, .3 + O.log.filter(l => Date.now() - new Date(l.at) < 864e5).length / 12) }); palette(); if (route === 'settings') { loadTeam(); legalFile(); } showFiles('staff', v);
 }
 
 /* ---------- overview ---------- */
@@ -326,8 +326,52 @@ function cevents() {
 /* agreement editor: the text on the left, the client's view on the right */
 const fmtD = d => { try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return ''; } };
 const list = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
-const vars = () => { const c = C.client, s = C.settings; return { studio: s.studio, client: c.name, brands: list(c.brands.map(b => b.name)) || c.name, start: fmtD(c.startDate) || '[start date]', fee: Number(c.fee || 0).toLocaleString('en-US'), currency: c.currency || 'USD', accounts: c.accounts || `${c.brands.length || 1} ad account${c.brands.length > 1 ? 's' : ''}`, law: c.law || s.governingLaw }; };
+const vars = () => {
+  const c = C.client, s = C.settings, P = c.party || {}, L = s.legal || {}, pv = k => String(P[k] || '').trim() || BLANK, lv = k => String(L[k] || '').trim() || '[to be confirmed]';
+  return { studio: s.studio, client: c.name, brands: list(c.brands.map(b => b.name)) || c.name, start: fmtD(c.startDate) || '[start date]', fee: Number(c.fee || 0).toLocaleString('en-US'), currency: c.currency || 'USD', accounts: c.accounts || `${c.brands.length || 1} ad account${c.brands.length > 1 ? 's' : ''}`, law: c.law || s.governingLaw,
+    studioLegal: lv('name'), studioForm: lv('form'), studioOwner: lv('owner'), studioReg: lv('reg'), studioTax: lv('tax'), studioAddress: lv('address'), studioEmail: s.studioEmail,
+    partyName: pv('name'), partyForm: pv('form'), partyCountry: pv('country'), partyReg: pv('reg'), partyTax: String(P.tax || '').trim() || 'not applicable', partyAddress: pv('address'), partySigner: pv('signer'), partySignerTitle: pv('signerTitle'), partyEmail: pv('email') };
+};
 const rend = t => String(t).replace(/\{\{(\w+)\}\}/g, (_, k) => vars()[k] ?? `{{${k}}}`);
+/* ---------- legal details on the agreement tab: the client's company, the studio's papers, pages signed by hand ---------- */
+const partyBox = () => {
+  const p = C.client.party || {}, ok = partyOk(p), k = C.contract || {}, sg = k.signature, docs = C.settings.legalDocs || [];
+  return `<div class="card" style="margin-bottom:16px"><div class="sh"><h2>The client's company<em>${ok ? 'filled in' : p.name ? 'partly filled in' : 'they fill this in before signing'}</em></h2>${k.status === 'signed' ? '' : `<button class="btn sm" data-pfstaff>${ic('edit')} ${p.name ? 'Edit' : 'Fill in for them'}</button>`}</div>
+    ${p.name ? `<div class="kv">${PARTY_F.filter(([key]) => p[key]).map(([key, l]) => `<div><span>${l}</span><b>${esc(p[key])}</b></div>`).join('')}</div>` : '<p class="small">When you send the agreement, the client sees boxes for these details. What they type goes straight into the text, and they can only sign once it is complete.</p>'}
+    <p class="small" style="margin-top:12px">Attached to every agreement: ${docs.length ? docs.map((d, i) => `Annex ${i + 1}, ${esc(d.title)}`).join(' · ') : 'nothing yet'}. <a data-nav="settings" style="color:var(--green);cursor:pointer">Change in Settings</a></p>
+    ${sg?.method === 'hand' ? `<div class="sh" style="margin-top:16px"><h2>Signed by hand<em>${(sg.files || []).length} page${(sg.files || []).length > 1 ? 's' : ''}</em></h2></div><div class="hthumbs">${(sg.files || []).map((id, i) => `<figure><img data-file="${esc(id)}" alt="Page ${i + 1}"><figcaption>Page ${i + 1}</figcaption></figure>`).join('')}</div>` : ''}
+    ${k.status === 'sent' && (k.handPending || []).length ? `<p class="small" style="margin-top:12px">${ic('clock')} They have uploaded ${k.handPending.length} signed page${k.handPending.length > 1 ? 's' : ''} and not submitted them yet.</p>` : ''}</div>`;
+};
+function partyModal() {
+  modal(`<h3>${esc(C.client.name)}: company details</h3><p class="small" style="margin-bottom:12px">These go straight into the agreement. The client can change them until they sign.</p>${partyFields(C.client.party || {})}
+    <div class="acts"><button class="btn green" data-pfok>${ic('check')} Save</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close;
+      $('[data-pfok]', m).onclick = async e => {
+        e.currentTarget.disabled = true;
+        try { await api('PUT', `staff/clients/${arg}/party`, readParty(m)); close(); await reloadClient(); toast('Saved into the agreement'); stay(); }
+        catch (er) { toast(er.message, true); e.currentTarget.disabled = false; }
+      };
+    },
+  });
+}
+// the studio's own legal details and papers, used in every agreement
+const LEGAL = [['name', 'Legal name of the business'], ['form', 'Legal form'], ['owner', 'Owner / who signs'], ['reg', 'Commercial register no.'], ['tax', 'Tax registration no.'], ['address', 'Office address']];
+const legalCard = () => { const L = O.settings.legal || {}, docs = O.settings.legalDocs || []; return `<div class="card" style="margin-top:14px"><h3>Our legal details</h3><p class="small">Used in the Parties section of every agreement, as {{studioLegal}}, {{studioReg}}, {{studioTax}}, {{studioAddress}} and so on. An agreement cannot be sent while one is empty.</p>
+  <div class="fgrid" style="margin-top:12px">${LEGAL.map(([k, l]) => `<div class="fld ${k === 'address' || k === 'name' ? 'full' : ''}"><label>${l}</label><input class="in" data-legal="${k}" value="${esc(L[k] || '')}"></div>`).join('')}</div>
+  <div class="acts"><button class="btn green sm" data-savelegal>Save legal details</button></div>
+  <div class="sh" style="margin-top:18px"><h2>Attached to every agreement<em>shown as annexes, only to signed-in clients</em></h2></div>
+  ${docs.map((d, i) => `<div class="ldoc"><img data-file="${esc(d.id)}" alt=""><div><b>Annex ${i + 1}: ${esc(d.title)}</b><span class="small">Kept in the portal's private storage, not on the public site.</span></div><button class="btn sm ghost danger" data-ldrm="${esc(d.id)}">${ic('trash')} Remove</button></div>`).join('') || '<p class="small">Nothing attached yet.</p>'}
+  <div class="fgrid" style="grid-template-columns:1fr auto;align-items:end;margin-top:12px"><div class="fld"><label>Title</label><input class="in" id="ld-title" placeholder="e.g. Extract of the commercial register"></div><label class="btn sm">${ic('plus')} Add a photo or PDF<input type="file" id="ld-file" accept="image/*,application/pdf" hidden></label></div></div>`; };
+function legalFile() {
+  const inp = $('#ld-file'); if (!inp) return;
+  inp.onchange = async () => {
+    const f = inp.files[0]; inp.value = ''; if (!f) return;
+    try { toast('Uploading…'); const data = await fileData(f); O.settings = await api('POST', 'staff/legaldoc', { title: $('#ld-title').value || f.name.replace(/\.[^.]+$/, ''), data }); toast('Attached to every agreement'); stay(); }
+    catch (er) { toast(er.message, true); }
+  };
+}
+const annexData = () => Promise.all((C.settings.legalDocs || []).map(d => getFile('staff', d.id).then(f => ({ title: d.title, data: f.data }))));
 function agreement() {
   const k = C.contract, signed = k.status === 'signed', c = C.client;
   return `<div class="card" style="margin-bottom:16px"><div class="fgrid" style="grid-template-columns:repeat(5,1fr);margin:0">${[['fee', 'Monthly fee', c.fee, 'number'], ['currency', 'Currency', c.currency, 'text'], ['accounts', 'Accounts wording', c.accounts, 'text'], ['startDate', 'Start date', c.startDate, 'date'], ['law', 'Governing law', c.law || C.settings.governingLaw, 'text']].map(([n, l, v, t]) => `<div class="fld"><label>${l}</label><input class="in" data-cv="${n}" type="${t}" value="${esc(v ?? '')}" ${signed ? 'disabled' : ''}></div>`).join('')}</div>
@@ -335,7 +379,8 @@ function agreement() {
     ${signed ? `<button class="btn sm dark" data-spdf>${ic('down')} Signed PDF</button>${k.countersign ? `<span class="small">Countersigned by ${esc(k.countersign.name)}</span>` : '<button class="btn sm green" data-counter>Countersign</button>'}`
       : `<button class="btn sm" data-csave>Save text</button>${k.status === 'sent' ? '<button class="btn sm" data-creopen>Take back to draft</button>' : '<button class="btn sm green" data-csend>Send to client</button>'}`}<button class="btn sm ghost danger" data-cvoid>${k.status === 'void' ? 'Void' : 'Void'}</button></div></div>
     ${signed ? `<div class="signed" style="margin-bottom:16px"><h3>${ic('check')} Signed by ${esc(k.signature.name)}</h3><p class="small" style="color:inherit;margin-top:4px">${esc(new Date(k.signature.at).toUTCString())} · from ${esc(k.signature.ip)}</p><div class="hash">${esc(k.signature.docHash)}</div></div>` : ''}
-    <div class="split"><div><div class="lbl" style="margin-bottom:8px">Text · variables like {{client}} {{fee}} are filled in</div><textarea class="in mono" id="ctext" style="min-height:640px;font-size:12.5px;line-height:1.6" ${signed ? 'disabled' : ''}>${esc(signed ? k.signedText : k.text)}</textarea></div>
+    ${partyBox()}
+    <div class="split"><div><div class="lbl" style="margin-bottom:8px">Text · variables like {{client}} {{fee}} {{partyName}} are filled in</div><textarea class="in mono" id="ctext" style="min-height:640px;font-size:12.5px;line-height:1.6" ${signed ? 'disabled' : ''}>${esc(signed ? k.signedText : k.text)}</textarea></div>
     <div><div class="lbl" style="margin-bottom:8px">What the client sees</div><article class="paper" id="cprev" style="padding:28px;max-height:640px;overflow:auto;font-size:14px">${md(signed ? k.signedText : rend(k.text))}</article></div></div>`;
 }
 function results() {
@@ -380,6 +425,7 @@ function settings() {
     <div class="fld"><label>Default governing law</label><input class="in" id="st-law" value="${esc(s.governingLaw)}"></div><div class="fld"><label>Agreement title</label><input class="in" id="st-title" value="${esc(s.contractTitle)}"></div></div>
     <div class="warnbox">${ic('alert')}<span>The default agreement text is a draft written for this service. Have a lawyer read it before the first client signs. Electronic signature rules depend on the country.</span></div>
     <div class="acts"><button class="btn green" data-savesettings>Save settings</button></div></div>
+    ${legalCard()}
     <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">A personal code signs in under that person's own name, so the activity log says who did what. The code you set here is temporary: the first time they sign in, they have to choose their own.</p>${me.personal ? `<div class="acts" style="margin-top:10px"><button class="btn sm" data-mycode>${ic('key')} Change my code</button></div>` : ''}
     <div id="team" style="margin-top:12px"><p class="small">Loading…</p></div>
     <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Temporary code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div>
@@ -481,7 +527,10 @@ async function onClick(e) {
   if (d.cvoid !== undefined) { if (!confirm('Void this agreement?')) return; return contract('void'); }
   if (d.counter !== undefined) return contract('countersign');
   if (d.filepdf !== undefined) { t.disabled = true; try { await clientFile(); } catch (er) { toast(er.message, true); } t.disabled = false; return; }
-  if (d.spdf !== undefined) { try { const k = C.contract; await agreementPdf({ title: k.title, text: k.signedText, client: C.client.name, signature: k.signature, countersign: k.countersign, docHash: k.signature.docHash, studio: C.settings.studio }); } catch (er) { toast(er.message, true); } return; }
+  if (d.spdf !== undefined) { try { const k = C.contract, sg = k.signature, hand = sg.method === 'hand' ? await Promise.all(sg.files.map(id => getFile('staff', id))) : []; await agreementPdf({ title: k.title, text: k.signedText, client: C.client.name, signature: sg, countersign: k.countersign, docHash: sg.docHash, studio: C.settings.studio, annex: await annexData(), hand }); } catch (er) { toast(er.message, true); } return; }
+  if (d.pfstaff !== undefined) return partyModal();
+  if (d.savelegal !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { legal: Object.fromEntries($$('[data-legal]').map(x => [x.dataset.legal, x.value])) }); toast('Saved'); } catch (er) { toast(er.message, true); } return; }
+  if (d.ldrm) { if (!confirm('Remove this document from every agreement?')) return; try { O.settings = await api('DELETE', 'staff/legaldoc', { id: d.ldrm }); toast('Removed'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.savecs !== undefined) { try { const old = C.client.brands, names = $('#cs-brands').value.split('\n').map(x => x.trim()).filter(Boolean); await api('PATCH', 'staff/clients/' + arg, { name: $('#cs-name').value, status: $('#cs-status').value, brands: names.map((n, i) => ({ id: old[i]?.id || 'b' + (i + 1 + old.length), name: n })) }); await reloadClient(); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.savenotes !== undefined) return void (await put({ notes: $('#cs-notes').value }));
   if (d.ctadd !== undefined) { $('#cts').insertAdjacentHTML('beforeend', ctRow({ name: '', email: '' }, $('#cts').children.length)); $('#cts').lastElementChild.querySelector('[data-cte]').focus(); return; }

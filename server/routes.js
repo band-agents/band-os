@@ -12,11 +12,11 @@ const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const okId = s => /^[a-z0-9:_-]{1,48}$/i.test(String(s));
 const now = () => new Date().toISOString();
 
-async function readBody(req) {
+async function readBody(req, max = MAX_BODY) {
   if (req.body && typeof req.body === 'object') return req.body;
   let raw = '';
   if (typeof req.body === 'string') raw = req.body;
-  else { let n = 0; for await (const ch of req) { n += ch.length; if (n > MAX_BODY) throw bad(413, 'Too large'); raw += ch; } }
+  else { let n = 0; for await (const ch of req) { n += ch.length; if (n > max) throw bad(413, 'Too large'); raw += ch; } }
   try { return raw ? JSON.parse(raw) : {}; } catch { throw bad(400, 'Bad JSON'); }
 }
 const ip = req => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim();
@@ -35,11 +35,23 @@ const emptyStaff = () => ({ verify: {}, performance: [], ads: [], invoices: [], 
 
 const fmtDate = d => { try { return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return ''; } };
 const list = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
-const vars = (c, s) => ({
-  studio: s.studio, client: c.name, brands: list(c.brands.map(b => b.name)) || c.name, start: fmtDate(c.startDate) || '[start date]',
-  fee: Number(c.fee || 0).toLocaleString('en-US'), currency: c.currency || 'USD', accounts: c.accounts || `${c.brands.length || 1} ad account${c.brands.length > 1 ? 's' : ''}`,
-  law: c.law || s.governingLaw,
-});
+// The client fills in its legal details in the portal before it can sign; until then the agreement shows a dotted blank.
+// The studio's own legal details come from Settings; while one is missing the agreement cannot be sent.
+export const PARTY = ['name', 'form', 'country', 'reg', 'tax', 'address', 'signer', 'signerTitle', 'email'];
+const PARTY_REQ = PARTY.filter(k => k !== 'tax');
+const BLANK = '…………………… (to be completed by the Client)';
+const partyDone = c => PARTY_REQ.every(k => String(c.party?.[k] || '').trim());
+const vars = (c, s) => {
+  const P = c.party || {}, L = s.legal || {}, pv = k => String(P[k] || '').trim() || BLANK, lv = k => String(L[k] || '').trim() || '[to be confirmed]';
+  return {
+    studio: s.studio, client: c.name, brands: list(c.brands.map(b => b.name)) || c.name, start: fmtDate(c.startDate) || '[start date]',
+    fee: Number(c.fee || 0).toLocaleString('en-US'), currency: c.currency || 'USD', accounts: c.accounts || `${c.brands.length || 1} ad account${c.brands.length > 1 ? 's' : ''}`,
+    law: c.law || s.governingLaw,
+    studioLegal: lv('name'), studioForm: lv('form'), studioOwner: lv('owner'), studioReg: lv('reg'), studioTax: lv('tax'), studioAddress: lv('address'), studioEmail: s.studioEmail,
+    partyName: pv('name'), partyForm: pv('form'), partyCountry: pv('country'), partyReg: pv('reg'), partyTax: String(P.tax || '').trim() || 'not applicable',
+    partyAddress: pv('address'), partySigner: pv('signer'), partySignerTitle: pv('signerTitle'), partyEmail: pv('email'),
+  };
+};
 export const render = (text, v) => String(text).replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? `{{${k}}}`);
 
 async function bundle(id) {
@@ -111,10 +123,11 @@ const clientWorkspace = async id => {
   const visible = contract && ['sent', 'signed'].includes(contract.status);
   const sig = contract?.signature;
   return {
-    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz }, summary: summarize({ c, answers, st, contract, tickets, events }),
+    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz, legalDocs: visible ? s.legalDocs || [] : [] }, summary: summarize({ c, answers, st, contract, tickets, events }),
     tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30), feed: (await feedFor(id)).slice(0, 80),
     contract: visible ? { status: contract.status, title: contract.title, text: contract.status === 'signed' ? contract.signedText : render(contract.text, v), sentAt: contract.sentAt, hash: contract.hash,
-      signature: sig ? { name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, docHash: sig.docHash } : null,
+      signature: sig ? { method: sig.method || 'drawn', name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, files: sig.files || [], docHash: sig.docHash } : null,
+      handPending: contract.handPending || [],
       countersign: contract.countersign || null } : { status: contract?.status === 'void' ? 'void' : 'draft' },
   };
 };
@@ -155,12 +168,61 @@ H.client['POST sign'] = async (req, res, s) => {
   const name = clip(b.name, 120).trim(), title = clip(b.title, 120).trim();
   if (name.length < 3) throw bad(400, 'Type your full name.');
   if (!b.consent) throw bad(400, 'Tick the box to confirm.');
+  if (!partyDone(c)) throw bad(409, 'Fill in your company details first.');
   const drawing = String(b.drawing || ''); if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(drawing) || drawing.length > 160_000 || drawing.length < 800) throw bad(400, 'Draw your signature in the box.');
   const text = render(contract.text, vars(c, set)), at = now();
   const docHash = sha(`${text}\n${name}\n${at}`);
-  Object.assign(contract, { status: 'signed', signedText: text, hash: sha(text), signature: { name, title, at, ip: ip(req), ua: clip(req.headers['user-agent'], 200), drawing, docHash } });
+  Object.assign(contract, { status: 'signed', signedText: text, hash: sha(text), signature: { method: 'drawn', name, title, at, ip: ip(req), ua: clip(req.headers['user-agent'], 200), drawing, docHash, party: { ...c.party } } });
   await store.set(`contract:${s.cid}`, contract);
   await log(c.name, `signed the agreement (${name})`, s.cid);
+  await signedMail(req, c, s.cid, name, 'signed the agreement in the portal');
+  return clientWorkspace(s.cid);
+};
+const signedMail = async (req, c, cid, name, what) => { const set = await settings(); await send({ to: set.studioEmail, subject: `${c.name} ${what}`,
+  ...letter({ title: `${c.name} ${what}`, lines: [`Signed by ${name} for ${c.party?.name || c.name}.`, 'Check it and countersign in the portal.'], button: { label: 'Open the agreement', url: `${portal(req)}#client/${cid}/agreement` } }) }); };
+
+// ---------- the client's legal details, filled in before signing; they go straight into the agreement text ----------
+const cleanParty = b => { const p = Object.fromEntries(PARTY.map(k => [k, clip(b?.[k], k === 'address' ? 300 : 160).trim()]));
+  if (p.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)) throw bad(400, 'The email for notices does not look right.'); return p; };
+H.client['PUT party'] = async (req, res, s) => {
+  const b = await readBody(req), { c, contract } = await bundle(s.cid);
+  if (contract?.status === 'signed') throw bad(409, 'The agreement is already signed.');
+  c.party = { ...cleanParty(b), updated: now(), by: s.email }; await store.set(`client:${s.cid}`, c);
+  await log(c.name, 'filled in the company details for the agreement', s.cid);
+  return clientWorkspace(s.cid);
+};
+
+// ---------- signing by hand: print, sign, upload photos or a scan, then submit ----------
+// Each page is uploaded on its own (the store takes about 1 MB per value), then the client submits them together.
+H.client['POST handfile'] = async (req, res, s) => {
+  const b = await readBody(req, 1_100_000), { contract } = await bundle(s.cid);
+  if (!contract || contract.status !== 'sent') throw bad(409, 'The agreement is not open for signing.');
+  if (!okData(String(b.data || ''))) throw bad(400, 'That file is too big. Upload photos, or a PDF under about 650 KB.');
+  const pend = contract.handPending || []; if (pend.length >= 12) throw bad(429, 'That is a lot of pages. Remove some first.');
+  const id = await putFile(b.data, { name: clip(b.name, 120) || 'Signed page', by: s.email });
+  contract.handPending = [...pend, id]; await store.set(`contract:${s.cid}`, contract);
+  return { id };
+};
+H.client['DELETE handfile'] = async (req, res, s) => {
+  const b = await readBody(req), { contract } = await bundle(s.cid), id = clip(b.id, 20);
+  if (!contract || !(contract.handPending || []).includes(id)) throw bad(404, 'No such file');
+  contract.handPending = contract.handPending.filter(x => x !== id); await store.set(`contract:${s.cid}`, contract); await store.del(`file:${id}`);
+  return { ok: true };
+};
+H.client['POST handsign'] = async (req, res, s) => {
+  const b = await readBody(req), { c, contract } = await bundle(s.cid), set = await settings();
+  if (!contract || contract.status !== 'sent') throw bad(409, contract?.status === 'signed' ? 'Already signed.' : 'The agreement is not ready to sign yet.');
+  if (!partyDone(c)) throw bad(409, 'Fill in your company details first.');
+  const files = [].concat(b.files || []).filter(id => (contract.handPending || []).includes(id));
+  if (!files.length) throw bad(400, 'Upload the signed pages first.');
+  const name = clip(b.name, 120).trim(), title = clip(b.title, 120).trim();
+  if (name.length < 3) throw bad(400, 'Type the full name of the person who signed.');
+  if (!b.consent) throw bad(400, 'Tick the box to confirm.');
+  const text = render(contract.text, vars(c, set)), at = now(), docHash = sha(`${text}\n${name}\n${at}`);
+  Object.assign(contract, { status: 'signed', signedText: text, hash: sha(text), handPending: [], signature: { method: 'hand', name, title, at, ip: ip(req), ua: clip(req.headers['user-agent'], 200), files, docHash, party: { ...c.party } } });
+  await store.set(`contract:${s.cid}`, contract);
+  await log(c.name, `signed the agreement by hand (${name}, ${files.length} page${files.length > 1 ? 's' : ''})`, s.cid);
+  await signedMail(req, c, s.cid, name, 'signed the agreement by hand');
   return clientWorkspace(s.cid);
 };
 
@@ -270,6 +332,35 @@ H.staff['PUT contacts'] = async (req, res, s, q) => {
   return { client: pubClient(c) };
 };
 // a new access code; the old one stops working at once. With email: true it goes straight to every email on the workspace.
+// ---------- private files: the studio's legal papers attached to agreements, and agreements signed by hand ----------
+// They live in the store, never in the public site, and are served only to staff and to the client they belong to.
+const okData = d => /^data:(image\/(jpeg|png|webp)|application\/pdf);base64,[A-Za-z0-9+/=]+$/.test(d) && d.length <= 900_000;
+const putFile = async (data, meta) => { const id = newId(10); await store.set(`file:${id}`, { id, data, ...meta, at: now() }); return id; };
+H.staff['POST legaldoc'] = async (req, res, s) => {
+  const b = await readBody(req, 1_100_000), cur = await settings(), title = clip(b.title, 120).trim() || 'Document';
+  if (!okData(String(b.data || ''))) throw bad(400, 'Upload a JPG, PNG or PDF under about 650 KB.');
+  const id = await putFile(b.data, { name: title, by: s.name });
+  const next = { ...cur, legalDocs: [...(cur.legalDocs || []), { id, title }].slice(0, 6) };
+  await store.set('settings', next); await log(s.name, `attached "${title}" to every agreement`); return next;
+};
+H.staff['DELETE legaldoc'] = async (req, res, s) => {
+  const b = await readBody(req), cur = await settings(), id = clip(b.id, 20), d = (cur.legalDocs || []).find(x => x.id === id); if (!d) throw bad(404, 'No such document');
+  const next = { ...cur, legalDocs: cur.legalDocs.filter(x => x.id !== id) }; await store.set('settings', next); await store.del(`file:${id}`);
+  await log(s.name, `removed "${d.title}" from agreements`); return next;
+};
+H.staff['POST file'] = async (req) => { const b = await readBody(req), f = await store.get(`file:${clip(b.id, 20)}`); if (!f) throw bad(404, 'No such file'); return { data: f.data, name: f.name }; };
+H.client['POST file'] = async (req, res, s) => {
+  const b = await readBody(req), id = clip(b.id, 20), set = await settings(), k = await store.get(`contract:${s.cid}`);
+  const mine = k && ['sent', 'signed'].includes(k.status) && ((set.legalDocs || []).some(d => d.id === id) || (k.signature?.files || []).includes(id) || (k.handPending || []).includes(id));
+  const f = mine && await store.get(`file:${id}`); if (!f) throw bad(404, 'No such file');
+  return { data: f.data, name: f.name };
+};
+H.staff['PUT party'] = async (req, res, s, q) => {
+  const b = await readBody(req), { c, contract } = await bundle(q.id);
+  if (contract?.status === 'signed') throw bad(409, 'The agreement is signed and locked.');
+  c.party = { ...cleanParty(b), updated: now(), by: s.name }; await store.set(`client:${q.id}`, c); await log(s.name, `updated the company details of ${c.name}`, q.id);
+  return { client: pubClient(c) };
+};
 H.staff['POST resetcode'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id), code = newCode(); c.salt = newSalt(); c.codeHash = hashCode(code, c.salt);
   await store.set(`client:${q.id}`, c);
@@ -331,6 +422,7 @@ H.staff['POST message'] = async (req, res, s, q) => {
 H.staff['DELETE client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
   if (b.confirm !== c.name) throw bad(400, 'Type the client name to confirm.');
+  const k0 = await store.get(`contract:${q.id}`); for (const id of [...(k0?.signature?.files || []), ...(k0?.handPending || [])]) await store.del(`file:${id}`);
   for (const k of [`client:${q.id}`, `answers:${q.id}`, `staff:${q.id}`, `contract:${q.id}`, `msgs:${q.id}`, `tickets:${q.id}`, `events:${q.id}`, `feed:${q.id}`]) await store.del(k);
   await store.set('meetings', (await meetingsAll()).filter(m => m.cid !== q.id));
   for (const x of c.contacts || []) await store.del(`idx:email:${x.email}`);
@@ -374,6 +466,7 @@ H.staff['GET settings'] = async () => settings();
 H.staff['PUT settings'] = async (req) => {
   const b = await readBody(req), cur = await settings();
   const next = { ...cur, studio: clip(b.studio ?? cur.studio, 40), studioEmail: clip(b.studioEmail ?? cur.studioEmail, 120), bandBmId: clip(b.bandBmId ?? cur.bandBmId, 40).replace(/\D/g, ''), governingLaw: clip(b.governingLaw ?? cur.governingLaw, 120), contractTitle: clip(b.contractTitle ?? cur.contractTitle, 120) };
+  if (b.legal) next.legal = Object.fromEntries(['name', 'form', 'owner', 'reg', 'tax', 'address'].map(k => [k, clip(b.legal[k] ?? cur.legal?.[k] ?? '', 300).trim()]));
   await store.set('settings', next); return next;
 };
 

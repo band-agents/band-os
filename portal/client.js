@@ -1,4 +1,4 @@
-import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText, setPalette, openPalette, md, headings, chart, barcode, STATE, KIND } from './lib.js';
+import { $, $$, esc, api, ic, toast, modal, debounce, ago, day, money, copyText, setPalette, openPalette, md, headings, chart, barcode, STATE, KIND, getFile, keepFile, showFiles, fileData, partyFields, partyOk, readParty, partyMissing, BLANK } from './lib.js';
 import { shell, signOut } from './main.js';
 import { agreementPdf } from './pdf.js';
 
@@ -136,7 +136,7 @@ function paint() {
   if (route === 'events' && arg) $('#ev-' + CSS.escape(arg))?.scrollIntoView({ block: 'center' });
   (v.querySelector('.page') || v).insertAdjacentHTML('afterbegin', alertBar());
   if (route === 'messages') { const last = [...W.msgs].reverse().find(m => m.from === 'staff'); if (last && last.at > msgSeen()) { try { localStorage.setItem(msgKey(), last.at); } catch { } } }
-  if (route === 'agreement') sigPad(); if (route === 'start') {} bust();
+  if (route === 'agreement') { sigPad(); handSign(); tocSpy(); showFiles('client', v); } bust();
   // opening Events counts as reading our replies there; the team sees "seen by the client"
   if (route === 'events' && (W.events || []).some(e => (e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))))
     api('PUT', 'client/eventseen', {}).then(() => { const t = new Date().toISOString(); W.events.forEach(e => { if ((e.replies || []).some(r => r.from === 'staff')) e.clientSeen = t; }); paintBell(); }).catch(() => { });
@@ -222,24 +222,73 @@ function forms() {
 }
 
 /* ---------- agreement ---------- */
+/* ---------- agreement: company details first (they go straight into the text), then sign here or by hand ---------- */
+let partyEdit = false, signMode = 'draw';
+// the dotted blanks the client still has to fill show as soft highlighted gaps in the text
+const mdA = t => md(t).split(esc(BLANK)).join('<span class="gap">to be completed</span>');
+const annex = () => (W.settings.legalDocs || []).map((d, i) => `<section class="annex"><h2>Annex ${i + 1}: ${esc(d.title)}</h2><div class="annex-img"><img data-file="${esc(d.id)}" alt="${esc(d.title)}"></div></section>`).join('');
+const partyForm = () => `<section class="card partyf" id="partyf"><div class="pf-h"><span class="pf-n">1</span><div><h3>Your company details</h3><p class="small">They go into the agreement exactly as you type them, so use the legal details from your commercial register. You can sign as soon as they are in.</p></div></div>
+  ${partyFields(W.client.party || { email: W.client.contacts?.[0]?.email || '' })}
+  <div class="acts"><button class="btn green" data-pfsave>${ic('check')} Save and add to the agreement</button>${partyOk(W.client.party) ? '<button class="btn ghost" data-pfcancel>Cancel</button>' : ''}</div></section>`;
+const partyCard = () => { const p = W.client.party; return `<div class="pfsum"><span class="pf-n ok">${ic('check')}</span><div><b>${esc(p.name)}</b><span>${esc(p.form)} · ${esc(p.country)} · Reg. ${esc(p.reg)}</span><span>Signs: ${esc(p.signer)}, ${esc(p.signerTitle)}</span><button class="linkb" data-pfedit>Edit company details</button></div></div>`; };
+const drawUI = () => { const p = W.client.party || {}; return `<div class="fld"><label for="sgn">Full name</label><input class="in" id="sgn" autocomplete="name" placeholder="As on your ID" value="${esc(p.signer || '')}"></div>
+  <div class="fld" style="margin-top:12px"><label for="sgt">Role</label><input class="in" id="sgt" placeholder="Owner, Director…" value="${esc(p.signerTitle || '')}"></div>
+  <div class="fld" style="margin-top:12px"><label>Draw your signature</label><canvas id="pad" width="640" height="200" aria-label="Signature pad"></canvas><span class="clear" data-clear>Clear</span></div>
+  <label class="chk" style="margin-top:14px"><input type="checkbox" id="sgc"><span>I have read this agreement, I am allowed to sign for ${esc(p.name || W.client.name)}, and I agree to sign electronically.</span></label>
+  <button class="btn green" id="sgo" style="width:100%;margin-top:16px" disabled>${ic('pen')} Sign agreement</button>
+  <p class="small" style="margin-top:10px">We record the time and a fingerprint of this exact text. You get a PDF straight after.</p>`; };
+const handUI = () => { const pend = W.contract.handPending || [], p = W.client.party || {}; return `<ol class="hsteps">
+    <li><b>Download</b> the agreement with your details in it.<button class="btn sm dark" data-pdfblank>${ic('down')} Download PDF</button></li>
+    <li><b>Print and sign</b> it: sign the signature page, and initial the corner of every page.</li>
+    <li><b>Upload</b> clear photos or a scan of every page.<label class="hdrop">${ic('image')}<span>Choose photos or a PDF</span><input type="file" id="hf" accept="image/*,application/pdf" multiple hidden></label></li></ol>
+  ${pend.length ? `<div class="hthumbs">${pend.map((id, i) => `<figure><img data-file="${esc(id)}" alt="Page ${i + 1}"><button data-hdel="${esc(id)}" aria-label="Remove page ${i + 1}">×</button><figcaption>Page ${i + 1}</figcaption></figure>`).join('')}</div>` : ''}
+  <div class="fld" style="margin-top:14px"><label for="hn">Name of the person who signed</label><input class="in" id="hn" value="${esc(p.signer || '')}"></div>
+  <div class="fld" style="margin-top:12px"><label for="ht">Their role</label><input class="in" id="ht" value="${esc(p.signerTitle || '')}"></div>
+  <label class="chk" style="margin-top:14px"><input type="checkbox" id="hc"><span>These pages are this agreement, signed by hand for ${esc(p.name || W.client.name)} by a person allowed to sign for it.</span></label>
+  <button class="btn green" id="hgo" style="width:100%;margin-top:16px" ${pend.length ? '' : 'disabled'}>${ic('send')} Submit the signed copy</button>`; };
 function agreement() {
   const c = W.contract;
   if (c.status === 'draft' || c.status === 'void') return `<div class="page"><p class="eyebrow mono">Agreement</p><h1>${c.status === 'void' ? 'Withdrawn' : 'Being prepared'}<span>.</span></h1><div class="empty" style="margin-top:26px"><b>${c.status === 'void' ? 'We withdrew this agreement.' : 'We are writing your agreement.'}</b>We will message you the moment it is ready to read.</div></div>`;
-  const hs = headings(c.text), signed = c.status === 'signed', sg = c.signature;
-  return `<div class="page wide"><p class="eyebrow mono">Agreement</p><h1>${esc(c.title)}<span>.</span></h1>
-    <p class="lead">${signed ? 'Signed. Your copy is below, and you can download it any time.' : 'Read it first. When you are ready, sign on the right.'}</p>
-    <div class="agr" style="margin-top:28px"><nav class="toc" id="toc" aria-label="Sections">${hs.map((h, n) => `<a data-jump="s${n}">${esc(h.replace(/^\d+\.\s*/, ''))}</a>`).join('')}</nav>
-    <article class="paper" id="paper">${md(c.text)}${signed ? `<div class="seal"><div><img alt="Signature of ${esc(sg.name)}" src="${esc(sg.drawing)}"><b>${esc(sg.name)}</b><span>${esc(sg.title || 'For ' + W.client.name)} · ${esc(new Date(sg.at).toUTCString().slice(5, 22))}</span></div>
-      <div>${c.countersign ? `<div style="font:italic 28px/1 Georgia,serif;height:70px;padding-top:24px">${esc(c.countersign.name)}</div><b>${esc(W.settings.studio)}</b><span>Countersigned ${esc(day(c.countersign.at))}</span>` : `<div style="height:70px;display:grid;align-items:center;color:#8a8d86;font-style:italic">Awaiting our countersignature</div><b>${esc(W.settings.studio)}</b>`}</div></div>` : ''}</article>
-    <aside class="card signp">${signed ? `<div class="signed"><h3>${ic('check')} Signed</h3><p style="margin-top:8px">${esc(sg.name)}<br><span class="small" style="color:inherit;opacity:.8">${esc(new Date(sg.at).toUTCString())}</span></p><div class="hash">Fingerprint ${esc(sg.docHash)}</div></div>
+  const hs = headings(c.text), signed = c.status === 'signed', sg = c.signature, ready = partyOk(W.client.party), editing = !signed && (!ready || partyEdit);
+  const seal = !signed ? '' : `<div class="seal"><div>${sg.method === 'hand' ? `<div class="handsig">${(sg.files || []).map(id => `<img data-file="${esc(id)}" alt="Signed page">`).join('')}</div>` : `<img alt="Signature of ${esc(sg.name)}" src="${esc(sg.drawing)}">`}<b>${esc(sg.name)}</b><span>${esc(sg.title || 'For ' + W.client.name)} · ${sg.method === 'hand' ? 'signed by hand · ' : ''}${esc(new Date(sg.at).toUTCString().slice(5, 22))}</span></div>
+      <div>${c.countersign ? `<div style="font:italic 28px/1 Georgia,serif;height:70px;padding-top:24px">${esc(c.countersign.name)}</div><b>${esc(W.settings.studio)}</b><span>Countersigned ${esc(day(c.countersign.at))}</span>` : `<div style="height:70px;display:grid;align-items:center;color:#8a8d86;font-style:italic">Awaiting our countersignature</div><b>${esc(W.settings.studio)}</b>`}</div></div>`;
+  const aside = signed ? `<div class="signed"><h3>${ic('check')} Signed${sg.method === 'hand' ? ' by hand' : ''}</h3><p style="margin-top:8px">${esc(sg.name)}<br><span class="small" style="color:inherit;opacity:.8">${esc(new Date(sg.at).toUTCString())}</span></p><div class="hash">Fingerprint ${esc(sg.docHash)}</div></div>
       <div class="acts" style="flex-direction:column"><button class="btn dark" data-pdf>${ic('down')} Download PDF</button><button class="btn" data-print>${ic('print')} Print</button></div>`
-      : `<h3 style="font-size:19px;margin-bottom:14px">Sign here</h3>
-      <div class="fld"><label for="sgn">Full name</label><input class="in" id="sgn" autocomplete="name" placeholder="As on your ID"></div>
-      <div class="fld" style="margin-top:12px"><label for="sgt">Role (optional)</label><input class="in" id="sgt" placeholder="Owner, Director…"></div>
-      <div class="fld" style="margin-top:12px"><label>Draw your signature</label><canvas id="pad" width="640" height="200" aria-label="Signature pad"></canvas><span class="clear" data-clear>Clear</span></div>
-      <label class="chk" style="margin-top:14px"><input type="checkbox" id="sgc"><span>I have read this agreement, I am allowed to sign for ${esc(W.client.name)}, and I agree to sign electronically.</span></label>
-      <button class="btn green" id="sgo" style="width:100%;margin-top:16px" disabled>${ic('pen')} Sign agreement</button>
-      <p class="small" style="margin-top:10px">We record the time and a fingerprint of this exact text. You get a PDF straight after.</p>`}</aside></div></div>`;
+    : editing ? `<div class="steps"><div class="on"><i>1</i>Company details</div><div><i>2</i>Sign</div></div><p class="small" style="margin-top:12px">Fill in your company details first. They go straight into the agreement, and then you can sign here or by hand.</p>`
+    : `<div class="steps"><div class="ok"><i>${ic('check')}</i>Company details</div><div class="on"><i>2</i>Sign</div></div>${partyCard()}
+      <div class="seg2" role="tablist"><button role="tab" data-smode="draw" class="${signMode === 'draw' ? 'on' : ''}">${ic('pen')} Sign here</button><button role="tab" data-smode="hand" class="${signMode === 'hand' ? 'on' : ''}">${ic('print')} Sign by hand</button></div>
+      ${signMode === 'draw' ? drawUI() : handUI()}`;
+  return `<div class="page wide"><p class="eyebrow mono">Agreement</p><h1>${esc(c.title)}<span>.</span></h1>
+    <p class="lead">${signed ? 'Signed. Your copy is below, and you can download it any time.' : editing ? 'First your company details, then read it through and sign.' : 'Read it first. When you are ready, sign on the right: here in the portal, or by hand.'}</p>
+    <div class="agr" style="margin-top:28px"><nav class="toc" id="toc" aria-label="Sections">${hs.map((h, n) => `<a data-jump="s${n}">${esc(h.replace(/^(Clause )?\d+[.:]\s*/, ''))}</a>`).join('')}</nav>
+    <div>${editing ? partyForm() : ''}<article class="paper" id="paper">${mdA(c.text)}${annex()}${seal}</article></div>
+    <aside class="card signp">${aside}</aside></div></div>`;
+}
+const annexData = () => Promise.all((W.settings.legalDocs || []).map(d => getFile('client', d.id).then(f => ({ title: d.title, data: f.data }))));
+const pdfNow = async (blank = false) => {
+  try {
+    const c = W.contract, sg = c.signature, hand = sg?.method === 'hand' ? await Promise.all(sg.files.map(id => getFile('client', id))) : [];
+    await agreementPdf({ title: c.title, text: c.text, client: W.client.name, signature: blank ? null : sg && { ...sg }, countersign: blank ? null : c.countersign, docHash: sg?.docHash, studio: W.settings.studio, blank, annex: await annexData(), hand });
+  } catch (e) { toast(e.message, true); }
+};
+// signing by hand: each chosen file is shrunk and uploaded on its own, then the client submits them together
+function handSign() {
+  const inp = $('#hf');
+  if (inp) inp.onchange = async () => {
+    const files = [...inp.files]; inp.value = '';
+    for (const f of files) {
+      try { toast(`Uploading ${f.name}…`); const data = await fileData(f), r = await api('POST', 'client/handfile', { data, name: f.name }); keepFile(r.id, { data, name: f.name }); W.contract.handPending = [...(W.contract.handPending || []), r.id]; }
+      catch (er) { toast(er.message, true); }
+    }
+    stay();
+  };
+  const go = $('#hgo');
+  if (go) go.onclick = async () => {
+    if (!$('#hc').checked) return toast('Tick the box to confirm.', true);
+    go.disabled = true;
+    try { W = { ...W, ...(await api('POST', 'client/handsign', { files: W.contract.handPending, name: $('#hn').value, title: $('#ht').value, consent: true })) }; toast('Received. Your signed copy is saved.'); paint(); }
+    catch (er) { toast(er.message, true); go.disabled = false; }
+  };
 }
 function sigPad() {
   const cv = $('#pad'); if (!cv) return; const ctx = cv.getContext('2d'); ctx.lineWidth = 3.2; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = '#0B0B0B'; sigInk = false; let down = false, last;
@@ -255,10 +304,13 @@ function sigPad() {
     try { W = { ...W, ...(await api('POST', 'client/sign', { name: $('#sgn').value, title: $('#sgt').value, consent: $('#sgc').checked, drawing: cv.toDataURL('image/png') })) }; toast('Signed. Your copy is ready.'); paint(); }
     catch (e) { toast(e.message, true); b.disabled = false; }
   };
+}
+// the table of contents follows the reading position
+function tocSpy() {
   const view = $('#view'), hs = $$('.paper h2'), links = $$('#toc a');
   view.onscroll = () => { let k = 0; hs.forEach((h, n) => { if (h.getBoundingClientRect().top < 140) k = n; }); links.forEach((a, n) => a.classList.toggle('on', n === k)); };
 }
-const pdfNow = async () => { try { await agreementPdf({ title: W.contract.title, text: W.contract.text, client: W.client.name, signature: W.contract.signature && { ...W.contract.signature }, countersign: W.contract.countersign, docHash: W.contract.signature.docHash, studio: W.settings.studio }); } catch (e) { toast(e.message, true); } };
+
 
 /* ---------- ads and results ---------- */
 function results() {
@@ -445,6 +497,18 @@ async function onClick(e) {
   if (t.dataset.jump) return document.getElementById(t.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   if (t.dataset.toggle !== undefined) { const id = t.dataset.toggle; open.has(id) ? open.delete(id) : open.add(id); return t.closest('.item').classList.toggle('open'); }
   if (t.dataset.pdf !== undefined) return pdfNow();
+  if (t.dataset.pdfblank !== undefined) { t.disabled = true; await pdfNow(true); t.disabled = false; return; }
+  if (t.dataset.smode) { signMode = t.dataset.smode; return stay(); }
+  if (t.dataset.pfedit !== undefined) { partyEdit = true; paint(); return $('#partyf')?.scrollIntoView({ block: 'start' }); }
+  if (t.dataset.pfcancel !== undefined) { partyEdit = false; return paint(); }
+  if (t.dataset.pfsave !== undefined) {
+    const b = readParty($('#partyf')), miss = partyMissing(b);
+    if (miss.length) { toast(`Still needed: ${miss.map(x => x[1]).join(', ')}`, true); return $(`[data-pf="${miss[0][0]}"]`)?.focus(); }
+    t.disabled = true;
+    try { W = { ...W, ...(await api('PUT', 'client/party', b)) }; partyEdit = false; toast('Saved. Your details are now in the agreement.'); paint(); }
+    catch (er) { toast(er.message, true); t.disabled = false; } return;
+  }
+  if (t.dataset.hdel) { try { await api('DELETE', 'client/handfile', { id: t.dataset.hdel }); W.contract.handPending = W.contract.handPending.filter(x => x !== t.dataset.hdel); stay(); } catch (er) { toast(er.message, true); } return; }
   if (t.dataset.print !== undefined) return print();
   if (t.dataset.state) {
     const { id, p } = itemPatch(t); p.state = t.dataset.state; saveField.flush({ checklist: { [id]: p } }); W.answers.checklist[id].state = p.state; await refresh(); toast(p.state === 'submitted' ? 'Sent to us. Thank you.' : p.state === 'help' ? 'We will reach out.' : 'Updated');
