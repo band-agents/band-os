@@ -683,6 +683,7 @@ const tellStudio = async (req, c, s, subject, title, lines, quote) => { const se
 
 H.staff['PUT ads'] = async (req, res, s, q) => {
   const b = await readBody(req), c = await store.get(`client:${q.id}`), old = await adsOf(q.id), fresh = [];
+  if (!c) throw bad(404, 'Unknown client');
   const next = (Array.isArray(b.ads) ? b.ads : []).slice(0, 200).map(r => {
     const a = { ...blankAd(), ...cleanAd(r), stats: cleanStats(r.stats) }, o = old.find(x => x.id === a.id);
     a.approval = o?.approval || null; a.requests = o?.requests || [];
