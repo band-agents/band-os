@@ -378,6 +378,7 @@ function adsPage() {
     <p class="lead">Approve what we plan to run and watch how each running ad is doing. Pause an ad or change its budget from here, and we do it in your ad account.</p>
     <div class="adstrip"><div class="card stat"><div class="v" style="${n.approve ? 'color:var(--amber)' : ''}">${n.approve}</div><div class="k">waiting for your approval</div></div><div class="card stat"><div class="v">${n.scheduled}</div><div class="k">scheduled</div></div>
       <div class="card stat"><div class="v">${n.live}</div><div class="k">running now</div></div><div class="card stat"><div class="v">${liveT.results ? money(liveT.spend / liveT.results) : '—'}</div><div class="k">average cost per result, running ads</div></div></div>
+    ${(s => s ? `<p class="small" style="margin-top:12px">Numbers are taken from your Meta ad account. Last update ${esc(since(s))}.</p>` : '')(L.map(a => a.synced).filter(Boolean).sort().at(-1))}
     <div class="tabs">${TABS_.map(([k, l]) => `<button class="${k === tab ? 'on' : ''}" data-adtab="${k}">${l} <span class="mono" style="opacity:.6">${n[k]}</span></button>`).join('')}</div>
     <div style="margin-top:18px">${by(tab).map(adCard).join('') || `<div class="empty"><b>${empty[0]}</b>${empty[1]}</div>`}</div></div>`;
 }

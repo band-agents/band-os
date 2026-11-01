@@ -453,21 +453,36 @@ const blankAd = () => ({ id: '', name: '', brand: C.client.brands[0]?.name || ''
 const blankDay = () => ({ date: new Date().toISOString().slice(0, 10), spend: '', impressions: '', reach: '', clicks: '', results: '' });
 const RTL = { pause: 'wants it paused', resume: 'wants it running again', stop: 'wants it stopped', budget: 'wants a new daily budget' };
 const adField = (k, label, v, o = {}) => `<div class="fld ${o.full ? 'full' : ''}"><label>${label}</label>${o.area ? `<textarea class="in" data-adf="${k}" style="min-height:70px">${esc(v ?? '')}</textarea>` : o.opts ? `<select class="in" data-adf="${k}">${o.opts.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : `<input class="in" data-adf="${k}" type="${o.t || 'text'}" value="${esc(v ?? '')}" ${o.t === 'number' ? 'step="any"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''}>`}</div>`;
+// Meta: connected when the host has META_TOKEN. The ad account ID is per client; the numbers and ads then come from Meta on "Sync".
+let META = null;
+const loadMeta = async () => { try { META = await api('GET', 'staff/meta'); } catch (e) { META = { on: true, error: e.message }; } const el = $('#metacard'); if (el) el.innerHTML = metaHtml(); };
+const metaHtml = () => {
+  const m = META, acc = C.client.meta?.account || '', hint = C.answers.checklist?.adacct?.fields?.adAccountId || '';
+  if (!m) return '<p class="small">Checking Meta…</p>';
+  if (!m.on) return '<p class="small">Meta is not connected yet. Add <span class="mono">META_TOKEN</span> (a System User token) to the host\'s environment variables and redeploy. Until then the ads and numbers are typed in by hand.</p>';
+  if (m.error) return `<p class="small" style="color:var(--red)">${esc(m.error)}</p>`;
+  return `<div class="fgrid" style="grid-template-columns:1fr auto auto;align-items:end"><div class="fld"><label>This client's ad account ID</label><input class="in" id="meta-acc" value="${esc(acc || hint)}" placeholder="act_123456789"></div><button class="btn sm" data-metasave>Save</button><button class="btn sm green" data-metasync ${acc ? '' : 'disabled'}>${ic('refresh')} Sync from Meta</button></div>
+    <p class="small" style="margin-top:8px">${acc ? `Last synced ${C.client.meta?.synced ? ago(C.client.meta.synced) + ' ago' : 'never'}.` : hint ? 'The client gave this ID in their checklist. Press Save to connect it.' : 'Paste the ID, or pick one below.'} Connected as ${esc(m.me.name)}.</p>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${m.accounts.map(a => `<button class="btn sm ghost" data-metapick="${esc(a.id)}">${esc(a.name)} · ${esc(a.id)}</button>`).join('') || '<span class="small">This token cannot see any ad accounts yet. Assign the client\'s ad account to the System User.</span>'}</div>`;
+};
 function cads() {
+  if (!META) setTimeout(loadMeta, 0);
   const L = C.ads || [], brands = C.client.brands.map(b => b.name), q = [];
   L.forEach(a => {
     if (a.status === 'pending' && a.approval?.state === 'changes') q.push(`<div class="adq"><span class="pillx bad">Changes asked</span><div style="flex:1;min-width:200px"><b>${esc(a.name)}</b><br><span class="small">${esc(a.approval.name || '')} wrote: “${esc(a.approval.comment)}”</span></div><button class="btn sm dark" data-adreopen="${esc(a.id)}">${ic('send')} Changed it, send back</button></div>`);
     if (a.status === 'approved') q.push(`<div class="adq"><span class="pillx ok">Approved</span><div style="flex:1;min-width:200px"><b>${esc(a.name)}</b><br><span class="small">${esc(a.approval?.name || 'The client')} approved it ${ago(a.approval?.at)} ago. Set it up in Meta.</span></div><button class="btn sm" data-adset="${esc(a.id)}:scheduled">Mark scheduled</button><button class="btn sm green" data-adset="${esc(a.id)}:live">Mark live</button></div>`);
     (a.requests || []).filter(r => r.state === 'open').forEach(r => q.push(`<div class="adq"><span class="pillx warn">${r.type}</span><div style="flex:1;min-width:200px"><b>${esc(a.name)}</b><br><span class="small">${esc(r.name || 'The client')} ${RTL[r.type]}${r.type === 'budget' ? ` · ${money(r.value)} a day (now ${a.budget ? money(a.budget) : 'not set'})` : ''}, ${ago(r.at)} ago.${r.note ? ` “${esc(r.note)}”` : ''}</span></div>
-      <input class="in" data-adreply="${esc(a.id)}:${esc(r.id)}" placeholder="A line for the client (optional)" style="flex:1;min-width:180px;height:38px"><button class="btn sm green" data-adresolve="${esc(a.id)}:${esc(r.id)}">${ic('check')} Done in Meta</button></div>`));
+      <input class="in" data-adreply="${esc(a.id)}:${esc(r.id)}" placeholder="A line for the client (optional)" style="flex:1;min-width:180px;height:38px">${META?.on && !META.error && a.metaId ? `<button class="btn sm dark" data-adresolve="${esc(a.id)}:${esc(r.id)}" data-via="meta">${ic('play')} Do it in Meta</button>` : ''}<button class="btn sm green" data-adresolve="${esc(a.id)}:${esc(r.id)}">${ic('check')} Done in Meta</button></div>`));
   });
-  return `<div class="card" style="margin-bottom:14px"><div class="sh"><h2>Needs you<em>${q.length}</em></h2></div>${q.join('') || '<p class="small">Nothing is waiting. Client answers and requests land here, and we get an email too.</p>'}</div>
+  return `<div class="card" style="margin-bottom:14px"><div class="sh"><h2>Meta</h2></div><div id="metacard">${metaHtml()}</div></div>
+    <div class="card" style="margin-bottom:14px"><div class="sh"><h2>Needs you<em>${q.length}</em></h2></div>${q.join('') || '<p class="small">Nothing is waiting. Client answers and requests land here, and we get an email too.</p>'}</div>
     <div class="acts" style="margin:0 0 12px"><button class="btn sm" data-adnew>${ic('plus')} Add an ad</button><button class="btn sm green" data-adsave>${ic('check')} Save all ads</button><span class="small">Set an ad to <b>pending</b> and the client is emailed to approve it. The numbers per day are what they see.</span></div>
     ${L.map((a, i) => `<article class="adc" data-adcard="${esc(a.id)}"><div class="adth" ${a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : ''}>${a.thumb ? '' : ic('image')}</div><div class="adbd">
       <div class="adhd"><span class="pillx ${({ live: 'live', pending: 'warn', approved: 'ok', scheduled: 'ok' })[a.status] || ''}">${esc(a.status)}</span>${a.approval ? `<span class="pillx ${a.approval.state === 'approved' ? 'ok' : 'bad'}">client: ${a.approval.state === 'approved' ? 'approved' : 'asked for changes'}</span>` : ''}<span class="sp" style="flex:1"></span><button class="btn sm ghost danger" data-adrm="${i}">${ic('trash')} Remove</button></div>
       <div class="fgrid" style="grid-template-columns:repeat(3,1fr);margin-top:6px">${adField('name', 'Name', a.name)}${adField('brand', 'Brand', a.brand, { opts: [...new Set([...brands, a.brand].filter(Boolean))] })}${adField('status', 'Status', a.status, { opts: AS })}
         ${adField('platform', 'Platform', a.platform)}${adField('budget', 'Daily budget', a.budget, { t: 'number' })}${adField('unit', 'What a result is', a.unit, { ph: 'Orders, Bookings…' })}
         ${adField('start', 'Starts', a.start, { t: 'date' })}${adField('end', 'Ends', a.end, { t: 'date' })}${adField('link', 'Link to preview the ad', a.link, { t: 'url' })}
+        ${adField('metaId', 'Meta ad ID', a.metaId)}${adField('metaAdsetId', 'Meta ad set ID', a.metaAdsetId)}${adField('resultType', 'What Meta counts as a result', a.resultType, { ph: 'purchase, lead…' })}
         ${adField('thumb', 'Picture URL', a.thumb, { t: 'url', full: true })}${adField('headline', 'Headline', a.headline)}${adField('cta', 'Button', a.cta, { ph: 'Book now' })}${adField('note', 'Note', a.note)}
         ${adField('text', 'Ad text', a.text, { area: true, full: true })}</div>
       <div class="lbl" style="margin:16px 0 6px">Numbers per day</div>
@@ -489,8 +504,15 @@ async function ads$(t) {
   if (d.adset) { const [id, st] = d.adset.split(':'), l = readAds(), a = l.find(x => x.id === id); if (!a) return; a.status = st; return void (await saveAdList(l, st === 'live' ? 'Marked live' : 'Marked scheduled')); }
   if (d.adreopen) { t.disabled = true; try { const r = await api('POST', `staff/clients/${arg}/adreopen`, { id: d.adreopen }); C.ads = r.ads; await reloadClient(); toast(r.emailed ? 'Sent back. The client was emailed.' : 'Sent back for approval'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return; }
   if (d.adresolve) {
-    const [id, rid] = d.adresolve.split(':'), reply = $(`[data-adreply="${id}:${rid}"]`)?.value || ''; t.disabled = true;
-    try { const r = await api('POST', `staff/clients/${arg}/adresolve`, { id, rid, reply }); C.ads = r.ads; await reloadClient(); toast(r.emailed ? 'Done. The client was told by email.' : 'Done'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; }
+    const [id, rid] = d.adresolve.split(':'), reply = $(`[data-adreply="${id}:${rid}"]`)?.value || ''; if (d.via === 'meta' && !confirm('This changes the ad in Meta right now. Continue?')) return; t.disabled = true;
+    try { const r = await api('POST', `staff/clients/${arg}/adresolve`, { id, rid, reply, via: d.via }); C.ads = r.ads; await reloadClient(); toast(r.emailed ? 'Done. The client was told by email.' : 'Done'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; }
+    return;
+  }
+  if (d.metapick) { const i = $('#meta-acc'); if (i) i.value = d.metapick; return; }
+  if (d.metasave !== undefined) { try { await api('PATCH', 'staff/clients/' + arg, { metaAccount: $('#meta-acc').value }); await reloadClient(); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return; }
+  if (d.metasync !== undefined) {
+    t.disabled = true; const keep = t.innerHTML; t.textContent = 'Syncing…';
+    try { const r = await api('POST', `staff/clients/${arg}/metasync`); C.ads = r.ads; await reloadClient(); toast(`Synced: ${r.added} new, ${r.updated} updated`); stay(); } catch (er) { toast(er.message, true); t.disabled = false; t.innerHTML = keep; }
   }
 }
 
@@ -562,7 +584,7 @@ async function onClick(e) {
   if (d.hide) { const h = new Set(C.staff.hidden || []); h.has(d.hide) ? h.delete(d.hide) : h.add(d.hide); if (await put({ hidden: [...h] })) stay(); return; }
   if (d.rmitem) { if (await put({ customItems: C.staff.customItems.filter(x => x.id !== d.rmitem) }, 'Removed')) stay(); return; }
   if (d.additem !== undefined) return addItem();
-  if (d.adnew !== undefined || d.adsave !== undefined || d.adrm !== undefined || d.adday !== undefined || d.adrmday || d.adreopen || d.adset || d.adresolve) return ads$(t);
+  if (d.adnew !== undefined || d.adsave !== undefined || d.adrm !== undefined || d.adday !== undefined || d.adrmday || d.adreopen || d.adset || d.adresolve || d.metapick || d.metasave !== undefined || d.metasync !== undefined) return ads$(t);
   if (d.add) { const kind = d.add; if (kind === 'timeline') return; const list = readEd(kind); const key = kind; C.staff[key] = [...list, blank[kind]()]; return stay(); }
   if (t.matches('[data-rm]')) { const tb = t.closest('table'), kind = tb.dataset.ed, list = readEd(kind); list.splice([...tb.tBodies[0].rows].indexOf(t.closest('tr')), 1); C.staff[kind] = list; return stay(); }
   if (d.save) {

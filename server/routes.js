@@ -3,6 +3,7 @@ import { configured, sessionOf, setSession, clearSession, sha, same, hashCode, n
 import { GROUPS, CHECKLIST, FORMS, TIMELINE, DEFAULT_SETTINGS, CONTRACT } from './seed.js';
 import { send, letter, mailReady, mailWho, ics, gcalLink } from './mail.js';
 import { BOOKING, freeSlots, when } from './slots.js';
+import { metaOn, metaWho, normAct, pullAds, resultsOn, metaDo, unitFor } from './meta.js';
 
 const MAX_BODY = 400_000;
 const bad = (code, msg) => Object.assign(new Error(msg), { code });
@@ -61,7 +62,7 @@ async function bundle(id) {
 }
 // the first ads list was a few simple cards inside the staff data; they become real ads the first time anyone opens the new Ads page
 const oldAds = a => (a || []).map(x => ({ ...blankAd(), id: x.id, brand: x.brand, name: x.name, status: x.status === 'review' ? 'pending' : x.status, platform: x.platform, link: x.link, thumb: x.thumb, note: x.note }));
-const blankAd = () => ({ id: '', brand: '', name: '', status: 'draft', platform: 'Meta', link: '', thumb: '', headline: '', text: '', cta: '', budget: 0, start: '', end: '', unit: 'Results', note: '', approval: null, requests: [], stats: [] });
+const blankAd = () => ({ id: '', brand: '', name: '', status: 'draft', platform: 'Meta', link: '', thumb: '', headline: '', text: '', cta: '', budget: 0, start: '', end: '', unit: 'Results', note: '', metaId: '', metaAdsetId: '', resultType: '', synced: '', approval: null, requests: [], stats: [] });
 const items = (st) => [...CHECKLIST, ...(st.customItems || []).map(i => ({ ...i, custom: true }))].filter(i => !(st.hidden || []).includes(i.id));
 function summarize({ c, answers, st, contract, tickets = [], events = [], ads = [] }) {
   const all = items(st).filter(i => i.required !== false);
@@ -302,6 +303,7 @@ H.staff['PATCH client'] = async (req, res, s, q) => {
   if (b.currency !== undefined) c.currency = clip(b.currency, 5);
   if (b.accounts !== undefined) c.accounts = clip(b.accounts, 80);
   if (b.law !== undefined) c.law = clip(b.law, 120);
+  if (b.metaAccount !== undefined) { const a = b.metaAccount ? normAct(b.metaAccount) : ''; if (b.metaAccount && !a) throw bad(400, 'That does not look like an ad account ID. It is a number, often shown as act_123456789.'); c.meta = a ? { ...(c.meta || {}), account: a } : null; }
   if (b.status !== undefined && ['invited', 'active', 'paused', 'closed'].includes(b.status)) c.status = b.status;
   if (Array.isArray(b.brands)) c.brands = b.brands.slice(0, 8).map((x, i) => ({ id: okId(x.id) ? x.id : 'b' + (i + 1), name: clip(x.name, 60).trim() })).filter(x => x.name);
   await store.set(`client:${q.id}`, c); await log(s.name, `updated ${c.name}`, q.id);
@@ -676,8 +678,9 @@ const ASTATE = ['draft', 'pending', 'approved', 'scheduled', 'live', 'paused', '
 const adsOf = async cid => (await store.get(`adlist:${cid}`)) || oldAds((await store.get(`staff:${cid}`))?.ads);
 const saveAds = (cid, all) => store.set(`adlist:${cid}`, all.slice(0, 200));
 const cleanStats = a => (Array.isArray(a) ? a : []).slice(0, 200).map(x => ({ date: ymd(x.date), spend: num(x.spend), impressions: num(x.impressions), reach: num(x.reach), clicks: num(x.clicks), results: num(x.results) })).filter(x => x.date).sort((p, q) => p.date.localeCompare(q.date));
-const cleanAd = r => ({ id: typeof r.id === 'string' && okId(r.id) ? r.id : newId(6), brand: clip(r.brand, 80), name: clip(r.name, 120).trim(), status: ASTATE.includes(r.status) ? r.status : 'draft', platform: clip(r.platform || 'Meta', 30), link: url(r.link), thumb: url(r.thumb),
-  headline: clip(r.headline, 120).trim(), text: clip(r.text, 1500).trim(), cta: clip(r.cta, 40).trim(), budget: num(r.budget), start: ymd(r.start), end: ymd(r.end), unit: clip(r.unit || 'Results', 30).trim() || 'Results', note: clip(r.note, 400).trim() });
+const cleanAd = r => ({ id: typeof r.id === 'string' && okId(r.id) ? r.id : newId(6), brand: clip(r.brand, 80), name: clip(r.name, 120).trim(), status: ASTATE.includes(r.status) ? r.status : 'draft', platform: clip(r.platform || 'Meta', 30), link: url(r.link), thumb: /^https?:\/\//i.test(String(r.thumb || '')) ? clip(r.thumb, 1200).trim() : '',
+  headline: clip(r.headline, 120).trim(), text: clip(r.text, 1500).trim(), cta: clip(r.cta, 40).trim(), budget: num(r.budget), start: ymd(r.start), end: ymd(r.end), unit: clip(r.unit || 'Results', 30).trim() || 'Results', note: clip(r.note, 400).trim(),
+  metaId: clip(r.metaId, 40).replace(/\D/g, ''), metaAdsetId: clip(r.metaAdsetId, 40).replace(/\D/g, ''), resultType: clip(r.resultType, 80).replace(/[^a-z0-9_.]/gi, '') });
 const tellClient = async (req, c, subject, title, lines, button) => { const set = await settings(); return send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `${subject} · ${set.studio}`, ...letter({ title, lines, button: { label: button, url: `${portal(req)}#ads` } }) }); };
 const tellStudio = async (req, c, s, subject, title, lines, quote) => { const set = await settings(); return send({ to: set.studioEmail, replyTo: s.email, subject: `${subject}: ${c.name}`, ...letter({ title, lines, quote: quote || undefined, button: { label: 'Open the ads', url: `${portal(req)}#client/${s.cid}/ads` } }) }); };
 
@@ -686,7 +689,7 @@ H.staff['PUT ads'] = async (req, res, s, q) => {
   if (!c) throw bad(404, 'Unknown client');
   const next = (Array.isArray(b.ads) ? b.ads : []).slice(0, 200).map(r => {
     const a = { ...blankAd(), ...cleanAd(r), stats: cleanStats(r.stats) }, o = old.find(x => x.id === a.id);
-    a.approval = o?.approval || null; a.requests = o?.requests || [];
+    a.approval = o?.approval || null; a.requests = o?.requests || []; a.synced = o?.synced || '';
     if (a.status === 'pending' && (!o || o.status !== 'pending')) { a.approval = null; fresh.push(a); }
     return a;
   });
@@ -697,6 +700,7 @@ H.staff['PUT ads'] = async (req, res, s, q) => {
 H.staff['POST adresolve'] = async (req, res, s, q) => {
   const b = await readBody(req), all = await adsOf(q.id), a = all.find(x => x.id === b.id), r = a?.requests.find(x => x.id === b.rid); if (!r) throw bad(404, 'No such request');
   if (r.state === 'done') throw bad(409, 'Already done.');
+  if (b.via === 'meta') await metaDo(a, r.type, r.value);   // do it in the ad account first; if Meta refuses, nothing is marked done
   const c = await store.get(`client:${q.id}`), reply = clip(b.reply, 1000).trim();
   r.state = 'done'; r.doneAt = now(); r.doneBy = s.name; r.reply = reply;
   if (r.type === 'pause') a.status = 'paused'; else if (r.type === 'resume') a.status = 'live'; else if (r.type === 'stop') a.status = 'ended'; else if (r.type === 'budget' && r.value > 0) a.budget = r.value;
@@ -711,6 +715,33 @@ H.staff['POST adreopen'] = async (req, res, s, q) => {
   const sent = await tellClient(req, c, `Updated ad: ${a.name}`, 'We changed the ad. It needs your approval again', [`${a.name}${a.brand ? ` · ${a.brand}` : ''}`, 'We updated it from your notes.'], 'Review the ad');
   return { ads: all, emailed: sent };
 };
+// ---------- Meta: which ad accounts the token can see, and pulling a client's ads and daily numbers ----------
+H.staff['GET meta'] = async () => {
+  if (!metaOn()) return { on: false };
+  try { return { on: true, ...(await metaWho()) }; } catch (e) { return { on: true, error: e.message }; }
+};
+const guessBrand = (c, name) => (c.brands.find(b => name.toLowerCase().includes(b.name.toLowerCase())) || c.brands[0] || {}).name || '';
+H.staff['POST metasync'] = async (req, res, s, q) => {
+  const c = await store.get(`client:${q.id}`); if (!c) throw bad(404, 'Unknown client');
+  const act = c.meta?.account; if (!act) throw bad(400, 'Set this client\'s ad account ID first.');
+  const pulled = await pullAds(act), all = await adsOf(q.id), at = now(); let added = 0, updated = 0;
+  for (const m of pulled) {
+    let a = all.find(x => x.metaId === m.metaId);
+    if (!a) { a = { ...blankAd(), id: newId(6), brand: guessBrand(c, m.name), name: m.name, metaId: m.metaId, status: m.status }; all.push(a); added++; } else updated++;
+    // the approval steps live only in the portal: an ad waiting for the client stays that way until they answer
+    if (a.status !== 'pending' && !(['draft', 'approved'].includes(a.status) && !['live', 'scheduled'].includes(m.status))) a.status = m.status;
+    a.metaAdsetId = m.adsetId; a.resultType = a.resultType || m.resultType; a.unit = a.resultType ? unitFor(a.resultType) : a.unit;
+    if (m.budget) a.budget = m.budget; if (m.start) a.start = m.start; if (m.end) a.end = m.end;
+    a.headline = a.headline || clip(m.headline, 120); a.text = a.text || clip(m.text, 1500); a.cta = a.cta || clip(m.cta, 40); a.thumb = m.thumb && /^https:\/\//.test(m.thumb) ? clip(m.thumb, 900) : a.thumb; a.link = a.link || url(m.link);
+    const keep = new Map((a.stats || []).map(x => [x.date, x])); // days Meta no longer returns stay as they were; the days it returns are replaced
+    for (const d of m.days) keep.set(d.date, { date: d.date, spend: d.spend, impressions: d.impressions, reach: d.reach, clicks: d.clicks, results: a.resultType ? resultsOn(d, a.resultType) : 0 });
+    a.stats = cleanStats([...keep.values()]).slice(-200); a.synced = at;
+  }
+  await saveAds(q.id, all); c.meta = { ...c.meta, synced: at }; await store.set(`client:${q.id}`, c);
+  await log(s.name, `synced the ads from Meta (${added} new, ${updated} updated)`, q.id);
+  return { ads: all, added, updated, at };
+};
+
 H.client['POST adapprove'] = async (req, res, s) => {
   const b = await readBody(req), all = await adsOf(s.cid), a = all.find(x => x.id === b.id); if (!a) throw bad(404, 'No such ad');
   if (a.status !== 'pending' || a.approval) throw bad(409, 'This ad is not waiting for your answer.');
