@@ -55,12 +55,15 @@ const vars = (c, s) => {
 export const render = (text, v) => String(text).replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? `{{${k}}}`);
 
 async function bundle(id) {
-  const [c, answers, st, contract, msgs, tickets, events] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`), store.get(`events:${id}`)]);
+  const [c, answers, st, contract, msgs, tickets, events, adl] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`), store.get(`events:${id}`), store.get(`adlist:${id}`)]);
   if (!c) throw bad(404, 'Unknown client');
-  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [], events: events || [] };
+  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [], events: events || [], ads: adl || oldAds(st?.ads) };
 }
+// the first ads list was a few simple cards inside the staff data; they become real ads the first time anyone opens the new Ads page
+const oldAds = a => (a || []).map(x => ({ ...blankAd(), id: x.id, brand: x.brand, name: x.name, status: x.status === 'review' ? 'pending' : x.status, platform: x.platform, link: x.link, thumb: x.thumb, note: x.note }));
+const blankAd = () => ({ id: '', brand: '', name: '', status: 'draft', platform: 'Meta', link: '', thumb: '', headline: '', text: '', cta: '', budget: 0, start: '', end: '', unit: 'Results', note: '', approval: null, requests: [], stats: [] });
 const items = (st) => [...CHECKLIST, ...(st.customItems || []).map(i => ({ ...i, custom: true }))].filter(i => !(st.hidden || []).includes(i.id));
-function summarize({ c, answers, st, contract, tickets = [], events = [] }) {
+function summarize({ c, answers, st, contract, tickets = [], events = [], ads = [] }) {
   const all = items(st).filter(i => i.required !== false);
   const stateOf = i => {
     const v = st.verify[i.id]?.state; if (v) return v;
@@ -74,6 +77,9 @@ function summarize({ c, answers, st, contract, tickets = [], events = [] }) {
     id: c.id, name: c.name, brands: c.brands, status: c.status, startDate: c.startDate, createdAt: c.createdAt,
     total: all.length, done, verified, help: all.filter(i => stateOf(i) === 'help').length,
     awaiting: all.filter(i => stateOf(i) === 'submitted' && i.owner !== 'staff').length, fix: all.filter(i => stateOf(i) === 'needs-fix').length,
+    // ads: waiting for the client to approve, answered and waiting for us, and open requests (pause, budget…)
+    adsWait: ads.filter(a => a.status === 'pending' && !a.approval).length, adsAct: ads.filter(a => (a.status === 'pending' && a.approval) || a.status === 'approved').length,
+    adReq: ads.reduce((n, a) => n + (a.requests || []).filter(r => r.state === 'open').length, 0), adsLive: ads.filter(a => a.status === 'live').length,
     contract: contract?.status || 'draft', lastActive: answers.updatedAt, tickets: tickets.filter(t => t.status === 'open').length, events: events.filter(e => e.status === 'new' && (e.end || e.start) >= now().slice(0, 10)).length,
   };
 }
@@ -119,12 +125,12 @@ H.open['GET template'] = async (req) => { if (!sessionOf(req)) throw bad(401, 'S
 
 // ---------- client ----------
 const clientWorkspace = async id => {
-  const { c, answers, st, contract, msgs, tickets, events } = await bundle(id), s = await settings(), v = vars(c, s);
+  const { c, answers, st, contract, msgs, tickets, events, ads } = await bundle(id), s = await settings(), v = vars(c, s);
   const visible = contract && ['sent', 'signed'].includes(contract.status);
   const sig = contract?.signature;
   return {
-    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz, legalDocs: visible ? s.legalDocs || [] : [] }, summary: summarize({ c, answers, st, contract, tickets, events }),
-    tickets, events, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30), feed: (await feedFor(id)).slice(0, 80),
+    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz, legalDocs: visible ? s.legalDocs || [] : [] }, summary: summarize({ c, answers, st, contract, tickets, events, ads }),
+    tickets, events, ads, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30), feed: (await feedFor(id)).slice(0, 80),
     contract: visible ? { status: contract.status, title: contract.title, text: contract.status === 'signed' ? contract.signedText : render(contract.text, v), sentAt: contract.sentAt, hash: contract.hash,
       signature: sig ? { method: sig.method || 'drawn', name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, files: sig.files || [], docHash: sig.docHash } : null,
       handPending: contract.handPending || [],
@@ -284,9 +290,9 @@ H.staff['POST clients'] = async (req, res, s) => {
   return { client: pubClient(c), code };
 };
 H.staff['GET client'] = async (req, res, s, q) => {
-  const { c, answers, st, contract, msgs, tickets, events } = await bundle(q.id), set = await settings();
-  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events }), settings: set,
-    tickets, events, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
+  const { c, answers, st, contract, msgs, tickets, events, ads } = await bundle(q.id), set = await settings();
+  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events, ads }), settings: set,
+    tickets, events, ads, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
 };
 H.staff['PATCH client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -379,7 +385,7 @@ H.staff['PUT staffdata'] = async (req, res, s, q) => {
   for (const k of Object.keys(b)) { const v = cleanStaff(k, b[k]); if (v !== undefined) st[k] = v; }
   await store.set(`staff:${q.id}`, st);
   if (b.note) await log(s.name, clip(b.note, 120), q.id);
-  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [], events: await eventsOf(q.id) }) };
+  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [], events: await eventsOf(q.id), ads: await adsOf(q.id) }) };
 };
 H.staff['PUT contract'] = async (req, res, s, q) => {
   const b = await readBody(req), { c, contract } = await bundle(q.id), set = await settings();
@@ -396,7 +402,7 @@ H.staff['PUT contract'] = async (req, res, s, q) => {
 };
 // email the client about one page of their portal. Staff write (or edit) the message and what to include from the page;
 // it goes from the studio Gmail to the chosen emails on the workspace, with a button that opens that page.
-const PAGES = { overview: 'Overview', start: 'Start here', forms: 'Forms', agreement: 'Agreement', results: 'Ads & results', events: 'Events', invoices: 'Invoices', files: 'Files & links', support: 'Support', meetings: 'Meetings', messages: 'Messages', feed: 'Updates' };
+const PAGES = { overview: 'Overview', start: 'Start here', forms: 'Forms', agreement: 'Agreement', ads: 'Ads', results: 'Results', events: 'Events', invoices: 'Invoices', files: 'Files & links', support: 'Support', meetings: 'Meetings', messages: 'Messages', feed: 'Updates' };
 H.staff['POST email'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id), set = await settings(), all = emailsOf(c);
   const to = [...new Set([].concat(b.to || []).map(x => String(x).trim().toLowerCase()))].filter(x => all.includes(x));
@@ -660,6 +666,69 @@ H.client['PUT eventseen'] = async (req, res, s) => {
   for (const e of all) if ((e.replies || []).some(r => r.from === 'staff' && (!e.clientSeen || r.at > e.clientSeen))) { e.clientSeen = at; n++; }
   if (n) { await saveEvents(s.cid, all); await bump(s.cid); }
   return { ok: true, seen: n };
+};
+
+// ---------- ads: what is scheduled and running, approvals, the numbers per ad, and what a client can ask for ----------
+// pending = waiting for the client (approve, or ask for changes). The portal cannot touch the ad account, so pause, resume, stop and budget changes
+// are requests that land with the team; we do them in Meta, press Done here, and the ad updates itself and the client is told.
+const money = (n, cur = 'USD') => { try { return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, maximumFractionDigits: n % 1 ? 2 : 0 }).format(n || 0); } catch { return `${n || 0} ${cur}`; } };
+const ASTATE = ['draft', 'pending', 'approved', 'scheduled', 'live', 'paused', 'ended'], RTYPE = { pause: ['live'], resume: ['paused'], stop: ['live', 'paused', 'scheduled'], budget: ['live', 'scheduled', 'paused'] };
+const adsOf = async cid => (await store.get(`adlist:${cid}`)) || oldAds((await store.get(`staff:${cid}`))?.ads);
+const saveAds = (cid, all) => store.set(`adlist:${cid}`, all.slice(0, 200));
+const cleanStats = a => (Array.isArray(a) ? a : []).slice(0, 200).map(x => ({ date: ymd(x.date), spend: num(x.spend), impressions: num(x.impressions), reach: num(x.reach), clicks: num(x.clicks), results: num(x.results) })).filter(x => x.date).sort((p, q) => p.date.localeCompare(q.date));
+const cleanAd = r => ({ id: typeof r.id === 'string' && okId(r.id) ? r.id : newId(6), brand: clip(r.brand, 80), name: clip(r.name, 120).trim(), status: ASTATE.includes(r.status) ? r.status : 'draft', platform: clip(r.platform || 'Meta', 30), link: url(r.link), thumb: url(r.thumb),
+  headline: clip(r.headline, 120).trim(), text: clip(r.text, 1500).trim(), cta: clip(r.cta, 40).trim(), budget: num(r.budget), start: ymd(r.start), end: ymd(r.end), unit: clip(r.unit || 'Results', 30).trim() || 'Results', note: clip(r.note, 400).trim() });
+const tellClient = async (req, c, subject, title, lines, button) => { const set = await settings(); return send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `${subject} · ${set.studio}`, ...letter({ title, lines, button: { label: button, url: `${portal(req)}#ads` } }) }); };
+const tellStudio = async (req, c, s, subject, title, lines, quote) => { const set = await settings(); return send({ to: set.studioEmail, replyTo: s.email, subject: `${subject}: ${c.name}`, ...letter({ title, lines, quote: quote || undefined, button: { label: 'Open the ads', url: `${portal(req)}#client/${s.cid}/ads` } }) }); };
+
+H.staff['PUT ads'] = async (req, res, s, q) => {
+  const b = await readBody(req), c = await store.get(`client:${q.id}`), old = await adsOf(q.id), fresh = [];
+  const next = (Array.isArray(b.ads) ? b.ads : []).slice(0, 200).map(r => {
+    const a = { ...blankAd(), ...cleanAd(r), stats: cleanStats(r.stats) }, o = old.find(x => x.id === a.id);
+    a.approval = o?.approval || null; a.requests = o?.requests || [];
+    if (a.status === 'pending' && (!o || o.status !== 'pending')) { a.approval = null; fresh.push(a); }
+    return a;
+  });
+  await saveAds(q.id, next); await log(s.name, `updated the ads (${next.length})`, q.id);
+  if (fresh.length) await tellClient(req, c, 'An ad needs your approval', `${fresh.length > 1 ? `${fresh.length} ads need` : 'An ad needs'} your approval`, [...fresh.map(a => `${a.name}${a.brand ? ` · ${a.brand}` : ''}`), 'Open it, look at the ad and the details, then approve it or tell us what to change. Nothing runs until you do.'], 'Review the ad');
+  return { ads: next, emailed: fresh.length };
+};
+H.staff['POST adresolve'] = async (req, res, s, q) => {
+  const b = await readBody(req), all = await adsOf(q.id), a = all.find(x => x.id === b.id), r = a?.requests.find(x => x.id === b.rid); if (!r) throw bad(404, 'No such request');
+  if (r.state === 'done') throw bad(409, 'Already done.');
+  const c = await store.get(`client:${q.id}`), reply = clip(b.reply, 1000).trim();
+  r.state = 'done'; r.doneAt = now(); r.doneBy = s.name; r.reply = reply;
+  if (r.type === 'pause') a.status = 'paused'; else if (r.type === 'resume') a.status = 'live'; else if (r.type === 'stop') a.status = 'ended'; else if (r.type === 'budget' && r.value > 0) a.budget = r.value;
+  await saveAds(q.id, all); await log(s.name, `did the ${r.type} request on the ad "${a.name}"`, q.id);
+  const said = { pause: 'is paused', resume: 'is running again', stop: 'has been stopped', budget: `now has a daily budget of ${money(a.budget, 'USD')}` }[r.type];
+  const sent = await tellClient(req, c, `Done: ${a.name}`, `Your ad ${said}`, [`${a.name}${a.brand ? ` · ${a.brand}` : ''} ${said}.`, ...(reply ? [reply] : [])], 'Open your ads');
+  return { ads: all, emailed: sent };
+};
+H.staff['POST adreopen'] = async (req, res, s, q) => {
+  const b = await readBody(req), all = await adsOf(q.id), a = all.find(x => x.id === b.id); if (!a) throw bad(404, 'No such ad');
+  const c = await store.get(`client:${q.id}`); a.approval = null; a.status = 'pending'; await saveAds(q.id, all); await log(s.name, `sent the ad "${a.name}" back for approval`, q.id);
+  const sent = await tellClient(req, c, `Updated ad: ${a.name}`, 'We changed the ad. It needs your approval again', [`${a.name}${a.brand ? ` · ${a.brand}` : ''}`, 'We updated it from your notes.'], 'Review the ad');
+  return { ads: all, emailed: sent };
+};
+H.client['POST adapprove'] = async (req, res, s) => {
+  const b = await readBody(req), all = await adsOf(s.cid), a = all.find(x => x.id === b.id); if (!a) throw bad(404, 'No such ad');
+  if (a.status !== 'pending' || a.approval) throw bad(409, 'This ad is not waiting for your answer.');
+  const ok = b.decision === 'approved', comment = clip(b.comment, 1500).trim(); if (!ok && comment.length < 3) throw bad(400, 'Tell us what to change.');
+  const c = await store.get(`client:${s.cid}`); a.approval = { state: ok ? 'approved' : 'changes', comment, at: now(), by: s.email, name: nameOf(c, s.email) }; if (ok) a.status = 'approved';
+  await saveAds(s.cid, all); await log(c.name, `${ok ? 'approved' : 'asked for changes on'} the ad "${a.name}"`, s.cid);
+  await tellStudio(req, c, s, ok ? 'Ad approved' : 'Ad changes requested', `${nameOf(c, s.email)} ${ok ? 'approved' : 'asked for changes on'} an ad`, [`${a.name}${a.brand ? ` · ${a.brand}` : ''}`, ok ? 'Schedule it or set it live in Meta, then update the status in the portal.' : 'Change it, then send it back for approval.'], comment);
+  return { ad: a };
+};
+H.client['POST adrequest'] = async (req, res, s) => {
+  const b = await readBody(req), all = await adsOf(s.cid), a = all.find(x => x.id === b.id); if (!a) throw bad(404, 'No such ad');
+  const type = String(b.type), note = clip(b.note, 1000).trim(); if (!RTYPE[type]) throw bad(400, 'Unknown request');
+  if (!RTYPE[type].includes(a.status)) throw bad(409, 'That is not possible for this ad right now.');
+  let value = 0; if (type === 'budget') { value = num(b.value); if (!(value > 0) || value > 100000) throw bad(400, 'Enter the new daily budget.'); }
+  if (a.requests.some(r => r.type === type && r.state === 'open')) throw bad(409, 'You already asked for this. We are on it.');
+  const c = await store.get(`client:${s.cid}`); a.requests.push({ id: newId(6), type, value, note, state: 'open', at: now(), by: s.email, name: nameOf(c, s.email) }); a.requests = a.requests.slice(-30);
+  await saveAds(s.cid, all); await log(c.name, `asked to ${type === 'budget' ? 'change the budget of' : type} the ad "${a.name}"`, s.cid);
+  await tellStudio(req, c, s, `Ad request (${type})`, `${nameOf(c, s.email)} asked to ${type === 'budget' ? `change the daily budget to ${money(value, 'USD')} on` : type} an ad`, [`${a.name}${a.brand ? ` · ${a.brand}` : ''}`, 'Do it in Meta, then press Done on the ad in the portal.'], note);
+  return { ad: a };
 };
 
 // ---------- reminders: a reply from us that the client has not answered after 30 minutes gets one reminder email ----------

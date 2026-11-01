@@ -83,11 +83,11 @@ const brandChips = c => c.brands.map(b => `<span class="brand"><i></i>${esc(b.na
 const cpill = s => `<span class="pillx ${s === 'signed' ? 'live' : s === 'sent' ? 'warn' : ''}">${{ draft: 'agreement draft', sent: 'awaiting signature', signed: 'signed', void: 'agreement void' }[s]}</span>`;
 function row(c) {
   return `<div class="row" data-client="${c.id}" tabindex="0"><div class="n"><b>${esc(c.name)}</b><span>${brandChips(c)}</span></div>${cpill(c.contract)}
-    ${c.tickets ? `<span class="pillx warn">${c.tickets} ticket${c.tickets > 1 ? 's' : ''}</span>` : ''}${c.events ? `<span class="pillx warn">${c.events} new event${c.events > 1 ? 's' : ''}</span>` : ''}${c.awaiting ? `<span class="pillx warn">${c.awaiting} to review</span>` : ''}${c.help ? `<span class="pillx bad">${c.help} need help</span>` : ''}<div style="width:120px"><div class="bar-p"><i style="width:${pctOf(c)}%"></i></div><span class="small mono">${c.done}/${c.total} · ${pctOf(c)}%</span></div></div>`;
+    ${c.tickets ? `<span class="pillx warn">${c.tickets} ticket${c.tickets > 1 ? 's' : ''}</span>` : ''}${c.events ? `<span class="pillx warn">${c.events} new event${c.events > 1 ? 's' : ''}</span>` : ''}${c.awaiting ? `<span class="pillx warn">${c.awaiting} to review</span>` : ''}${c.adsAct ? `<span class="pillx warn">${c.adsAct} ad${c.adsAct > 1 ? 's' : ''} to set up</span>` : ''}${c.adReq ? `<span class="pillx bad">${c.adReq} ad request${c.adReq > 1 ? 's' : ''}</span>` : ''}${c.adsWait ? `<span class="pillx">${c.adsWait} ad${c.adsWait > 1 ? 's' : ''} with the client</span>` : ''}${c.help ? `<span class="pillx bad">${c.help} need help</span>` : ''}<div style="width:120px"><div class="bar-p"><i style="width:${pctOf(c)}%"></i></div><span class="small mono">${c.done}/${c.total} · ${pctOf(c)}%</span></div></div>`;
 }
 const feed = (n = 14) => `<div class="feed">${O.log.slice(0, n).map(l => `<div><time>${ago(l.at)}</time><span><b>${esc(l.who)}</b> ${esc(l.what)}</span></div>`).join('') || '<p class="small">Nothing yet.</p>'}</div>`;
 function overview() {
-  const C0 = O.clients, sum = k => C0.reduce((a, c) => a + c[k], 0), sign = C0.filter(c => c.contract === 'sent').length, need = C0.filter(c => c.awaiting || c.help || c.fix || c.tickets || c.events || c.contract === 'sent');
+  const C0 = O.clients, sum = k => C0.reduce((a, c) => a + c[k], 0), sign = C0.filter(c => c.contract === 'sent').length, need = C0.filter(c => c.awaiting || c.help || c.fix || c.tickets || c.events || c.adsAct || c.adReq || c.contract === 'sent');
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p><h1>${greet()},<span> ${esc(me.name)}.</span></h1></div><canvas id="hcode" aria-hidden="true"></canvas></div>
     <div class="grid g4" style="margin-top:30px">${[['Clients', C0.length, 'in the portal'], ['To review', sum('awaiting'), 'items sent by clients'], ['Waiting to sign', sign, 'agreements out'], ['Need help', sum('help'), 'items flagged']].map(([t, v, k], n) => `<div class="card stat"><div class="v" style="${n && v ? 'color:var(--green)' : ''}">${v}</div><div class="k">${t}<br><span class="mini">${k}</span></div></div>`).join('')}</div>
     <div class="split" style="margin-top:44px;grid-template-columns:1.5fr 1fr"><div><div class="sh"><h2>Needs you<em>${need.length}</em></h2></div>${need.map(row).join('') || '<div class="empty"><b>All clear.</b>Nothing is waiting on us.</div>'}
@@ -157,14 +157,15 @@ function pageMail() {
     tickets: ['support', 'Your support tickets', `${hi}\n\nAn update on your tickets.`, bullet(C.tickets.filter(t => t.status !== 'closed').map(t => `#${t.no} ${t.subject} (${t.status === 'open' ? 'with us' : 'answered'})`))],
     meetings: ['meetings', 'Your calls with us', `${hi}\n\nHere are your upcoming calls with us. You can book or move a call from Meetings in your portal.`, bullet(C.meetings.filter(m => m.status === 'booked' && Date.parse(m.end) > Date.now()).map(m => `${new Date(m.start).toLocaleString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })} · ${m.topic}`))],
     events: ['events', 'Your upcoming events', `${hi}\n\nThese are the events we are planning your ads around. Add anything new under Events in your portal, the earlier the better.`, bullet(up.map(e => `${e.start}${e.end && e.end !== e.start ? ' to ' + e.end : ''} · ${e.title} (${({ new: 'received', planned: 'in our plan', live: 'ads running', done: 'done' })[e.status] || e.status})`))],
-    results: ['results', 'Your ad results', `${hi}\n\nHere are your latest ad results. The charts are on Ads & results in your portal.`, bullet(P.slice(-6).reverse().map(x => `Week of ${x.date} · ${x.brand}: ${money_(x.spend)} spent, ${x.results} ${x.label || 'results'}${x.revenue ? `, ${money_(x.revenue)} revenue` : ''}`))],
+    ads: ['ads', 'Your ads', `${hi}\n\nAn update on your ads. You approve new ads and see how each running ad is doing on the Ads page in your portal.`, bullet((C.ads || []).filter(a => ['pending', 'scheduled', 'live', 'paused'].includes(a.status)).map(a => `${a.name}${a.brand ? ' · ' + a.brand : ''}: ${({ pending: 'waiting for your approval', scheduled: 'scheduled', live: 'running', paused: 'paused' })[a.status]}`))],
+    results: ['results', 'Your ad results', `${hi}\n\nHere are your latest ad results. The charts are on Results in your portal.`, bullet(P.slice(-6).reverse().map(x => `Week of ${x.date} · ${x.brand}: ${money_(x.spend)} spent, ${x.results} ${x.label || 'results'}${x.revenue ? `, ${money_(x.revenue)} revenue` : ''}`))],
     billing: ['invoices', 'Your invoices', `${hi}\n\nA note about your invoices. You can open each one from Invoices in your portal.`, bullet(inv.map(x => `${x.no || 'Invoice'} · ${money_(x.amount, x.currency)} · ${x.status === 'paid' ? 'paid' : 'due ' + (x.due || '')}`))],
     messages: ['messages', `A message from ${studio}`, `${hi}\n\n`, ''],
     settings: ['overview', `Your ${studio} portal`, `${hi}\n\nYour portal is at ${location.origin}/portal/. Sign in with ${c.contacts[0]?.email} and your access code.`, ''],
   };
   return M[tab] || M.settings;
 }
-const PAGE_NAMES = { overview: 'Overview', start: 'Start here', forms: 'Forms', agreement: 'Agreement', results: 'Ads & results', events: 'Events', invoices: 'Invoices', support: 'Support', meetings: 'Meetings', messages: 'Messages', feed: 'Updates' };
+const PAGE_NAMES = { overview: 'Overview', start: 'Start here', forms: 'Forms', agreement: 'Agreement', ads: 'Ads', results: 'Results', events: 'Events', invoices: 'Invoices', support: 'Support', meetings: 'Meetings', messages: 'Messages', feed: 'Updates' };
 function mailPage() {
   const c = C.client, [page, subject, text, quote] = pageMail();
   if (!O.mail) return toast('Email is not connected yet. See Settings → Email.', true);
@@ -204,11 +205,11 @@ async function reload() { O = await api('GET', 'staff/overview'); }
 async function reloadClient() { C = await api('GET', 'staff/clients/' + arg); await reload(); }
 
 /* ---------- one client ---------- */
-const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['feed', 'Updates'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['events', 'Events'], ['agreement', 'Agreement'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
+const TABS = [['checklist', 'Checklist'], ['answers', 'Answers'], ['feed', 'Updates'], ['tickets', 'Tickets'], ['meetings', 'Meetings'], ['events', 'Events'], ['agreement', 'Agreement'], ['ads', 'Ads'], ['results', 'Results'], ['billing', 'Billing'], ['messages', 'Messages'], ['settings', 'Settings']];
 function client() {
   const s = C.summary;
   return `<div class="page wide"><div class="hero-s"><div><p class="eyebrow mono">${brandChips(C.client)} · ${esc(C.client.status)}</p><h1>${esc(C.client.name)}<span>.</span></h1><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">${cpill(s.contract)}<span class="pillx">${s.done}/${s.total} sent</span><span class="pillx ok">${s.verified} verified</span>${s.awaiting ? `<span class="pillx warn">${s.awaiting} to review</span>` : ''}${s.help ? `<span class="pillx bad">${s.help} need help</span>` : ''}</div><div class="acts" style="margin-top:14px"><button class="btn sm dark" data-filepdf>${ic('down')} Download client data (PDF)</button><button class="btn sm" data-reset>${ic('key')} Reset access code</button></div></div><div class="ring" style="--p:${pctOf(s)}"><div><b>${pctOf(s)}%</b></div></div></div>
-    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) ? ` <span class="mono" style="color:var(--green)">${C.summary[k]}</span>` : ''}</button>`).join('')}<button class="btn sm ghost" data-mailpage style="margin-left:auto">${ic('send')} Email this page</button></div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, feed: cfeed, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
+    <div class="tabs">${TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" data-tab="${k}">${l}${(k === 'tickets' && C.summary.tickets) || (k === 'events' && C.summary.events) || (k === 'ads' && C.summary.adsAct + C.summary.adReq) ? ` <span class="mono" style="color:var(--green)">${k === 'ads' ? C.summary.adsAct + C.summary.adReq : C.summary[k]}</span>` : ''}</button>`).join('')}<button class="btn sm ghost" data-mailpage style="margin-left:auto">${ic('send')} Email this page</button></div><div id="tabbody" style="margin-top:22px">${({ checklist, answers, feed: cfeed, tickets: ctickets, meetings: cmeetings, events: cevents, agreement, ads: cads, results, billing, messages, csettings })[tab === 'settings' ? 'csettings' : tab]?.() || ''}</div></div>`;
 }
 const ansVal = v => /^https?:\/\//.test(v) ? `<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--green)">${esc(v)}</a>` : esc(v === true ? 'Yes' : v);
 function checklist() {
@@ -384,13 +385,11 @@ function agreement() {
     <div><div class="lbl" style="margin-bottom:8px">What the client sees</div><article class="paper" id="cprev" style="padding:28px;max-height:640px;overflow:auto;font-size:14px">${md(signed ? k.signedText : rend(k.text))}</article></div></div>`;
 }
 function results() {
-  const P = C.staff.performance, brands = C.client.brands.map(b => b.name), T_ = C.staff.timeline, ads = C.staff.ads;
+  const P = C.staff.performance, brands = C.client.brands.map(b => b.name), T_ = C.staff.timeline;
   return `<div class="card"><div class="sh"><h2>Weekly results<em>from the ad account</em></h2><div class="acts" style="margin:0"><button class="btn sm" data-add="performance">${ic('plus')} Add a week</button><button class="btn sm green" data-save="performance">Save</button></div></div>
     <p class="small" style="margin:-6px 0 12px">One row per brand per week. Clients see these as charts. Meta numbers are typed in here for now.</p>
     ${editor('performance', [{ k: 'date', l: 'Week of', t: 'date' }, { k: 'brand', l: 'Brand', t: 'select', o: brands }, { k: 'spend', l: 'Spend', t: 'number' }, { k: 'results', l: 'Results', t: 'number' }, { k: 'label', l: 'Unit', t: 'text' }, { k: 'revenue', l: 'Revenue', t: 'number' }, { k: 'note', l: 'Note', t: 'text' }], P)}
     ${P.length ? `<div style="margin-top:18px">${chart(P, { label: P.at(-1).label })}</div>` : ''}</div>
-    <div class="card" style="margin-top:14px"><div class="sh"><h2>Ads</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="ads">${ic('plus')} Add an ad</button><button class="btn sm green" data-save="ads">Save</button></div></div>
-    ${editor('ads', [{ k: 'name', l: 'Name', t: 'text' }, { k: 'brand', l: 'Brand', t: 'select', o: brands }, { k: 'status', l: 'Status', t: 'select', o: ['draft', 'review', 'live', 'paused', 'ended'] }, { k: 'link', l: 'Link to the ad', t: 'url' }, { k: 'thumb', l: 'Thumbnail URL', t: 'url' }, { k: 'note', l: 'Note', t: 'text' }], ads)}</div>
     <div class="card" style="margin-top:14px"><div class="sh"><h2>Dashboard and timeline</h2><button class="btn sm green" data-save="meta">Save</button></div>
     <div class="fld"><label>Live dashboard URL (Looker Studio, Meta, anything)</label><input class="in" id="dashUrl" type="url" value="${esc(C.staff.dashboardUrl)}" placeholder="https://"></div>
     <div style="margin-top:14px">${editor('timeline', [{ k: 'weeks', l: 'Weeks', t: 'text' }, { k: 'title', l: 'Stage', t: 'text' }, { k: 'state', l: 'State', t: 'select', o: ['todo', 'now', 'done'] }, { k: 'body', l: 'What happens', t: 'text' }], T_, true)}</div></div>`;
@@ -444,6 +443,55 @@ async function loadTeam() {
   const el = $('#team'); if (!el) return;
   try { const r = await api('GET', 'staff/team'); el.innerHTML = r.team.length ? `<table class="t"><tbody>${r.team.map(m => `<tr><td><b>${esc(m.name)}</b><br><span class="small">${m.temp ? 'temporary code · has not chosen their own yet' : m.changedAt ? `own code since ${esc(day(m.changedAt))}` : `added ${esc(day(m.at))}`}</span></td><td class="r"><button class="btn sm ghost danger" data-rmstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">No personal codes yet.</p>'; }
   catch (e) { el.innerHTML = `<p class="small">${esc(e.message)}</p>`; }
+}
+
+/* ---------- ads: the queue (client answers and requests), then every ad with its numbers ---------- */
+// An ad goes draft, then pending (the client approves or asks for changes), approved, scheduled, live, paused, ended.
+// Pause, resume, stop and budget are asked for by the client; do them in Meta, then press Done here and the ad and the client are updated.
+const AS = ['draft', 'pending', 'approved', 'scheduled', 'live', 'paused', 'ended'];
+const blankAd = () => ({ id: '', name: '', brand: C.client.brands[0]?.name || '', status: 'draft', platform: 'Meta', budget: '', start: '', end: '', headline: '', text: '', cta: '', thumb: '', link: '', unit: 'Results', note: '', stats: [] });
+const blankDay = () => ({ date: new Date().toISOString().slice(0, 10), spend: '', impressions: '', reach: '', clicks: '', results: '' });
+const RTL = { pause: 'wants it paused', resume: 'wants it running again', stop: 'wants it stopped', budget: 'wants a new daily budget' };
+const adField = (k, label, v, o = {}) => `<div class="fld ${o.full ? 'full' : ''}"><label>${label}</label>${o.area ? `<textarea class="in" data-adf="${k}" style="min-height:70px">${esc(v ?? '')}</textarea>` : o.opts ? `<select class="in" data-adf="${k}">${o.opts.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select>` : `<input class="in" data-adf="${k}" type="${o.t || 'text'}" value="${esc(v ?? '')}" ${o.t === 'number' ? 'step="any"' : ''} ${o.ph ? `placeholder="${esc(o.ph)}"` : ''}>`}</div>`;
+function cads() {
+  const L = C.ads || [], brands = C.client.brands.map(b => b.name), q = [];
+  L.forEach(a => {
+    if (a.status === 'pending' && a.approval?.state === 'changes') q.push(`<div class="adq"><span class="pillx bad">Changes asked</span><div style="flex:1;min-width:200px"><b>${esc(a.name)}</b><br><span class="small">${esc(a.approval.name || '')} wrote: “${esc(a.approval.comment)}”</span></div><button class="btn sm dark" data-adreopen="${esc(a.id)}">${ic('send')} Changed it, send back</button></div>`);
+    if (a.status === 'approved') q.push(`<div class="adq"><span class="pillx ok">Approved</span><div style="flex:1;min-width:200px"><b>${esc(a.name)}</b><br><span class="small">${esc(a.approval?.name || 'The client')} approved it ${ago(a.approval?.at)} ago. Set it up in Meta.</span></div><button class="btn sm" data-adset="${esc(a.id)}:scheduled">Mark scheduled</button><button class="btn sm green" data-adset="${esc(a.id)}:live">Mark live</button></div>`);
+    (a.requests || []).filter(r => r.state === 'open').forEach(r => q.push(`<div class="adq"><span class="pillx warn">${r.type}</span><div style="flex:1;min-width:200px"><b>${esc(a.name)}</b><br><span class="small">${esc(r.name || 'The client')} ${RTL[r.type]}${r.type === 'budget' ? ` · ${money(r.value)} a day (now ${a.budget ? money(a.budget) : 'not set'})` : ''}, ${ago(r.at)} ago.${r.note ? ` “${esc(r.note)}”` : ''}</span></div>
+      <input class="in" data-adreply="${esc(a.id)}:${esc(r.id)}" placeholder="A line for the client (optional)" style="flex:1;min-width:180px;height:38px"><button class="btn sm green" data-adresolve="${esc(a.id)}:${esc(r.id)}">${ic('check')} Done in Meta</button></div>`));
+  });
+  return `<div class="card" style="margin-bottom:14px"><div class="sh"><h2>Needs you<em>${q.length}</em></h2></div>${q.join('') || '<p class="small">Nothing is waiting. Client answers and requests land here, and we get an email too.</p>'}</div>
+    <div class="acts" style="margin:0 0 12px"><button class="btn sm" data-adnew>${ic('plus')} Add an ad</button><button class="btn sm green" data-adsave>${ic('check')} Save all ads</button><span class="small">Set an ad to <b>pending</b> and the client is emailed to approve it. The numbers per day are what they see.</span></div>
+    ${L.map((a, i) => `<article class="adc" data-adcard="${esc(a.id)}"><div class="adth" ${a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : ''}>${a.thumb ? '' : ic('image')}</div><div class="adbd">
+      <div class="adhd"><span class="pillx ${({ live: 'live', pending: 'warn', approved: 'ok', scheduled: 'ok' })[a.status] || ''}">${esc(a.status)}</span>${a.approval ? `<span class="pillx ${a.approval.state === 'approved' ? 'ok' : 'bad'}">client: ${a.approval.state === 'approved' ? 'approved' : 'asked for changes'}</span>` : ''}<span class="sp" style="flex:1"></span><button class="btn sm ghost danger" data-adrm="${i}">${ic('trash')} Remove</button></div>
+      <div class="fgrid" style="grid-template-columns:repeat(3,1fr);margin-top:6px">${adField('name', 'Name', a.name)}${adField('brand', 'Brand', a.brand, { opts: [...new Set([...brands, a.brand].filter(Boolean))] })}${adField('status', 'Status', a.status, { opts: AS })}
+        ${adField('platform', 'Platform', a.platform)}${adField('budget', 'Daily budget', a.budget, { t: 'number' })}${adField('unit', 'What a result is', a.unit, { ph: 'Orders, Bookings…' })}
+        ${adField('start', 'Starts', a.start, { t: 'date' })}${adField('end', 'Ends', a.end, { t: 'date' })}${adField('link', 'Link to preview the ad', a.link, { t: 'url' })}
+        ${adField('thumb', 'Picture URL', a.thumb, { t: 'url', full: true })}${adField('headline', 'Headline', a.headline)}${adField('cta', 'Button', a.cta, { ph: 'Book now' })}${adField('note', 'Note', a.note)}
+        ${adField('text', 'Ad text', a.text, { area: true, full: true })}</div>
+      <div class="lbl" style="margin:16px 0 6px">Numbers per day</div>
+      ${a.stats.length ? `<div style="overflow:auto"><table class="t" data-adstats><thead><tr><th>Day</th><th>Spend</th><th>Shown</th><th>Reach</th><th>Clicks</th><th>Results</th><th></th></tr></thead><tbody>${a.stats.map((s, j) => `<tr>${['date', 'spend', 'impressions', 'reach', 'clicks', 'results'].map(k => `<td><input data-sk="${k}" type="${k === 'date' ? 'date' : 'number'}" step="any" value="${esc(s[k] ?? '')}"></td>`).join('')}<td><button class="btn sm ghost" data-adrmday="${i}:${j}" aria-label="Remove">${ic('x')}</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="small">No numbers yet.</p>'}
+      <div class="acts"><button class="btn sm" data-adday="${i}">${ic('plus')} Add a day</button></div></div></article>`).join('') || '<div class="empty"><b>No ads yet.</b>Add the first ad, then set it to pending to send it for approval.</div>'}`;
+}
+const readAds = () => $$('[data-adcard]').map(card => { const o = { id: card.dataset.adcard }; $$('[data-adf]', card).forEach(x => o[x.dataset.adf] = x.value); o.stats = $$('[data-adstats] tbody tr', card).map(tr => { const s = {}; $$('[data-sk]', tr).forEach(x => s[x.dataset.sk] = x.value); return s; }); return o; });
+async function saveAdList(list, msg) {
+  try { const r = await api('PUT', `staff/clients/${arg}/ads`, { ads: list }); C.ads = r.ads; await reloadClient(); toast(r.emailed ? `${msg}. The client was emailed to approve.` : msg); stay(); return true; }
+  catch (er) { toast(er.message, true); return false; }
+}
+async function ads$(t) {
+  const d = t.dataset;
+  if (d.adnew !== undefined) { C.ads = [...readAds(), blankAd()]; return stay(); }
+  if (d.adsave !== undefined) return void (await saveAdList(readAds(), 'Saved'));
+  if (d.adrm !== undefined) { if (!confirm('Remove this ad and its numbers?')) return; const l = readAds(); l.splice(+d.adrm, 1); C.ads = l; return void (await saveAdList(l, 'Removed')); }
+  if (d.adday !== undefined) { const l = readAds(); l[+d.adday].stats.push(blankDay()); C.ads = l; return stay(); }
+  if (d.adrmday) { const [i, j] = d.adrmday.split(':').map(Number), l = readAds(); l[i].stats.splice(j, 1); C.ads = l; return stay(); }
+  if (d.adset) { const [id, st] = d.adset.split(':'), l = readAds(), a = l.find(x => x.id === id); if (!a) return; a.status = st; return void (await saveAdList(l, st === 'live' ? 'Marked live' : 'Marked scheduled')); }
+  if (d.adreopen) { t.disabled = true; try { const r = await api('POST', `staff/clients/${arg}/adreopen`, { id: d.adreopen }); C.ads = r.ads; await reloadClient(); toast(r.emailed ? 'Sent back. The client was emailed.' : 'Sent back for approval'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; } return; }
+  if (d.adresolve) {
+    const [id, rid] = d.adresolve.split(':'), reply = $(`[data-adreply="${id}:${rid}"]`)?.value || ''; t.disabled = true;
+    try { const r = await api('POST', `staff/clients/${arg}/adresolve`, { id, rid, reply }); C.ads = r.ads; await reloadClient(); toast(r.emailed ? 'Done. The client was told by email.' : 'Done'); stay(); } catch (er) { toast(er.message, true); t.disabled = false; }
+  }
 }
 
 /* ---------- row editors ---------- */
@@ -514,6 +562,7 @@ async function onClick(e) {
   if (d.hide) { const h = new Set(C.staff.hidden || []); h.has(d.hide) ? h.delete(d.hide) : h.add(d.hide); if (await put({ hidden: [...h] })) stay(); return; }
   if (d.rmitem) { if (await put({ customItems: C.staff.customItems.filter(x => x.id !== d.rmitem) }, 'Removed')) stay(); return; }
   if (d.additem !== undefined) return addItem();
+  if (d.adnew !== undefined || d.adsave !== undefined || d.adrm !== undefined || d.adday !== undefined || d.adrmday || d.adreopen || d.adset || d.adresolve) return ads$(t);
   if (d.add) { const kind = d.add; if (kind === 'timeline') return; const list = readEd(kind); const key = kind; C.staff[key] = [...list, blank[kind]()]; return stay(); }
   if (t.matches('[data-rm]')) { const tb = t.closest('table'), kind = tb.dataset.ed, list = readEd(kind); list.splice([...tb.tBodies[0].rows].indexOf(t.closest('tr')), 1); C.staff[kind] = list; return stay(); }
   if (d.save) {

@@ -6,7 +6,7 @@ let W, T, me, route = 'overview', arg = '', open = new Set(), bc = null, sigInk 
 const sections = () => [
   ['overview', 'Overview', 'home'], ['feed', 'Updates', 'news', unreadF() || '', !!unreadF()], ['start', 'Start here', 'list', `${W.summary.done}/${W.summary.total}`, W.summary.done === W.summary.total],
   ['forms', 'Forms', 'form'], ['agreement', 'Agreement', 'pen', { draft: 'soon', void: '—', sent: 'sign', signed: 'done' }[W.contract.status], W.contract.status === 'signed'],
-  ['results', 'Ads & results', 'chart'], ['events', 'Events', 'flag', (W.events || []).filter(unreadE).length || upEv().length || '', !!(W.events || []).some(unreadE)], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
+  ['ads', 'Ads', 'image', adsWaitN() || (adsLive() || ''), adsWaitN() > 0], ['results', 'Results', 'chart'], ['events', 'Events', 'flag', (W.events || []).filter(unreadE).length || upEv().length || '', !!(W.events || []).some(unreadE)], ['invoices', 'Invoices', 'receipt'], ['files', 'Files & links', 'link'],
   ['support', 'Support', 'ticket', unreadT() || openT() || '', !!unreadT()], ['meetings', 'Meetings', 'cal', upMeet().length || ''], ['messages', 'Messages', 'chat', unreadM() || W.msgs.length || '', !!unreadM()]];
 
 /* ---------- tickets and meetings, as the client sees them ---------- */
@@ -27,6 +27,7 @@ const msgKey = () => `band.msgSeen.${W.client.id}`;
 const msgSeen = () => { try { return localStorage.getItem(msgKey()) || ''; } catch { return ''; } };
 const unreadM = () => W.msgs.filter(m => m.from === 'staff' && m.at > msgSeen()).length;
 const alerts = () => [
+  ...(adsWaitN() ? [{ id: 'ad' + (W.ads || []).filter(a => a.status === 'pending' && !a.approval).map(a => a.id).join(), t: `${adsWaitN()} ad${adsWaitN() > 1 ? 's' : ''} waiting for your approval`, i: 'image', go: 'ads/approve' }] : []),
   ...(W.events || []).filter(unreadE).map(e => ({ id: 'e' + e.id + e.replies.length, t: `New reply on your event "${e.title}"`, i: 'flag', go: `events/${e.id}` })),
   ...(W.tickets || []).filter(unreadC).map(t => ({ id: 't' + t.id + t.thread.length, t: `We answered ticket #${t.no}: ${t.subject}`, i: 'ticket', go: `support/${t.id}` })),
   ...(unreadM() ? [{ id: 'm' + W.msgs.at(-1)?.at, t: `${unreadM()} new message${unreadM() > 1 ? 's' : ''} from the team`, i: 'chat', go: 'messages' }] : []),
@@ -107,7 +108,7 @@ function palette() {
   setPalette([
     ...sections().map(([r, t, i]) => ({ t: t, i, h: 'Go to', k: r, run: () => nav(r) })),
     ...items().filter(i => i.owner !== 'staff').map(i => ({ t: i.title, i: 'check', h: KIND[i.kind] || 'Item', run: () => { open.add(i.id); nav('start'); setTimeout(() => $(`[data-item="${i.id}"]`)?.scrollIntoView({ block: 'center' }), 80); } })),
-    { t: 'Add an event', i: 'flag', h: 'Action', run: () => nav('events', 'new') }, { t: 'Open a ticket', i: 'ticket', h: 'Action', run: () => nav('support', 'new') }, { t: 'Book a meeting', i: 'cal', h: 'Action', run: () => nav('meetings') },
+    { t: 'Review ads', i: 'image', h: 'Action', run: () => nav('ads', adsWaitN() ? 'approve' : 'live') }, { t: 'Add an event', i: 'flag', h: 'Action', run: () => nav('events', 'new') }, { t: 'Open a ticket', i: 'ticket', h: 'Action', run: () => nav('support', 'new') }, { t: 'Book a meeting', i: 'cal', h: 'Action', run: () => nav('meetings') },
     { t: 'Message the team', i: 'chat', h: 'Action', run: () => nav('messages') }, { t: 'Sign out', i: 'out', h: 'Action', run: signOut },
   ]);
 }
@@ -130,7 +131,7 @@ function paint() {
   tabbar();
   const title = sections().find(s => s[0] === route)[1];
   $('#crumbs').innerHTML = `<a data-nav="overview">Portal</a><i>/</i><span>${esc(title)}</span>`; $('#crumbs a').onclick = () => nav('overview');
-  const v = $('#view'); v.innerHTML = ({ overview, feed, start, forms, agreement, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
+  const v = $('#view'); v.innerHTML = ({ overview, feed, start, forms, agreement, ads: adsPage, results, events, invoices, files, support, meetings, messages })[route](); v.scrollTop = 0;
   bc?.stop(); bc = null; const cv = $('#nxcode'); if (cv) bc = barcode(cv, { color: '#FBFBF8', level: .7 });
   // a link from one of our emails opens the events page on that event
   if (route === 'events' && arg) $('#ev-' + CSS.escape(arg))?.scrollIntoView({ block: 'center' });
@@ -144,7 +145,7 @@ function paint() {
 }
 
 /* phone: the four things you use most live in a bottom bar, the rest under More */
-const PRIMARY = ['overview', 'start', 'agreement', 'results'], SHORT = { start: 'Start', results: 'Results' };
+const PRIMARY = ['overview', 'start', 'ads', 'agreement'], SHORT = { start: 'Start', results: 'Results' };
 function tabbar() {
   const all = sections(), prim = all.filter(s => PRIMARY.includes(s[0])), more = all.filter(s => !PRIMARY.includes(s[0]));
   $('#bnav').innerHTML = prim.map(([r, t, i, badge]) => `<button class="${r === route ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${SHORT[r] || t}</span>${r === 'agreement' && W.contract.status === 'sent' ? '<i>!</i>' : ''}</button>`).join('')
@@ -314,7 +315,7 @@ function tocSpy() {
 
 /* ---------- ads and results ---------- */
 function results() {
-  const P = W.staff.performance || [], ads = W.staff.ads || [], dash = W.staff.dashboardUrl;
+  const P = W.staff.performance || [], dash = W.staff.dashboardUrl;
   const months = [...new Set(P.map(r => r.date.slice(0, 7)))].sort(), cur = months.at(-1), prev = months.at(-2);
   const sum = (m, k) => P.filter(r => r.date.startsWith(m)).reduce((a, r) => a + r[k], 0), lbl = P.at(-1)?.label || 'Results';
   const kpi = (t, v, p, fmt, mode) => `<div class="card stat"><div class="v">${fmt(v)}</div><div class="k">${t}${p !== undefined && p > 0 ? `<br><span style="color:${mode === 'flat' ? 'var(--mute)' : (v >= p) === (mode === 'up') ? 'var(--green)' : 'var(--red)'}">${v >= p ? '&uarr;' : '&darr;'} ${Math.abs(Math.round((v - p) / p * 100))}% vs last month</span>` : ''}</div></div>`;
@@ -328,7 +329,93 @@ function results() {
       <div class="card stat"><div class="v">${P.length}<small>weeks logged</small></div><div class="k">${brands.length} brand${brands.length > 1 ? 's' : ''}</div></div></div>
       <div class="sec"><div class="sh"><h2>Week by week</h2></div><div class="card">${chart(P, { label: lbl })}</div></div>
       <div class="sec"><div class="sh"><h2>The numbers</h2></div><div class="card" style="padding:6px 10px;overflow:auto"><table class="t"><thead><tr><th>Week of</th><th>Brand</th><th class="r">Spend</th><th class="r">Results</th><th class="r">Cost each</th><th>Note</th></tr></thead><tbody>${[...P].sort((a, b) => b.date.localeCompare(a.date)).map(r => `<tr><td>${esc(r.date)}</td><td>${esc(r.brand)}</td><td class="r">${money(r.spend)}</td><td class="r">${r.results.toLocaleString()} <span class="mono" style="color:var(--mute)">${esc(r.label)}</span></td><td class="r">${r.results ? money(r.spend / r.results) : '—'}</td><td style="color:var(--mute)">${esc(r.note)}</td></tr>`).join('')}</tbody></table></div></div>` : `<div class="empty" style="margin-top:28px"><b>Nothing to show yet.</b>Weeks 1 and 2 are set-up. Ads start in week 3.</div>`}
-    <div class="sec"><div class="sh"><h2>Your ads<em>${ads.length}</em></h2></div>${ads.length ? `<div class="ads">${ads.map(a => `<div class="ad"><div class="th" ${a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : ''}>${a.thumb ? '' : ic('image')}<span class="pillx ${a.status === 'live' ? 'live' : a.status === 'review' ? 'warn' : ''}">${esc(a.status)}</span></div><div class="tx"><b>${esc(a.name)}</b><span class="small">${esc(a.brand)} · ${esc(a.platform)}</span>${a.note ? `<p class="small" style="margin-top:6px">${esc(a.note)}</p>` : ''}${a.link ? `<a class="more small" style="display:inline-flex;margin-top:10px;font-weight:700;color:var(--ink)" href="${esc(a.link)}" target="_blank" rel="noopener">View ad ${ic('arrow')}</a>` : ''}</div></div>`).join('')}</div>` : `<div class="empty"><b>No ads yet.</b>They show up here, with a link to each, once they are approved.</div>`}</div></div>`;
+    <div class="sec"><div class="sh"><h2>Your ads</h2></div><div class="card" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b style="font-size:17px">Approve ads and watch each one run.</b><p class="small" style="margin-top:4px">Every ad, its numbers and what you can ask us to change are on the Ads page.</p></div><button class="btn dark" data-nav="ads">${ic('image')} Open Ads ${ic('arrow')}</button></div></div></div>`;
+}
+
+/* ---------- ads: approve what is planned, watch what is running, ask for changes ---------- */
+// The portal cannot touch the ad account. Pause, resume, stop and budget changes are requests: they reach the team by email and in their
+// portal, we do them in Meta, press Done, and the ad here updates and you are told.
+const adOpen = new Set();
+const adsWaitN = () => (W.ads || []).filter(a => a.status === 'pending' && !a.approval).length, adsLive = () => (W.ads || []).filter(a => a.status === 'live').length;
+const AST = { draft: ['Draft', ''], pending: ['Needs your approval', 'warn'], approved: ['Approved, being set up', 'ok'], scheduled: ['Scheduled', 'ok'], live: ['Running', 'live'], paused: ['Paused', ''], ended: ['Ended', ''] };
+const adTab = a => a.status === 'pending' ? 'approve' : ['approved', 'scheduled'].includes(a.status) ? 'scheduled' : a.status === 'live' ? 'live' : 'done';
+const RT = { pause: 'Pause', resume: 'Resume', stop: 'Stop', budget: 'Budget change' };
+const adTot = a => {
+  const t = (a.stats || []).reduce((x, r) => ({ spend: x.spend + r.spend, impressions: x.impressions + r.impressions, reach: x.reach + r.reach, clicks: x.clicks + r.clicks, results: x.results + r.results }), { spend: 0, impressions: 0, reach: 0, clicks: 0, results: 0 });
+  return { ...t, ctr: t.impressions ? t.clicks / t.impressions * 100 : 0, cpr: t.results ? t.spend / t.results : 0, days: (a.stats || []).length };
+};
+const n0 = v => Math.round(v).toLocaleString(), nk = v => v >= 100000 ? Math.round(v / 1000).toLocaleString() + 'K' : n0(v);
+const dmy = s => s ? dShort(s, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+const reqLine = r => `<div class="adreq"><span class="pillx ${r.state === 'open' ? 'warn' : 'ok'}">${RT[r.type]}${r.type === 'budget' ? ' to ' + money(r.value) : ''} · ${r.state === 'open' ? 'we are on it' : 'done'}</span><span class="small">${esc(since(r.at))}${r.note ? ' · “' + esc(r.note) + '”' : ''}${r.reply ? ' · ' + esc(r.reply) : ''}</span></div>`;
+function adCard(a) {
+  const [lab, tone] = AST[a.status] || AST.draft, ap = a.approval, tot = adTot(a), numbers = ['live', 'paused', 'ended'].includes(a.status), isOpen = adOpen.has(a.id);
+  const open_ = t => (a.requests || []).some(r => r.type === t && r.state === 'open'), btn = (t, label, cls = '') => open_(t) ? `<button class="btn sm" disabled>${label} requested</button>` : `<button class="btn sm ${cls}" data-adreq="${t}" data-adid="${esc(a.id)}">${label}</button>`;
+  const when = a.start ? `${['live', 'paused', 'ended'].includes(a.status) ? 'from' : 'starts'} ${dmy(a.start)}` : '', until = a.end ? `ends ${dmy(a.end)}` : '';
+  const meta = [a.brand, a.platform, a.budget ? `${money(a.budget)} a day` : '', when, until].filter(Boolean).map(esc).join(' · ');
+  return `<article class="adc ${a.status === 'pending' && !ap ? 'wait' : ''}" id="ad-${esc(a.id)}"><div class="adth" ${a.thumb ? `style="background-image:url('${esc(a.thumb)}')"` : ''}>${a.thumb ? '' : ic('image')}</div>
+    <div class="adbd"><div class="adhd"><b>${esc(a.name)}</b><span class="pillx ${tone}">${lab}</span></div><div class="small">${meta}</div>
+    ${a.headline || a.text || a.cta ? `<div class="adcopy">${a.headline ? `<b>${esc(a.headline)}</b>` : ''}${a.text ? `<p>${esc(a.text)}</p>` : ''}${a.cta ? `<span class="pillx dark">${esc(a.cta)}</span>` : ''}</div>` : ''}
+    ${a.note ? `<p class="small" style="margin-top:8px">${esc(a.note)}</p>` : ''}
+    ${a.link ? `<a class="small" style="color:var(--green);font-weight:700;display:inline-block;margin-top:8px" href="${esc(a.link)}" target="_blank" rel="noopener">Preview the ad ↗</a>` : ''}
+    ${a.status === 'pending' && !ap ? `<div class="adact"><button class="btn green" data-adapprove="${esc(a.id)}">${ic('check')} Approve</button><button class="btn" data-adchanges="${esc(a.id)}">Ask for changes</button><span class="small">Nothing runs until you approve it.</span></div>` : ''}
+    ${a.status === 'pending' && ap?.state === 'changes' ? `<div class="note bad"><b>You asked for changes:</b> ${esc(ap.comment)}<br><span class="small">We are on it, and will ask you to approve it again.</span></div>` : ''}
+    ${a.status === 'approved' && ap ? `<div class="note ok">You approved this ${esc(since(ap.at))}. We set it up and tell you when it is scheduled.</div>` : ''}
+    ${numbers ? (tot.days ? `<div class="adk"><div><b>${money(tot.spend)}</b><span>Spent</span></div><div><b>${n0(tot.results)}</b><span>${esc(a.unit || 'Results')}</span></div><div><b>${tot.results ? money(tot.cpr) : '—'}</b><span>Per result</span></div><div><b>${nk(tot.impressions)}</b><span>Shown</span></div><div><b>${nk(tot.clicks)}</b><span>Clicks</span></div><div><b>${tot.ctr.toFixed(2)}%</b><span>Click rate</span></div></div>`
+      : `<p class="small" style="margin-top:12px">The numbers appear here after the first day it runs.</p>`) : ''}
+    ${numbers && tot.days ? `<div class="adact"><button class="btn sm ghost" data-adopen="${esc(a.id)}">${isOpen ? 'Hide details' : 'Full details'} ${ic('arrow')}</button></div>` : ''}
+    ${isOpen && tot.days ? `<div class="addet"><div class="card" style="padding:12px">${chart(a.stats.map(r => ({ ...r, brand: a.brand })), { label: a.unit || 'Results' })}</div>
+      <div class="card" style="padding:6px 10px;margin-top:10px;overflow:auto"><table class="t"><thead><tr><th>Day</th><th class="r">Spend</th><th class="r">Shown</th><th class="r">Reach</th><th class="r">Clicks</th><th class="r">${esc(a.unit || 'Results')}</th><th class="r">Per result</th></tr></thead><tbody>${[...a.stats].reverse().map(r => `<tr><td>${esc(r.date)}</td><td class="r">${money(r.spend)}</td><td class="r">${n0(r.impressions)}</td><td class="r">${n0(r.reach)}</td><td class="r">${n0(r.clicks)}</td><td class="r">${n0(r.results)}</td><td class="r">${r.results ? money(r.spend / r.results) : '—'}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    ${['live', 'paused', 'scheduled'].includes(a.status) ? `<div class="adact">${a.status === 'live' ? btn('pause', ic('pause') + ' Pause') : ''}${a.status === 'paused' ? btn('resume', ic('play') + ' Resume', 'green') : ''}${btn('budget', 'Change budget')}${btn('stop', a.status === 'scheduled' ? 'Cancel this ad' : 'Stop for good', 'danger')}<span class="small">Sends a request to the team.</span></div>` : ''}
+    ${(a.requests || []).slice(-4).map(reqLine).join('')}</div></article>`;
+}
+function adsPage() {
+  const L = W.ads || [], by = k => L.filter(a => adTab(a) === k), n = { approve: by('approve').length, scheduled: by('scheduled').length, live: by('live').length, done: by('done').length };
+  const tab = ['approve', 'scheduled', 'live', 'done'].includes(arg) ? arg : n.approve ? 'approve' : n.live ? 'live' : n.scheduled ? 'scheduled' : n.done ? 'done' : 'live';
+  const liveT = by('live').reduce((x, a) => { const t = adTot(a); return { spend: x.spend + t.spend, results: x.results + t.results }; }, { spend: 0, results: 0 });
+  const TABS_ = [['approve', 'Needs approval'], ['scheduled', 'Scheduled'], ['live', 'Running'], ['done', 'Paused and ended']];
+  const empty = { approve: ['Nothing waits for you.', 'When we plan a new ad, it shows up here for you to approve.'], scheduled: ['Nothing is scheduled.', 'Approved ads that have not started yet are listed here.'], live: ['No ads are running.', 'Running ads appear here with their numbers.'], done: ['Nothing here.', 'Paused and finished ads are kept here.'] }[tab];
+  return `<div class="page wide"><p class="eyebrow mono">Ads</p><h1>Your ads<span>, from plan to live.</span></h1>
+    <p class="lead">Approve what we plan to run and watch how each running ad is doing. Pause an ad or change its budget from here, and we do it in your ad account.</p>
+    <div class="adstrip"><div class="card stat"><div class="v" style="${n.approve ? 'color:var(--amber)' : ''}">${n.approve}</div><div class="k">waiting for your approval</div></div><div class="card stat"><div class="v">${n.scheduled}</div><div class="k">scheduled</div></div>
+      <div class="card stat"><div class="v">${n.live}</div><div class="k">running now</div></div><div class="card stat"><div class="v">${liveT.results ? money(liveT.spend / liveT.results) : '—'}</div><div class="k">average cost per result, running ads</div></div></div>
+    <div class="tabs">${TABS_.map(([k, l]) => `<button class="${k === tab ? 'on' : ''}" data-adtab="${k}">${l} <span class="mono" style="opacity:.6">${n[k]}</span></button>`).join('')}</div>
+    <div style="margin-top:18px">${by(tab).map(adCard).join('') || `<div class="empty"><b>${empty[0]}</b>${empty[1]}</div>`}</div></div>`;
+}
+const adAsk = (id, kind) => {
+  const a = (W.ads || []).find(x => x.id === id); if (!a) return;
+  const T_ = {
+    approve: ['Approve this ad?', `“${a.name}” will run as you see it. We set it up and tell you when it is scheduled.`, null, 'Approve', 'green'],
+    changes: ['What should we change?', `Tell us about “${a.name}”. We update it and ask you to approve it again.`, 'area', 'Send to the team', 'dark'],
+    pause: ['Pause this ad?', `We pause “${a.name}” in your ad account and confirm here and by email.`, 'note', 'Ask us to pause it', 'dark'],
+    resume: ['Run this ad again?', `We turn “${a.name}” back on and confirm.`, 'note', 'Ask us to resume it', 'green'],
+    stop: [a.status === 'scheduled' ? 'Cancel this ad?' : 'Stop this ad for good?', `“${a.name}” will not run again. Its numbers stay here.`, 'note', a.status === 'scheduled' ? 'Cancel the ad' : 'Stop the ad', 'danger'],
+    budget: ['Change the daily budget', `Now ${a.budget ? money(a.budget) + ' a day' : 'not set'}. Tell us the new amount per day.`, 'budget', 'Send the request', 'dark'],
+  }[kind];
+  modal(`<h3>${esc(T_[0])}</h3><p class="small" style="margin:6px 0 14px">${esc(T_[1])}</p>
+    ${T_[2] === 'budget' ? `<div class="fld"><label for="ad-v">New daily budget</label><input class="in" id="ad-v" type="number" min="1" step="any" inputmode="decimal" placeholder="${a.budget || 30}"></div>` : ''}
+    ${T_[2] ? `<div class="fld" style="margin-top:12px"><label for="ad-n">${T_[2] === 'area' ? 'Your changes' : 'Note for us (optional)'}</label><textarea class="in" id="ad-n" style="min-height:90px"></textarea></div>` : ''}
+    <div class="acts"><button class="btn ${T_[4]}" id="ad-go">${esc(T_[3])}</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close; $('#ad-v', m)?.focus(); $('#ad-n', m)?.focus();
+      $('#ad-go', m).onclick = async e => {
+        const go = e.currentTarget, note = $('#ad-n', m)?.value || ''; go.disabled = true;
+        try {
+          const r = kind === 'approve' || kind === 'changes' ? await api('POST', 'client/adapprove', { id, decision: kind === 'approve' ? 'approved' : 'changes', comment: note })
+            : await api('POST', 'client/adrequest', { id, type: kind, value: $('#ad-v', m)?.value, note });
+          W.ads = W.ads.map(x => x.id === r.ad.id ? r.ad : x); close();
+          toast(kind === 'approve' ? 'Approved. The team is told.' : kind === 'changes' ? 'Sent. We will update the ad.' : 'Request sent. We will confirm when it is done.'); if (kind === 'approve') nav('ads', 'scheduled'); else stay();
+        } catch (er) { toast(er.message, true); go.disabled = false; }
+      };
+    },
+  });
+};
+function ads$(t) {
+  const d = t.dataset;
+  if (d.adtab) return nav('ads', d.adtab);
+  if (d.adopen) { adOpen.has(d.adopen) ? adOpen.delete(d.adopen) : adOpen.add(d.adopen); return stay(); }
+  if (d.adapprove) return adAsk(d.adapprove, 'approve');
+  if (d.adchanges) return adAsk(d.adchanges, 'changes');
+  if (d.adreq) return adAsk(d.adid, d.adreq);
 }
 
 /* ---------- invoices, files, messages ---------- */
@@ -488,6 +575,7 @@ async function onClick(e) {
     try { const r = await api('POST', 'client/eventreply', { eid: box.dataset.ev, text }); W.events = W.events.map(x => x.id === r.event.id ? r.event : x); toast('Sent. The team is told.'); return stay(); }
     catch (er) { toast(er.message, true); t.disabled = false; } return;
   }
+  if (t.dataset.adtab || t.dataset.adopen || t.dataset.adapprove || t.dataset.adchanges || t.dataset.adreq) return ads$(t);
   if (t.dataset.day) { selDay = t.dataset.day; selSlot = ''; return stay(); }
   if (t.dataset.slot) { selSlot = t.dataset.slot; const keep = [$('#mt-t')?.value, $('#mt-n')?.value]; stay(); if (keep[0]) { $('#mt-t').value = keep[0]; $('#mt-n').value = keep[1]; } return; }
   if (t.dataset.tksend !== undefined || t.dataset.tkreply || t.dataset.tkclose || t.dataset.book !== undefined || t.dataset.mcancel) return support$(t);
@@ -570,7 +658,7 @@ async function poll() {
   // forms and the agreement keep their own state, so there only the bell updates; conversations repaint and keep drafts
   const busy = route === 'agreement' || route === 'start' || route === 'forms' || !!$('.modal') || (route === 'events' && /^(new|edit-)/.test(arg || ''));
   try {
-    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment + (e.replies || []).length), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned)]);
+    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment + (e.replies || []).length), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned), (w.ads || []).map(a => [a.id, a.status, a.approval?.state, a.budget, a.stats.length, a.requests.map(r => r.state).join('')].join())]);
     if (sig(n) === sig(W)) return;
     const had = new Set(alerts().map(a => a.id)); W = n;
     const fresh = alerts().filter(a => !had.has(a.id)); if (fresh.length) ring(fresh);

@@ -335,6 +335,25 @@ body.staff .ad{background:var(--card)}
 #pal .list button em{margin-left:auto;font-style:normal;font:500 11px 'JetBrains Mono',monospace;opacity:.6}
 #pal .hint{padding:10px 18px;border-top:1px solid var(--rule);color:var(--mute);display:flex;gap:16px}
 
+/* ---------- ads: planned, running, approvals, per-ad numbers ---------- */
+.adstrip{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:26px}
+.adc{display:grid;grid-template-columns:168px 1fr;gap:18px;padding:16px;border:1px solid var(--rule);border-radius:16px;background:var(--paper);margin-bottom:12px;transition:border-color .15s}
+body.staff .adc{background:var(--card)}
+.adc.wait{border-color:var(--amber)}
+.adth{aspect-ratio:4/5;border-radius:12px;background:var(--soft) center/cover no-repeat;display:grid;place-items:center;color:var(--mute);align-self:start}
+.adth .ic{width:28px;height:28px}
+.adbd{min-width:0}
+.adhd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}.adhd b{font-size:18px;letter-spacing:-.015em}
+.adcopy{margin:12px 0 0;padding:12px 14px;border-radius:12px;background:var(--soft);border:1px solid var(--rule)}
+.adcopy p{margin:4px 0 8px;font-size:14.5px;color:var(--ink2);white-space:pre-wrap}
+.adact{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.adk{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:14px}
+.adk div{padding:10px 12px;border-radius:12px;background:var(--soft);border:1px solid var(--rule);min-width:0}
+.adk b{display:block;font-size:19px;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adk span{font:500 10px 'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.addet{margin-top:14px;padding-top:14px;border-top:1px solid var(--rule)}
+.adreq{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.adq{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--rule);border-radius:12px;margin-bottom:8px;background:var(--card)}
 /* ---------- phone: an app, not a squeezed desktop. Bottom tab bar, full-bleed pages, 16px inputs, sheets instead of dialogs ---------- */
 .bnav{display:none}
 @media (max-width:860px){
@@ -355,7 +374,8 @@ body.staff .ad{background:var(--card)}
   .sec{margin-top:30px}.sh h2{font-size:19px}
   .grp{margin-top:26px}
   .eyebrow{margin-bottom:10px}
-  .g4,.g2{grid-template-columns:1fr 1fr}.g3,.tl,.split{grid-template-columns:1fr !important}
+  .g4,.g2{grid-template-columns:1fr 1fr}
+  .adstrip{grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}.adstrip .stat{padding:12px}.adstrip .stat .v{font-size:24px}.adstrip .stat .k{font-size:12px}.adc{grid-template-columns:1fr;gap:12px;padding:14px}.adth{aspect-ratio:16/8}.adk{grid-template-columns:repeat(3,1fr)}.g3,.tl,.split{grid-template-columns:1fr !important}
   .gov{grid-template-columns:auto 1fr !important;gap:10px}.gov>.card:first-child{padding:12px;justify-content:center}.gov>.card:last-child{grid-column:1/-1}
   .ring{width:96px;height:96px}.ring::before{inset:9px}.ring b{font-size:23px}.ring small{font-size:9px}
   .stat{padding:15px}.stat .v{font-size:27px}.stat .k{font-size:12.5px}
