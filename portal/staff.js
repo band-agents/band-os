@@ -512,7 +512,7 @@ async function ads$(t) {
   if (d.metasave !== undefined) { try { await api('PATCH', 'staff/clients/' + arg, { metaAccount: $('#meta-acc').value }); await reloadClient(); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.metasync !== undefined) {
     t.disabled = true; const keep = t.innerHTML; t.textContent = 'Syncing…';
-    try { const r = await api('POST', `staff/clients/${arg}/metasync`); C.ads = r.ads; await reloadClient(); toast(`Synced: ${r.added} new, ${r.updated} updated`); stay(); } catch (er) { toast(er.message, true); t.disabled = false; t.innerHTML = keep; }
+    try { const r = await api('POST', `staff/clients/${arg}/metasync`); C.ads = r.ads; await reloadClient(); toast(r.found ? `Synced: ${r.added} new, ${r.updated} updated` : `Meta shows no ads in ${r.info?.name || 'this account'}${r.info ? (r.info.spent ? `, which has spent ${money(r.info.spent, r.info.currency)} so far. Check the System User can see its ads.` : ', which has never spent anything. Nothing has run on it yet.') : '.'}`, !r.found); stay(); } catch (er) { toast(er.message, true); t.disabled = false; t.innerHTML = keep; }
   }
 }
 

@@ -3,7 +3,7 @@ import { configured, sessionOf, setSession, clearSession, sha, same, hashCode, n
 import { GROUPS, CHECKLIST, FORMS, TIMELINE, DEFAULT_SETTINGS, CONTRACT } from './seed.js';
 import { send, letter, mailReady, mailWho, ics, gcalLink } from './mail.js';
 import { BOOKING, freeSlots, when } from './slots.js';
-import { metaOn, metaWho, normAct, pullAds, resultsOn, metaDo, unitFor } from './meta.js';
+import { metaOn, metaWho, normAct, pullAds, resultsOn, metaDo, unitFor, acctInfo } from './meta.js';
 
 const MAX_BODY = 400_000;
 const bad = (code, msg) => Object.assign(new Error(msg), { code });
@@ -724,7 +724,7 @@ const guessBrand = (c, name) => (c.brands.find(b => name.toLowerCase().includes(
 H.staff['POST metasync'] = async (req, res, s, q) => {
   const c = await store.get(`client:${q.id}`); if (!c) throw bad(404, 'Unknown client');
   const act = c.meta?.account; if (!act) throw bad(400, 'Set this client\'s ad account ID first.');
-  const pulled = await pullAds(act), all = await adsOf(q.id), at = now(); let added = 0, updated = 0;
+  const [pulled, info] = await Promise.all([pullAds(act), acctInfo(act).catch(() => null)]), all = await adsOf(q.id), at = now(); let added = 0, updated = 0;
   for (const m of pulled) {
     let a = all.find(x => x.metaId === m.metaId);
     if (!a) { a = { ...blankAd(), id: newId(6), brand: guessBrand(c, m.name), name: m.name, metaId: m.metaId, status: m.status }; all.push(a); added++; } else updated++;
@@ -739,7 +739,7 @@ H.staff['POST metasync'] = async (req, res, s, q) => {
   }
   await saveAds(q.id, all); c.meta = { ...c.meta, synced: at }; await store.set(`client:${q.id}`, c);
   await log(s.name, `synced the ads from Meta (${added} new, ${updated} updated)`, q.id);
-  return { ads: all, added, updated, at };
+  return { ads: all, added, updated, at, found: pulled.length, days: pulled.reduce((n, m) => n + m.days.length, 0), info };
 };
 
 H.client['POST adapprove'] = async (req, res, s) => {

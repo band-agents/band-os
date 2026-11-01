@@ -59,11 +59,17 @@ export const unitFor = t => UNITS[t] || 'Results';
 const count = (actions, type) => (actions || []).filter(a => a.action_type === type).reduce((n, a) => n + Number(a.value || 0), 0);
 const day = d => d.toISOString().slice(0, 10);
 
+// a one-line look at the account itself, so "no ads found" can say why (never spent anything, disabled, wrong account)
+export async function acctInfo(act) {
+  const j = await g(act, { params: { fields: 'name,account_status,currency,amount_spent' } });
+  return { name: j.name || act, status: Number(j.account_status || 0), currency: j.currency || 'USD', spent: Number(j.amount_spent || 0) / 100 };
+}
+const ALL_STATUS = ['ACTIVE', 'PAUSED', 'PENDING_REVIEW', 'DISAPPROVED', 'PREAPPROVED', 'PENDING_BILLING_INFO', 'CAMPAIGN_PAUSED', 'ADSET_PAUSED', 'IN_PROCESS', 'WITH_ISSUES', 'ARCHIVED'];
 // one ad account: its ads, and per-day numbers for the last `days` days
 export async function pullAds(act, days = 60) {
   const since = day(new Date(Date.now() - days * 864e5)), until = day(new Date());
   const [ads, rows] = await Promise.all([
-    all(`${act}/ads`, { fields: 'id,name,effective_status,adset_id,adset{id,name,daily_budget,start_time,end_time},creative{title,body,call_to_action_type,thumbnail_url},preview_shareable_link', limit: 100 }, 6),
+    all(`${act}/ads`, { fields: 'id,name,effective_status,adset_id,adset{id,name,daily_budget,start_time,end_time},creative{title,body,call_to_action_type,thumbnail_url},preview_shareable_link', effective_status: ALL_STATUS, limit: 100 }, 6),
     all(`${act}/insights`, { level: 'ad', time_increment: 1, time_range: { since, until }, fields: 'ad_id,spend,impressions,reach,clicks,actions', limit: 500 }, 8),
   ]);
   const byAd = new Map();
