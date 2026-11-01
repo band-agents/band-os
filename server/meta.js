@@ -2,7 +2,8 @@
 // daily numbers, and pause / resume / stop an ad or change an ad set's daily budget.
 // The token is META_TOKEN in the host's environment (a System User token). It travels in the Authorization header, never in a URL.
 const BASE = () => (process.env.META_API_BASE || 'https://graph.facebook.com').replace(/\/$/, '');
-const VER = () => process.env.META_API_VERSION ? '/' + String(process.env.META_API_VERSION).replace(/^\/|\/$/g, '') : '';
+// Meta retires old versions about every two years and rejects a call with no version (error 2635). Set META_API_VERSION to move up.
+const VER = () => '/' + String(process.env.META_API_VERSION || 'v26.0').replace(/^\/|\/$/g, '');
 export const metaOn = () => !!process.env.META_TOKEN;
 const fail = (code, message, meta) => Object.assign(new Error(message), { code, meta });
 
