@@ -399,7 +399,11 @@ H.staff['PUT contract'] = async (req, res, s, q) => {
   if (act === 'send') { if (/\[start date\]|\[[^\]]*to be confirmed[^\]]*\]|\{\{\w+\}\}/.test(render(contract.text, vars(c, set)))) throw bad(400, 'There are unfilled placeholders in the text.'); contract.status = 'sent'; contract.sentAt = now(); c.status = c.status === 'invited' ? 'active' : c.status; await store.set(`client:${q.id}`, c); }
   if (act === 'void') { contract.status = 'void'; }
   if (act === 'reopen') { contract.status = 'draft'; }
-  if (act === 'countersign') { if (contract.status !== 'signed') throw bad(409, 'The client has not signed yet.'); contract.countersign = { name: clip(b.name || s.name, 80), at: now() }; }
+  if (act === 'countersign') {
+    if (contract.status !== 'signed') throw bad(409, 'The client has not signed yet.');
+    const drawing = String(b.drawing || ''); if (drawing && (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(drawing) || drawing.length > 160_000)) throw bad(400, 'That signature could not be read. Draw it again.');
+    contract.countersign = { name: clip(b.name || s.name, 80), at: now(), ...(drawing ? { drawing } : {}) };
+  }
   contract.version = (contract.version || 1) + (act === 'save' ? 1 : 0);
   await store.set(`contract:${q.id}`, contract); await log(s.name, `agreement: ${act}`, q.id);
   return { contract: { ...contract, rendered: render(contract.text, vars(c, set)) } };

@@ -381,7 +381,7 @@ function agreement() {
   const k = C.contract, signed = k.status === 'signed', c = C.client;
   return `<div class="card" style="margin-bottom:16px"><div class="fgrid" style="grid-template-columns:repeat(5,1fr);margin:0">${[['fee', 'Monthly fee', c.fee, 'number'], ['currency', 'Currency', c.currency, 'text'], ['accounts', 'Accounts wording', c.accounts, 'text'], ['startDate', 'Start date', c.startDate, 'date'], ['law', 'Governing law', c.law || C.settings.governingLaw, 'text']].map(([n, l, v, t]) => `<div class="fld"><label>${l}</label><input class="in" data-cv="${n}" type="${t}" value="${esc(v ?? '')}" ${signed ? 'disabled' : ''}></div>`).join('')}</div>
     <div class="acts"><span class="pillx ${signed ? 'live' : k.status === 'sent' ? 'warn' : ''}">${k.status}</span><span class="sp" style="flex:1"></span>
-    ${signed ? `<button class="btn sm dark" data-spdf>${ic('down')} Signed PDF</button>${k.countersign ? `<span class="small">Countersigned by ${esc(k.countersign.name)}</span>` : '<button class="btn sm green" data-counter>Countersign</button>'}`
+    ${signed ? `<button class="btn sm dark" data-spdf>${ic('down')} Signed PDF</button>${k.countersign ? `<span class="small">Countersigned by ${esc(k.countersign.name)}${k.countersign.drawing ? '' : ' (typed)'}</span><button class="btn sm" data-counter>${k.countersign.drawing ? 'Sign again' : 'Add hand signature'}</button>` : '<button class="btn sm green" data-counter>Countersign</button>'}`
       : `<button class="btn sm" data-csave>Save text</button>${k.status === 'sent' ? '<button class="btn sm" data-creopen>Take back to draft</button>' : '<button class="btn sm green" data-csend>Send to client</button>'}`}<button class="btn sm ghost danger" data-cvoid>${k.status === 'void' ? 'Void' : 'Void'}</button></div></div>
     ${signed ? `<div class="signed" style="margin-bottom:16px"><h3>${ic('check')} Signed by ${esc(k.signature.name)}</h3><p class="small" style="color:inherit;margin-top:4px">${esc(new Date(k.signature.at).toUTCString())} · from ${esc(k.signature.ip)}</p><div class="hash">${esc(k.signature.docHash)}</div></div>` : ''}
     ${partyBox()}
@@ -646,8 +646,32 @@ document.addEventListener('change', async e => {
   if (!x.dataset?.cv || !C) return;
   const body = { [x.dataset.cv]: x.value }; try { await api('PATCH', 'staff/clients/' + arg, body); await reloadClient(); $('#cprev').innerHTML = md(rend($('#ctext').value)); toast('Saved'); } catch (er) { toast(er.message, true); }
 });
+// countersign: type the name and draw the signature by hand (mouse, finger or pen)
+function counterModal() {
+  modal(`<h3>${C.contract.countersign ? 'Sign again' : 'Countersign for the studio'}</h3><p class="small" style="margin:6px 0 14px">Draw your signature in the box. It goes on the signed PDF next to the client's.</p>
+    <div class="fld"><label for="cs-n">Name</label><input class="in" id="cs-n" value="${esc(C.contract.countersign?.name || me.name)}"></div>
+    <div class="fld" style="margin-top:12px"><label>Signature</label><canvas id="cs-pad" width="720" height="260" style="width:100%;height:150px;border-radius:12px;border:1.5px dashed var(--rule);background:#fff;touch-action:none;cursor:crosshair;display:block"></canvas></div>
+    <div class="acts"><button class="btn green" id="cs-go" disabled>Sign</button><button class="btn ghost" id="cs-clear">Clear</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      const cv = $('#cs-pad', m), ctx = cv.getContext('2d'); ctx.lineWidth = 3.2; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = '#0B0B0B'; let down = false, last, ink = false;
+      const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+      const ready = () => { $('#cs-go', m).disabled = !(ink && $('#cs-n', m).value.trim().length >= 3); };
+      cv.onpointerdown = e => { down = true; last = pos(e); cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.arc(...last, 1.4, 0, 7); ctx.fill(); e.preventDefault(); };
+      cv.onpointermove = e => { if (!down) return; const p = pos(e); ctx.beginPath(); ctx.moveTo(...last); ctx.lineTo(...p); ctx.stroke(); last = p; ink = true; ready(); };
+      cv.onpointerup = cv.onpointercancel = () => { down = false; };
+      $('#cs-clear', m).onclick = () => { ctx.clearRect(0, 0, cv.width, cv.height); ink = false; ready(); };
+      $('#cs-n', m).addEventListener('input', ready); $('[data-close]', m).onclick = close;
+      $('#cs-go', m).onclick = async e => {
+        const go = e.currentTarget; go.disabled = true;
+        try { await api('PUT', `staff/clients/${arg}/contract`, { action: 'countersign', name: $('#cs-n', m).value, drawing: cv.toDataURL('image/png') }); await reloadClient(); close(); toast('Countersigned'); stay(); }
+        catch (er) { toast(er.message, true); go.disabled = false; }
+      };
+    },
+  });
+}
 async function contract(action) {
-  const body = { action }; if (action === 'save' || action === 'send') body.text = $('#ctext').value; if (action === 'countersign') { body.name = prompt('Countersign as', me.name); if (!body.name) return; }
+  if (action === 'countersign') return counterModal();
+  const body = { action }; if (action === 'save' || action === 'send') body.text = $('#ctext').value;
   try { await api('PUT', `staff/clients/${arg}/contract`, body); await reloadClient(); toast({ save: 'Saved', send: 'Sent to the client', void: 'Voided', reopen: 'Back to draft', countersign: 'Countersigned' }[action]); stay(); } catch (er) { toast(er.message, true); }
 }
 /* the client's whole file as a PDF: key facts, the forms, then the checklist by section */

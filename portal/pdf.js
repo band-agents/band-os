@@ -43,8 +43,10 @@ export async function agreementPdf({ title, text, client, signature, countersign
   doc.setFont('helvetica', 'normal').setFontSize(9).setTextColor(120).text(`FOR ${studio.toUpperCase()} (FIRST PARTY)`, x2, top);
   if (countersign) {
     doc.setDrawColor(30).line(x2, top + 66, x2 + col, top + 66);
-    doc.setFont('times', 'italic').setFontSize(22).setTextColor(10).text(countersign.name, x2, top + 52);
-    doc.setFont('helvetica', 'normal').setFontSize(9.5).setTextColor(90).text(`Countersigned ${new Date(countersign.at).toUTCString()}`, x2, top + 82);
+    const cim = countersign.drawing && await img(countersign.drawing);
+    if (cim) { const h = 52, w = Math.min(col, h * cim.width / cim.height); doc.addImage(countersign.drawing, 'PNG', x2, top + 8, w, h); doc.setFont('helvetica', 'bold').setFontSize(11).setTextColor(10).text(countersign.name, x2, top + 82); }
+    else doc.setFont('times', 'italic').setFontSize(22).setTextColor(10).text(countersign.name, x2, top + 52);
+    doc.setFont('helvetica', 'normal').setFontSize(9.5).setTextColor(90).text(`Countersigned ${new Date(countersign.at).toUTCString()}`, x2, top + (cim ? 96 : 82));
   } else if (blank) lines(x2);
   else { doc.setDrawColor(30).line(x2, top + 66, x2 + col, top + 66); doc.setFont('helvetica', 'italic').setFontSize(10).setTextColor(150).text('Awaiting countersignature', x2, top + 52); }
   y = top + 145;
