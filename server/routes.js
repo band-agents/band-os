@@ -10,7 +10,7 @@ const bad = (code, msg) => Object.assign(new Error(msg), { code });
 const clip = (v, n = 2000) => String(v ?? '').slice(0, n);
 const url = v => { const s = clip(v, 500).trim(); return /^https?:\/\//i.test(s) ? s : ''; };
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
-const okId = s => /^[a-z0-9:_-]{1,48}$/i.test(String(s));
+const okId = s => typeof s === 'string' && /^[a-z0-9:_-]{1,48}$/i.test(s);
 const now = () => new Date().toISOString();
 
 async function readBody(req, max = MAX_BODY) {
@@ -56,15 +56,15 @@ const vars = (c, s) => {
 export const render = (text, v) => String(text).replace(/\{\{(\w+)\}\}/g, (_, k) => v[k] ?? `{{${k}}}`);
 
 async function bundle(id) {
-  const [c, answers, st, contract, msgs, tickets, events, adl] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`), store.get(`events:${id}`), store.get(`adlist:${id}`)]);
+  const [c, answers, st, contract, msgs, tickets, events, adl, pcl] = await Promise.all([store.get(`client:${id}`), store.get(`answers:${id}`), store.get(`staff:${id}`), store.get(`contract:${id}`), store.lrange(`msgs:${id}`, 0, 199), store.get(`tickets:${id}`), store.get(`events:${id}`), store.get(`adlist:${id}`), store.get(`payclaims:${id}`)]);
   if (!c) throw bad(404, 'Unknown client');
-  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [], events: events || [], ads: adl || oldAds(st?.ads) };
+  return { c, answers: answers || emptyAnswers(), st: { ...emptyStaff(), ...(st || {}) }, contract, msgs: msgs.reverse(), tickets: tickets || [], events: events || [], ads: adl || oldAds(st?.ads), payclaims: pcl || {} };
 }
 // the first ads list was a few simple cards inside the staff data; they become real ads the first time anyone opens the new Ads page
 const oldAds = a => (a || []).map(x => ({ ...blankAd(), id: x.id, brand: x.brand, name: x.name, status: x.status === 'review' ? 'pending' : x.status, platform: x.platform, link: x.link, thumb: x.thumb, note: x.note }));
 const blankAd = () => ({ id: '', brand: '', name: '', status: 'draft', platform: 'Meta', link: '', thumb: '', headline: '', text: '', cta: '', budget: 0, start: '', end: '', unit: 'Results', note: '', metaId: '', metaAdsetId: '', resultType: '', synced: '', approval: null, requests: [], stats: [] });
 const items = (st) => [...CHECKLIST, ...(st.customItems || []).map(i => ({ ...i, custom: true }))].filter(i => !(st.hidden || []).includes(i.id));
-function summarize({ c, answers, st, contract, tickets = [], events = [], ads = [] }) {
+function summarize({ c, answers, st, contract, tickets = [], events = [], ads = [], payclaims = {} }) {
   const all = items(st).filter(i => i.required !== false);
   const stateOf = i => {
     const v = st.verify[i.id]?.state; if (v) return v;
@@ -81,6 +81,8 @@ function summarize({ c, answers, st, contract, tickets = [], events = [], ads = 
     // ads: waiting for the client to approve, answered and waiting for us, and open requests (pause, budget…)
     adsWait: ads.filter(a => a.status === 'pending' && !a.approval).length, adsAct: ads.filter(a => (a.status === 'pending' && a.approval) || a.status === 'approved').length,
     adReq: ads.reduce((n, a) => n + (a.requests || []).filter(r => r.state === 'open').length, 0), adsLive: ads.filter(a => a.status === 'live').length,
+    // invoices the client says they paid, which we have not confirmed yet, and invoices still owed
+    payClaims: (st.invoices || []).filter(i => i.status === 'due' && payclaims[i.id]).length, invDue: (st.invoices || []).filter(i => i.status === 'due' && !payclaims[i.id]).length,
     contract: contract?.status || 'draft', lastActive: answers.updatedAt, tickets: tickets.filter(t => t.status === 'open').length, events: events.filter(e => e.status === 'new' && (e.end || e.start) >= now().slice(0, 10)).length,
   };
 }
@@ -126,12 +128,12 @@ H.open['GET template'] = async (req) => { if (!sessionOf(req)) throw bad(401, 'S
 
 // ---------- client ----------
 const clientWorkspace = async id => {
-  const { c, answers, st, contract, msgs, tickets, events, ads } = await bundle(id), s = await settings(), v = vars(c, s);
+  const { c, answers, st, contract, msgs, tickets, events, ads, payclaims } = await bundle(id), s = await settings(), v = vars(c, s);
   const visible = contract && ['sent', 'signed'].includes(contract.status);
   const sig = contract?.signature;
   return {
-    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz, legalDocs: visible ? s.legalDocs || [] : [] }, summary: summarize({ c, answers, st, contract, tickets, events, ads }),
-    tickets, events, ads, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30), feed: (await feedFor(id)).slice(0, 80),
+    client: pubClient(c), answers, staff: pubStaff(st), msgs, settings: { studio: s.studio, studioEmail: s.studioEmail, bandBmId: s.bandBmId, tz: booking(s).tz, bank: s.bank || null, legalDocs: visible ? s.legalDocs || [] : [] }, summary: summarize({ c, answers, st, contract, tickets, events, ads, payclaims }),
+    tickets, events, ads, payclaims, meetings: (await meetingsAll()).filter(m => m.cid === id).slice(0, 30), feed: (await feedFor(id)).slice(0, 80),
     contract: visible ? { status: contract.status, title: contract.title, text: contract.status === 'signed' ? contract.signedText : render(contract.text, v), sentAt: contract.sentAt, hash: contract.hash,
       signature: sig ? { method: sig.method || 'drawn', name: sig.name, title: sig.title, at: sig.at, ip: mask(sig.ip || ''), drawing: sig.drawing, files: sig.files || [], docHash: sig.docHash } : null,
       handPending: contract.handPending || [],
@@ -291,9 +293,9 @@ H.staff['POST clients'] = async (req, res, s) => {
   return { client: pubClient(c), code };
 };
 H.staff['GET client'] = async (req, res, s, q) => {
-  const { c, answers, st, contract, msgs, tickets, events, ads } = await bundle(q.id), set = await settings();
-  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events, ads }), settings: set,
-    tickets, events, ads, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
+  const { c, answers, st, contract, msgs, tickets, events, ads, payclaims } = await bundle(q.id), set = await settings();
+  return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events, ads, payclaims }), settings: set,
+    tickets, events, ads, payclaims, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
 };
 H.staff['PATCH client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -387,7 +389,7 @@ H.staff['PUT staffdata'] = async (req, res, s, q) => {
   for (const k of Object.keys(b)) { const v = cleanStaff(k, b[k]); if (v !== undefined) st[k] = v; }
   await store.set(`staff:${q.id}`, st);
   if (b.note) await log(s.name, clip(b.note, 120), q.id);
-  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [], events: await eventsOf(q.id), ads: await adsOf(q.id) }) };
+  return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [], events: await eventsOf(q.id), ads: await adsOf(q.id), payclaims: (await store.get(`payclaims:${q.id}`)) || {} }) };
 };
 H.staff['PUT contract'] = async (req, res, s, q) => {
   const b = await readBody(req), { c, contract } = await bundle(q.id), set = await settings();
@@ -475,7 +477,30 @@ H.staff['PUT settings'] = async (req) => {
   const b = await readBody(req), cur = await settings();
   const next = { ...cur, studio: clip(b.studio ?? cur.studio, 40), studioEmail: clip(b.studioEmail ?? cur.studioEmail, 120), bandBmId: clip(b.bandBmId ?? cur.bandBmId, 40).replace(/\D/g, ''), governingLaw: clip(b.governingLaw ?? cur.governingLaw, 120), contractTitle: clip(b.contractTitle ?? cur.contractTitle, 120) };
   if (b.legal) next.legal = Object.fromEntries(['name', 'form', 'owner', 'reg', 'tax', 'address'].map(k => [k, clip(b.legal[k] ?? cur.legal?.[k] ?? '', 300).trim()]));
+  if (b.bank) next.bank = Object.fromEntries(['bank', 'holder', 'iban', 'swift', 'note'].map(k => [k, clip(b.bank[k] ?? cur.bank?.[k] ?? '', 200).trim()]));
   await store.set('settings', next); return next;
+};
+
+// ---------- payments: the studio's bank details (Settings), and the client telling us an invoice is paid ----------
+// The client can only say "I have paid". Only staff mark an invoice paid, once the money has arrived.
+H.client['POST payclaim'] = async (req, res, s) => {
+  const b = await readBody(req), { c, st, payclaims } = await bundle(s.cid), inv = (st.invoices || []).find(i => i.id === b.id);
+  if (!inv || inv.status === 'draft') throw bad(404, 'No such invoice');
+  if (inv.status === 'paid') throw bad(409, 'This invoice is already marked as paid.');
+  if (payclaims[inv.id]) throw bad(409, 'You already told us. We confirm it when the money arrives.');
+  payclaims[inv.id] = { at: now(), by: s.email, name: nameOf(c, s.email), note: clip(b.note, 500).trim() };
+  await store.set(`payclaims:${s.cid}`, payclaims); await log(c.name, `says invoice ${inv.no || ''} is paid`.replace('  ', ' '), s.cid);
+  const set = await settings();
+  await send({ to: set.studioEmail, replyTo: s.email, subject: `Payment reported: ${c.name} · ${inv.no || 'invoice'}`,
+    ...letter({ title: `${nameOf(c, s.email)} says invoice ${inv.no || ''} is paid`.replace('  ', ' '), lines: [`${money(inv.amount, inv.currency)}. Check your bank account, then confirm it in the portal.`], quote: payclaims[inv.id].note || undefined, button: { label: 'Open billing', url: `${portal(req)}#client/${s.cid}/billing` } }) });
+  return { payclaims };
+};
+H.staff['POST payconfirm'] = async (req, res, s, q) => {
+  const b = await readBody(req), { c, st, payclaims } = await bundle(q.id), inv = (st.invoices || []).find(i => i.id === b.id); if (!inv) throw bad(404, 'No such invoice');
+  if (b.clear) { delete payclaims[inv.id]; await store.set(`payclaims:${q.id}`, payclaims); await log(s.name, `said the money for invoice ${inv.no || ''} has not arrived`.replace('  ', ' '), q.id); return { staff: st, payclaims }; }
+  inv.status = 'paid'; delete payclaims[inv.id];
+  await store.set(`staff:${q.id}`, st); await store.set(`payclaims:${q.id}`, payclaims); await log(s.name, `marked invoice ${inv.no || ''} as paid`.replace('  ', ' '), q.id);
+  return { staff: st, payclaims };
 };
 
 // ---------- support: tickets ----------

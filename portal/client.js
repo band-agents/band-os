@@ -410,6 +410,21 @@ const adAsk = (id, kind) => {
     },
   });
 };
+function paidModal(id) {
+  const i = (W.staff.invoices || []).find(x => x.id === id); if (!i) return;
+  modal(`<h3>Tell us you paid ${esc(i.no)}</h3><p class="small" style="margin:6px 0 14px">${money(i.amount, i.currency)}. We check our bank account and mark it paid when the money arrives. Bank transfers can take a few days.</p>
+    <div class="fld"><label for="pd-n">Transfer reference or note (optional)</label><textarea class="in" id="pd-n" style="min-height:80px" placeholder="e.g. sent today from account ending 1234"></textarea></div>
+    <div class="acts"><button class="btn green" id="pd-go">${ic('check')} I have paid</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close; $('#pd-n', m).focus();
+      $('#pd-go', m).onclick = async e => {
+        const go = e.currentTarget; go.disabled = true;
+        try { const r = await api('POST', 'client/payclaim', { id, note: $('#pd-n', m).value }); W.payclaims = r.payclaims; close(); toast('Thank you. We confirm when it arrives.'); stay(); }
+        catch (er) { toast(er.message, true); go.disabled = false; }
+      };
+    },
+  });
+}
 function ads$(t) {
   const d = t.dataset;
   if (d.adtab) return nav('ads', d.adtab);
@@ -420,10 +435,17 @@ function ads$(t) {
 }
 
 /* ---------- invoices, files, messages ---------- */
+function bankCard(ref) {
+  const B = W.settings.bank; if (!B || !B.iban) return '';
+  const row = (l, v) => v ? `<div class="copy"><span>${l}</span><b style="word-break:break-all">${esc(v)}</b><button class="btn sm" data-copy="${esc(v)}">${ic('copy')} Copy</button></div>` : '';
+  return `<div class="card" style="margin-top:26px"><h3>Pay by bank transfer</h3><p class="small">${ref ? `Put <b>${esc(ref)}</b> in the transfer reference so we can match it.` : 'Put the invoice number in the transfer reference.'}</p>
+    <div style="margin-top:12px">${row('Bank', B.bank)}${row('Account holder', B.holder)}${row('IBAN', B.iban)}${row('SWIFT', B.swift)}</div>${B.note ? `<p class="small" style="margin-top:10px">${esc(B.note)}</p>` : ''}</div>`;
+}
 function invoices() {
-  const I = W.staff.invoices || [];
+  const I = (W.staff.invoices || []).filter(i => i.status !== 'draft'), P = W.payclaims || {}, open = I.find(i => i.status === 'due');
   return `<div class="page"><p class="eyebrow mono">Invoices</p><h1>What you pay<span> us.</span></h1><p class="lead">Our fee is billed monthly in advance. Ad spend is separate: you pay it straight to Meta from your own ad account.</p>
-    ${I.length ? `<div class="card" style="margin-top:26px;padding:6px 10px"><table class="t"><thead><tr><th>Invoice</th><th>Due</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>${I.map(i => `<tr><td><b>${esc(i.no)}</b>${i.note ? `<br><span class="small">${esc(i.note)}</span>` : ''}</td><td>${esc(i.due)}</td><td class="r">${money(i.amount, i.currency)}</td><td><span class="pillx ${i.status === 'paid' ? 'live' : i.status === 'due' ? 'warn' : ''}">${esc(i.status)}</span></td><td class="r">${i.link ? `<a class="btn sm" href="${esc(i.link)}" target="_blank" rel="noopener">${ic('down')} Open</a>` : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty" style="margin-top:26px"><b>No invoices yet.</b>Your first one arrives with the signed agreement.</div>`}</div>`;
+    ${open ? bankCard(open.no) : ''}
+    ${I.length ? `<div class="card" style="margin-top:26px;padding:6px 10px"><table class="t"><thead><tr><th>Invoice</th><th>Due</th><th class="r">Amount</th><th>Status</th><th></th></tr></thead><tbody>${I.map(i => { const pc = i.status === 'due' && P[i.id]; return `<tr><td><b>${esc(i.no)}</b>${i.note ? `<br><span class="small">${esc(i.note)}</span>` : ''}</td><td>${esc(i.due)}</td><td class="r">${money(i.amount, i.currency)}</td><td><span class="pillx ${i.status === 'paid' ? 'live' : i.status === 'due' ? 'warn' : ''}">${pc ? 'payment reported' : esc(i.status)}</span></td><td class="r">${i.link ? `<a class="btn sm" href="${esc(i.link)}" target="_blank" rel="noopener">${ic('down')} Open</a> ` : ''}${i.status === 'due' && !pc ? `<button class="btn sm green" data-paid="${esc(i.id)}">${ic('check')} I have paid</button>` : ''}${pc ? `<span class="small">We confirm when it arrives</span>` : ''}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="empty" style="margin-top:26px"><b>No invoices yet.</b>Your first one arrives with the signed agreement.</div>`}</div>`;
 }
 function files() {
   const L = W.staff.links || [], mine = []; for (const [id, a] of Object.entries(W.answers.checklist)) for (const [f, v] of Object.entries(a.fields || {})) if (/^https?:\/\//.test(v)) mine.push({ label: items().find(i => i.id === id)?.title || id, url: v });
@@ -581,6 +603,7 @@ async function onClick(e) {
   if (t.dataset.slot) { selSlot = t.dataset.slot; const keep = [$('#mt-t')?.value, $('#mt-n')?.value]; stay(); if (keep[0]) { $('#mt-t').value = keep[0]; $('#mt-n').value = keep[1]; } return; }
   if (t.dataset.tksend !== undefined || t.dataset.tkreply || t.dataset.tkclose || t.dataset.book !== undefined || t.dataset.mcancel) return support$(t);
   if (t.dataset.copy) return copyText(t.dataset.copy);
+  if (t.dataset.paid) return paidModal(t.dataset.paid);
   if (t.dataset.open) { open.add(t.dataset.open); nav('start'); return setTimeout(() => $(`[data-item="${t.dataset.open}"]`)?.scrollIntoView({ block: 'center' }), 80); }
   if (t.dataset.form) return nav('forms', t.dataset.form);
   if (t.dataset.jump) return document.getElementById(t.dataset.jump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -659,7 +682,7 @@ async function poll() {
   // forms and the agreement keep their own state, so there only the bell updates; conversations repaint and keep drafts
   const busy = route === 'agreement' || route === 'start' || route === 'forms' || !!$('.modal') || (route === 'events' && /^(new|edit-)/.test(arg || ''));
   try {
-    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment + (e.replies || []).length), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned), (w.ads || []).map(a => [a.id, a.status, a.approval?.state, a.budget, a.stats.length, a.requests.map(r => r.state).join('')].join())]);
+    const n = await api('GET', 'client/workspace'), sig = w => JSON.stringify([w.staff, w.contract.status, w.msgs.length, (w.tickets || []).map(t => t.updated + t.thread.length), (w.meetings || []).map(m => m.status), (w.events || []).map(e => e.status + e.comment + (e.replies || []).length), (w.feed || []).map(p => p.id + (p.edited || '') + p.pinned), Object.keys(w.payclaims || {}), (w.ads || []).map(a => [a.id, a.status, a.approval?.state, a.budget, a.stats.length, a.requests.map(r => r.state).join('')].join())]);
     if (sig(n) === sig(W)) return;
     const had = new Set(alerts().map(a => a.id)); W = n;
     const fresh = alerts().filter(a => !had.has(a.id)); if (fresh.length) ring(fresh);

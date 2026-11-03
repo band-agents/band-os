@@ -358,6 +358,10 @@ function partyModal() {
 }
 // the studio's own legal details and papers, used in every agreement
 const LEGAL = [['name', 'Legal name of the business'], ['form', 'Legal form'], ['owner', 'Owner / who signs'], ['reg', 'Commercial register no.'], ['tax', 'Tax registration no.'], ['address', 'Office address']];
+const BANK = [['bank', 'Bank'], ['holder', 'Account holder'], ['iban', 'IBAN'], ['swift', 'SWIFT'], ['note', 'Note for clients (optional)']];
+const bankCard = () => { const B = O.settings.bank || {}; return `<div class="card" style="margin-top:14px"><h3>Our bank details</h3><p class="small">Clients see these on their Invoices page, with a copy button, whenever an invoice is due.</p>
+  <div class="fgrid" style="margin-top:12px">${BANK.map(([k, l]) => `<div class="fld ${k === 'note' ? 'full' : ''}"><label>${l}</label><input class="in" data-bank="${k}" value="${esc(B[k] || '')}"></div>`).join('')}</div>
+  <div class="acts"><button class="btn green sm" data-savebank>Save bank details</button></div></div>`; };
 const legalCard = () => { const L = O.settings.legal || {}, docs = O.settings.legalDocs || []; return `<div class="card" style="margin-top:14px"><h3>Our legal details</h3><p class="small">Used in the Parties section of every agreement, as {{studioLegal}}, {{studioReg}}, {{studioTax}}, {{studioAddress}} and so on. An agreement cannot be sent while one is empty.</p>
   <div class="fgrid" style="margin-top:12px">${LEGAL.map(([k, l]) => `<div class="fld ${k === 'address' || k === 'name' ? 'full' : ''}"><label>${l}</label><input class="in" data-legal="${k}" value="${esc(L[k] || '')}"></div>`).join('')}</div>
   <div class="acts"><button class="btn green sm" data-savelegal>Save legal details</button></div>
@@ -395,7 +399,8 @@ function results() {
     <div style="margin-top:14px">${editor('timeline', [{ k: 'weeks', l: 'Weeks', t: 'text' }, { k: 'title', l: 'Stage', t: 'text' }, { k: 'state', l: 'State', t: 'select', o: ['todo', 'now', 'done'] }, { k: 'body', l: 'What happens', t: 'text' }], T_, true)}</div></div>`;
 }
 function billing() {
-  return `<div class="card"><div class="sh"><h2>Invoices</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="invoices">${ic('plus')} Add</button><button class="btn sm green" data-save="invoices">Save</button></div></div>
+  const claims = (C.staff.invoices || []).filter(i => i.status === 'due' && (C.payclaims || {})[i.id]);
+  return `${claims.length ? `<div class="card" style="margin-bottom:14px;border-color:var(--warn,#c9a400)"><h3>Payments to confirm</h3><p class="small">The client says these are paid. Check the bank account first.</p>${claims.map(i => { const p = C.payclaims[i.id]; return `<div class="ldoc" style="align-items:center"><div style="flex:1"><b>${esc(i.no)} · ${esc(i.amount)} ${esc(i.currency)}</b><span class="small">${esc(p.name)} · ${esc(day(p.at))} ${ago(p.at)}${p.note ? ' · ' + esc(p.note) : ''}</span></div><button class="btn sm green" data-payok="${esc(i.id)}">${ic('check')} Money arrived</button><button class="btn sm ghost" data-paynot="${esc(i.id)}">Not yet</button></div>`; }).join('')}</div>` : ''}<div class="card"><div class="sh"><h2>Invoices</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="invoices">${ic('plus')} Add</button><button class="btn sm green" data-save="invoices">Save</button></div></div>
     ${editor('invoices', [{ k: 'no', l: 'Number', t: 'text' }, { k: 'amount', l: 'Amount', t: 'number' }, { k: 'currency', l: 'Cur.', t: 'text' }, { k: 'due', l: 'Due', t: 'date' }, { k: 'status', l: 'Status', t: 'select', o: ['draft', 'due', 'paid'] }, { k: 'link', l: 'Link to PDF', t: 'url' }, { k: 'note', l: 'Note', t: 'text' }], C.staff.invoices)}</div>
     <div class="card" style="margin-top:14px"><div class="sh"><h2>Shared links</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="links">${ic('plus')} Add</button><button class="btn sm green" data-save="links">Save</button></div></div>
     ${editor('links', [{ k: 'label', l: 'Label', t: 'text' }, { k: 'url', l: 'URL', t: 'url' }, { k: 'kind', l: 'Kind', t: 'text' }], C.staff.links)}</div>`;
@@ -424,6 +429,7 @@ function settings() {
     <div class="fld"><label>Default governing law</label><input class="in" id="st-law" value="${esc(s.governingLaw)}"></div><div class="fld"><label>Agreement title</label><input class="in" id="st-title" value="${esc(s.contractTitle)}"></div></div>
     <div class="warnbox">${ic('alert')}<span>The default agreement text is a draft written for this service. Have a lawyer read it before the first client signs. Electronic signature rules depend on the country.</span></div>
     <div class="acts"><button class="btn green" data-savesettings>Save settings</button></div></div>
+    ${bankCard()}
     ${legalCard()}
     <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">A personal code signs in under that person's own name, so the activity log says who did what. The code you set here is temporary: the first time they sign in, they have to choose their own.</p>${me.personal ? `<div class="acts" style="margin-top:10px"><button class="btn sm" data-mycode>${ic('key')} Change my code</button></div>` : ''}
     <div id="team" style="margin-top:12px"><p class="small">Loading…</p></div>
@@ -600,6 +606,8 @@ async function onClick(e) {
   if (d.filepdf !== undefined) { t.disabled = true; try { await clientFile(); } catch (er) { toast(er.message, true); } t.disabled = false; return; }
   if (d.spdf !== undefined) { try { const k = C.contract, sg = k.signature, hand = sg.method === 'hand' ? await Promise.all(sg.files.map(id => getFile('staff', id))) : []; await agreementPdf({ title: k.title, text: k.signedText, client: C.client.name, signature: sg, countersign: k.countersign, docHash: sg.docHash, studio: C.settings.studio, annex: await annexData(), hand }); } catch (er) { toast(er.message, true); } return; }
   if (d.pfstaff !== undefined) return partyModal();
+  if (d.savebank !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { bank: Object.fromEntries($$('[data-bank]').map(x => [x.dataset.bank, x.value])) }); toast('Saved'); } catch (er) { toast(er.message, true); } return; }
+  if (d.payok || d.paynot) { try { const r = await api('POST', `staff/clients/${C.client.id}/payconfirm`, { id: d.payok || d.paynot, clear: !!d.paynot }); C.staff = r.staff; C.payclaims = r.payclaims; toast(d.payok ? 'Marked as paid' : 'Claim cleared'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.savelegal !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { legal: Object.fromEntries($$('[data-legal]').map(x => [x.dataset.legal, x.value])) }); toast('Saved'); } catch (er) { toast(er.message, true); } return; }
   if (d.ldrm) { if (!confirm('Remove this document from every agreement?')) return; try { O.settings = await api('DELETE', 'staff/legaldoc', { id: d.ldrm }); toast('Removed'); stay(); } catch (er) { toast(er.message, true); } return; }
   if (d.savecs !== undefined) { try { const old = C.client.brands, names = $('#cs-brands').value.split('\n').map(x => x.trim()).filter(Boolean); await api('PATCH', 'staff/clients/' + arg, { name: $('#cs-name').value, status: $('#cs-status').value, brands: names.map((n, i) => ({ id: old[i]?.id || 'b' + (i + 1 + old.length), name: n })) }); await reloadClient(); toast('Saved'); stay(); } catch (er) { toast(er.message, true); } return; }
