@@ -11,11 +11,11 @@ export async function mount(who) {
   lastLog = O.log[0]?.at;
   document.title = 'Staff · band. portal';
   $('#app').innerHTML = shell({ tag: 'Staff', staff: true, name: me.name, extra: `<span class="mono envtag" style="color:rgba(255,255,255,.5);margin-right:6px">${O.mode === 'redis' ? 'LIVE' : 'LOCAL DATA'}</span>` }) + `
-    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span><button class="btn sm green" id="newBtn">${ic('plus')} New client</button></div><div class="view" id="view" tabindex="-1"></div></section></div><nav class="bnav" id="bnav" aria-label="Sections"></nav>`;
-  $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back(); $('#newBtn').onclick = newClient;
+    <div class="win"><aside class="side" id="side"></aside><section class="main"><div class="tool"><button class="nav-b" id="back" aria-label="Back">‹</button><nav class="crumbs" id="crumbs"></nav><span class="sp"></span>${me.admin ? `<button class="btn sm green" id="newBtn">${ic('plus')} New client</button>` : ''}</div><div class="view" id="view" tabindex="-1"></div></section></div><nav class="bnav" id="bnav" aria-label="Sections"></nav>`;
+  $('#outBtn').onclick = signOut; $('#palBtn').onclick = openPalette; $('#back').onclick = () => history.back(); if ($('#newBtn')) $('#newBtn').onclick = newClient;
   $('#view').addEventListener('click', onClick); $('#view').addEventListener('input', onInput);
   addEventListener('hashchange', go); go(); pulse();
-  addEventListener('keydown', e => { if (e.key === 'n' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) && !e.metaKey && !e.ctrlKey && !$('.modal')) { e.preventDefault(); newClient(); } });
+  addEventListener('keydown', e => { if (me.admin && e.key === 'n' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) && !e.metaKey && !e.ctrlKey && !$('.modal')) { e.preventDefault(); newClient(); } });
 }
 
 /* ---------- helpers ---------- */
@@ -23,15 +23,15 @@ const items = c => [...T.checklist, ...(c.staff.customItems || [])].filter(i => 
 const visible = c => items(c).filter(i => !(c.staff.hidden || []).includes(i.id));
 const stateOf = (c, i) => c.staff.verify[i.id]?.state || (i.id === 'sign' ? (c.contract?.status === 'signed' ? 'verified' : 'todo') : i.owner === 'staff' ? (c.staff.auto?.[i.id] ? 'verified' : 'todo') : c.answers.checklist[i.id]?.state || 'todo');
 const palette = () => setPalette([
-  { t: 'New client', i: 'plus', h: 'N', run: newClient }, { t: 'Overview', i: 'home', h: 'Go to', run: () => nav('overview') }, { t: 'All clients', i: 'users', h: 'Go to', run: () => nav('clients') },
-  { t: 'Activity', i: 'clock', h: 'Go to', run: () => nav('activity') }, { t: 'Settings', i: 'settings', h: 'Go to', run: () => nav('settings') },
+  ...(me.admin ? [{ t: 'New client', i: 'plus', h: 'N', run: newClient }] : []),{ t: 'Overview', i: 'home', h: 'Go to', run: () => nav('overview') }, { t: 'All clients', i: 'users', h: 'Go to', run: () => nav('clients') },
+  { t: 'Activity', i: 'clock', h: 'Go to', run: () => nav('activity') }, ...(me.admin ? [{ t: 'Settings', i: 'settings', h: 'Go to', run: () => nav('settings') }] : []),
   ...O.clients.map(c => ({ t: c.name, i: 'users', h: 'Client', k: c.brands.map(b => b.name).join(' ').toLowerCase(), run: () => nav('client', c.id) })),
   ...(C ? ['checklist', 'answers', 'agreement', 'results', 'billing', 'messages', 'settings'].map(t => ({ t: `${C.client.name}: ${t}`, i: 'arrow', h: 'Tab', run: () => nav('client', C.client.id, t) })) : []),
   { t: 'Sign out', i: 'out', h: 'Action', run: signOut }]);
 
 async function go() {
   [route, arg, tab, sub] = (location.hash.slice(1) || 'overview').split('/'); tab = tab || 'checklist'; sub = sub || '';
-  if (!['overview', 'clients', 'client', 'tickets', 'meetings', 'feed', 'activity', 'settings'].includes(route)) route = 'overview';
+  if (!['overview', 'clients', 'client', 'tickets', 'meetings', 'feed', 'activity', 'settings'].includes(route) || (route === 'settings' && !me.admin)) route = 'overview';
   if (route === 'feed') { try { FEED = (await api('GET', 'staff/feed')).posts; } catch (e) { toast(e.message, true); FEED = []; } }
   if (route === 'client') { try { C = await api('GET', 'staff/clients/' + arg); } catch (e) { toast(e.message, true); return nav('clients'); } } else C = null;
   if (['tickets', 'meetings'].includes(route)) await reload().catch(() => { });
@@ -57,14 +57,14 @@ const mrow = (m, withClient, past) => `<div class="meet ${past ? 'past' : ''}" $
   ${m.status === 'cancelled' ? `<span class="pillx bad">cancelled${m.cancelledBy ? ' by ' + esc(m.cancelledBy) : ''}</span>` : past ? '<span class="pillx">done</span>' : `<span class="pillx ok">booked</span>${withClient ? '' : `<button class="btn sm ghost danger" data-mcancel="${esc(m.id)}">Cancel</button>`}`}</div>`;
 function tabbar() {
   const on = r => route === r || (r === 'clients' && route === 'client');
-  $('#bnav').innerHTML = [['overview', 'Overview', 'home'], ['clients', 'Clients', 'users'], ['tickets', 'Support', 'ticket'], ['meetings', 'Calls', 'cal'], ['settings', 'Settings', 'settings']]
+  $('#bnav').innerHTML = [['overview', 'Overview', 'home'], ['clients', 'Clients', 'users'], ['tickets', 'Support', 'ticket'], ['meetings', 'Calls', 'cal'], ...(me.admin ? [['settings', 'Settings', 'settings']] : [])]
     .map(([r, t, i]) => `<button class="${on(r) ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${t}</span>${r === 'clients' && O.clients.some(c => c.awaiting || c.help) ? '<i>•</i>' : r === 'tickets' && waiting() ? `<i>${waiting()}</i>` : ''}</button>`).join('');
   $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
 }
 function side() {
   tabbar();
-  $('#side').innerHTML = `<div class="who-card"><b>${esc(me.name)}</b><span>Staff</span></div><h6>Studio</h6>
-    ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['tickets', 'Support inbox', 'ticket', waiting() || '', waiting()], ['meetings', 'Calls', 'cal', O.meetings.length || ''], ['feed', 'Updates', 'news', ''], ['activity', 'Activity', 'clock', ''], ['settings', 'Settings', 'settings', '']].map(([r, t, i, n, hot]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em class="${hot ? 'hot' : ''}">${n}</em>` : ''}</button>`).join('')}
+  $('#side').innerHTML = `<div class="who-card"><b>${esc(me.name)}</b><span>${me.admin ? 'Admin' : 'Staff'}</span></div><h6>Studio</h6>
+    ${[['overview', 'Overview', 'home', ''], ['clients', 'Clients', 'users', O.clients.length], ['tickets', 'Support inbox', 'ticket', waiting() || '', waiting()], ['meetings', 'Calls', 'cal', O.meetings.length || ''], ['feed', 'Updates', 'news', ''], ['activity', 'Activity', 'clock', ''], ...(me.admin ? [['settings', 'Settings', 'settings', '']] : [])].map(([r, t, i, n, hot]) => `<button class="si ${route === r ? 'on' : ''}" data-nav="${r}">${ic(i)}<span>${t}</span>${n !== '' ? `<em class="${hot ? 'hot' : ''}">${n}</em>` : ''}</button>`).join('')}
     <h6>Clients</h6>${O.clients.map(c => `<button class="si ${route === 'client' && arg === c.id ? 'on' : ''}" data-client="${c.id}">${ic('arrow')}<span>${esc(c.name)}</span><em class="${c.awaiting || c.help || c.tickets || c.events ? 'hot' : c.done === c.total ? 'ok' : ''}">${c.awaiting + c.help + c.tickets + (c.events || 0) || (c.done + '/' + c.total)}</em></button>`).join('') || '<p class="small" style="padding:6px 10px">No clients yet.</p>'}
     <div class="sfoot"><span class="mono">n · new client</span><span class="mono">⌘K · jump to anything</span></div>`;
   $$('#side [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav)); $$('#side [data-client]').forEach(b => b.onclick = () => nav('client', b.dataset.client));
@@ -132,8 +132,9 @@ function newClient() {
 const loginMsg = (c, code) => `Hi ${c.contacts[0]?.name || ''},\n\nYour band. portal is ready: ${location.origin}/portal/\nEmail: ${c.contacts.map(x => x.email).join(" or ")}\nAccess code: ${code}\n\nEverything we need from you is in "Start here". Your agreement will appear there too.\n\nband.`;
 function codeModal(c, code, fresh, mailed) {
   modal(`<h3>${fresh ? 'Workspace ready' : 'New access code'}</h3><p class="small" style="margin-bottom:14px">${mailed ? `${ic('check')} Emailed to ${esc(c.contacts.map(x => x.email).join(", "))}. You can also copy it below.` : `This code is shown once. We only store a hash. Send it to ${esc(c.contacts.map(x => x.email).join(", "))} over a private channel.`}</p>
-    <div class="codebox">${esc(code)}</div><div class="acts"><button class="btn green" data-copyall>${ic('copy')} Copy the message to send</button><button class="btn" data-copycode>Copy code</button><button class="btn ghost" data-close>Done</button></div>`, {
-    onMount: (m, close) => { $('[data-close]', m).onclick = close; $('[data-copycode]', m).onclick = () => copyText(code); $('[data-copyall]', m).onclick = () => copyText(loginMsg(c, code)); },
+    <div class="codebox">${esc(code)}</div><div class="acts">${O.mail && !mailed ? `<button class="btn green" data-mailcode>${ic('send')} Email the login to them</button>` : ''}<button class="btn ${O.mail && !mailed ? '' : 'green'}" data-copyall>${ic('copy')} Copy the message to send</button><button class="btn" data-copycode>Copy code</button><button class="btn ghost" data-close>Done</button></div>`, {
+    onMount: (m, close) => { $('[data-close]', m).onclick = close;
+      const mb = $('[data-mailcode]', m); if (mb) mb.onclick = async () => { mb.disabled = true; try { const r = await api('POST', `staff/clients/${c.id}/maillogin`, { code }); toast(`Login emailed to ${r.to.join(', ')}`); close(); } catch (er) { toast(er.message, true); mb.disabled = false; } }; $('[data-copycode]', m).onclick = () => copyText(code); $('[data-copyall]', m).onclick = () => copyText(loginMsg(c, code)); },
   });
 }
 /* ---------- email the client about the page you are on ---------- */
@@ -398,9 +399,27 @@ function results() {
     <div class="fld"><label>Live dashboard URL (Looker Studio, Meta, anything)</label><input class="in" id="dashUrl" type="url" value="${esc(C.staff.dashboardUrl)}" placeholder="https://"></div>
     <div style="margin-top:14px">${editor('timeline', [{ k: 'weeks', l: 'Weeks', t: 'text' }, { k: 'title', l: 'Stage', t: 'text' }, { k: 'state', l: 'State', t: 'select', o: ['todo', 'now', 'done'] }, { k: 'body', l: 'What happens', t: 'text' }], T_, true)}</div></div>`;
 }
+function remindModal(id) {
+  const i = (C.staff.invoices || []).find(x => x.id === id); if (!i) return; const emails = C.client.contacts.map(x => x.email).filter(Boolean);
+  modal(`<h3>Remind about ${esc(i.no)}</h3><p class="small" style="margin:6px 0 12px">${esc(money(i.amount, i.currency))} · emailed with our bank details and a button to their Invoices page.</p>
+    <div class="fld"><label>Send to</label><div class="daycb">${emails.map(e => `<label><input type="checkbox" data-rto="${esc(e)}" checked>${esc(e)}</label>`).join('')}</div></div>
+    <div class="fld" style="margin-top:12px"><label for="rm-n">Add a line (optional)</label><textarea class="in" id="rm-n" style="min-height:80px"></textarea></div>
+    <div class="acts"><button class="btn green" id="rm-go">${ic('send')} Send reminder</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      $('[data-close]', m).onclick = close;
+      $('#rm-go', m).onclick = async e => {
+        const go = e.currentTarget; go.disabled = true;
+        try { const r = await api('POST', `staff/clients/${arg}/remind`, { id, to: $$('[data-rto]', m).filter(x => x.checked).map(x => x.dataset.rto), note: $('#rm-n', m).value }); C.reminders = r.reminders; close(); toast(`Reminder sent to ${r.to.join(', ')}`); stay(); }
+        catch (er) { toast(er.message, true); go.disabled = false; }
+      };
+    },
+  });
+}
 function billing() {
+  const due = (C.staff.invoices || []).filter(i => i.status === 'due' && i.id);
+  const reminders = due.length ? `<div class="card" style="margin-bottom:14px"><h3>Payment reminders</h3><p class="small">Emails the client the amount, our bank details and a button to pay or report payment.</p>${due.map(i => { const r = (C.reminders || {})[i.id]; return `<div class="ldoc" style="align-items:center"><div style="flex:1"><b>${esc(i.no)} · ${esc(i.amount)} ${esc(i.currency)}</b><span class="small">${i.due ? `due ${esc(i.due)} · ` : ''}${r ? `reminded ${r.count}× · last ${esc(day(r.at))} ${ago(r.at)} by ${esc(r.by)}` : 'no reminder sent yet'}</span></div><button class="btn sm green" data-remind="${esc(i.id)}" ${O.mail ? '' : 'disabled title="Email is not connected"'}>${ic('send')} Send reminder</button></div>`; }).join('')}</div>` : '';
   const claims = (C.staff.invoices || []).filter(i => i.status === 'due' && (C.payclaims || {})[i.id]);
-  return `${claims.length ? `<div class="card" style="margin-bottom:14px;border-color:var(--warn,#c9a400)"><h3>Payments to confirm</h3><p class="small">The client says these are paid. Check the bank account first.</p>${claims.map(i => { const p = C.payclaims[i.id]; return `<div class="ldoc" style="align-items:center"><div style="flex:1"><b>${esc(i.no)} · ${esc(i.amount)} ${esc(i.currency)}</b><span class="small">${esc(p.name)} · ${esc(day(p.at))} ${ago(p.at)}${p.note ? ' · ' + esc(p.note) : ''}</span></div><button class="btn sm green" data-payok="${esc(i.id)}">${ic('check')} Money arrived</button><button class="btn sm ghost" data-paynot="${esc(i.id)}">Not yet</button></div>`; }).join('')}</div>` : ''}<div class="card"><div class="sh"><h2>Invoices</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="invoices">${ic('plus')} Add</button><button class="btn sm green" data-save="invoices">Save</button></div></div>
+  return `${reminders}${claims.length ? `<div class="card" style="margin-bottom:14px;border-color:var(--warn,#c9a400)"><h3>Payments to confirm</h3><p class="small">The client says these are paid. Check the bank account first.</p>${claims.map(i => { const p = C.payclaims[i.id]; return `<div class="ldoc" style="align-items:center"><div style="flex:1"><b>${esc(i.no)} · ${esc(i.amount)} ${esc(i.currency)}</b><span class="small">${esc(p.name)} · ${esc(day(p.at))} ${ago(p.at)}${p.note ? ' · ' + esc(p.note) : ''}</span></div><button class="btn sm green" data-payok="${esc(i.id)}">${ic('check')} Money arrived</button><button class="btn sm ghost" data-paynot="${esc(i.id)}">Not yet</button></div>`; }).join('')}</div>` : ''}<div class="card"><div class="sh"><h2>Invoices</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="invoices">${ic('plus')} Add</button><button class="btn sm green" data-save="invoices">Save</button></div></div>
     ${editor('invoices', [{ k: 'no', l: 'Number', t: 'text' }, { k: 'amount', l: 'Amount', t: 'number' }, { k: 'currency', l: 'Cur.', t: 'text' }, { k: 'due', l: 'Due', t: 'date' }, { k: 'status', l: 'Status', t: 'select', o: ['draft', 'due', 'paid'] }, { k: 'link', l: 'Link to PDF', t: 'url' }, { k: 'note', l: 'Note', t: 'text' }], C.staff.invoices)}</div>
     <div class="card" style="margin-top:14px"><div class="sh"><h2>Shared links</h2><div class="acts" style="margin:0"><button class="btn sm" data-add="links">${ic('plus')} Add</button><button class="btn sm green" data-save="links">Save</button></div></div>
     ${editor('links', [{ k: 'label', l: 'Label', t: 'text' }, { k: 'url', l: 'URL', t: 'url' }, { k: 'kind', l: 'Kind', t: 'text' }], C.staff.links)}</div>`;
@@ -433,7 +452,12 @@ function settings() {
     ${legalCard()}
     <div class="card" style="margin-top:14px"><h3>Staff team</h3><p class="small">A personal code signs in under that person's own name, so the activity log says who did what. The code you set here is temporary: the first time they sign in, they have to choose their own.</p>${me.personal ? `<div class="acts" style="margin-top:10px"><button class="btn sm" data-mycode>${ic('key')} Change my code</button></div>` : ''}
     <div id="team" style="margin-top:12px"><p class="small">Loading…</p></div>
-    <div class="fgrid" style="margin-top:14px;grid-template-columns:1fr 1fr auto;align-items:end"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Temporary code (6+ characters)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div>
+    <div class="sh" style="margin-top:18px"><h2>Add a person</h2></div>
+    <div class="fgrid" style="margin-top:8px"><div class="fld"><label>Name</label><input class="in" id="tm-name" autocomplete="off"></div><div class="fld"><label>Email (for their login)</label><input class="in" id="tm-email" type="email" autocomplete="off"></div>
+      <div class="fld"><label>Access</label><select class="in" id="tm-role"><option value="staff">Staff: only the clients I tick</option><option value="admin">Admin: everything, including Settings</option></select></div>
+      <div class="fld"><label>Temporary code (optional, we make one if empty)</label><input class="in" id="tm-code" type="password" autocomplete="new-password"></div>
+      <div class="fld full" id="tm-cl"><label>Clients they can see</label><div class="daycb">${O.clients.map(c => `<label><input type="checkbox" data-tmc="${esc(c.id)}">${esc(c.name)}</label>`).join('') || '<span class="small">No clients yet.</span>'}</div></div></div>
+    <div class="acts"><label class="chk"><input type="checkbox" id="tm-send" ${O.mail ? 'checked' : 'disabled'}><span>Email them the login</span></label><span class="sp" style="flex:1"></span><button class="btn green" data-addstaff>${ic('plus')} Add</button></div></div>
     <div class="card" style="margin-top:14px"><h3>Calls clients can book</h3><p class="small">Clients see these hours under Meetings and pick a slot. Each booking emails ${esc(s.studioEmail)} a calendar invite. Times are ${esc(b.tz)} time.</p>
     <label class="chk" style="margin-top:14px"><input type="checkbox" id="bk-on" ${b.on ? 'checked' : ''}><span>Clients can book calls</span></label>
     <div class="fld" style="margin-top:14px"><label>Days</label><div class="daycb">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => `<label><input type="checkbox" data-bkday="${i}" ${b.days.includes(i) ? 'checked' : ''}>${d}</label>`).join('')}</div></div>
@@ -445,9 +469,29 @@ function settings() {
     <div class="card" style="margin-top:14px"><h3>Email</h3>${O.mail ? `<p class="small">Connected. New tickets, client replies and bookings go to <b>${esc(s.studioEmail)}</b>; clients get an email when you answer.</p><div class="acts"><button class="btn" data-testmail>${ic('send')} Send a test email</button></div>`
       : `<div class="warnbox">${ic('alert')}<span>Not connected yet, so nothing is emailed. Everything still shows up here in the portal. To connect Gmail: turn on 2-Step Verification for ${esc(s.studioEmail)}, create an app password at myaccount.google.com/apppasswords, then add <b>GMAIL_USER</b> and <b>GMAIL_APP_PASSWORD</b> in Vercel and redeploy.</span></div>`}</div></div>`;
 }
+let TEAM = [];
+function teamCode(name, code, mailed) {
+  modal(`<h3>${esc(name)}'s temporary code</h3><p class="small" style="margin-bottom:14px">${mailed ? `${ic('check')} Emailed to them. ` : ''}Shown once; we only store a hash. They sign in with Staff and this code, then choose their own.</p>
+    <div class="codebox">${esc(code)}</div><div class="acts"><button class="btn" data-copycode>Copy code</button><button class="btn ghost" data-close>Done</button></div>`, { onMount: (m, close) => { $('[data-close]', m).onclick = close; $('[data-copycode]', m).onclick = () => copyText(code); } });
+}
+// change a person's access: admin or staff, their email and the clients they can see
+function editStaff(id) {
+  const u = TEAM.find(x => x.id === id); if (!u) return;
+  modal(`<h3>Access for ${esc(u.name)}</h3>
+    <div class="fgrid" style="margin-top:12px"><div class="fld"><label>Email</label><input class="in" id="es-email" type="email" value="${esc(u.email)}"></div>
+      <div class="fld"><label>Access</label><select class="in" id="es-role"><option value="staff" ${u.role === 'staff' ? 'selected' : ''}>Staff: only the clients I tick</option><option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin: everything</option></select></div>
+      <div class="fld full" id="es-cl"><label>Clients they can see</label><div class="daycb">${O.clients.map(c => `<label><input type="checkbox" data-esc="${esc(c.id)}" ${u.clients.includes(c.id) ? 'checked' : ''}>${esc(c.name)}</label>`).join('') || '<span class="small">No clients yet.</span>'}</div></div></div>
+    <div class="acts"><button class="btn green" id="es-go">Save</button><button class="btn ghost" data-close>Cancel</button></div>`, {
+    onMount: (m, close) => {
+      const sync = () => { $('#es-cl', m).hidden = $('#es-role', m).value === 'admin'; }; sync(); $('#es-role', m).onchange = sync; $('[data-close]', m).onclick = close;
+      $('#es-go', m).onclick = async () => { try { await api('PUT', 'staff/team', { id, email: $('#es-email', m).value, role: $('#es-role', m).value, clients: $$('[data-esc]', m).filter(x => x.checked).map(x => x.dataset.esc) }); close(); toast('Saved'); loadTeam(); } catch (er) { toast(er.message, true); } };
+    },
+  });
+}
 async function loadTeam() {
   const el = $('#team'); if (!el) return;
-  try { const r = await api('GET', 'staff/team'); el.innerHTML = r.team.length ? `<table class="t"><tbody>${r.team.map(m => `<tr><td><b>${esc(m.name)}</b><br><span class="small">${m.temp ? 'temporary code · has not chosen their own yet' : m.changedAt ? `own code since ${esc(day(m.changedAt))}` : `added ${esc(day(m.at))}`}</span></td><td class="r"><button class="btn sm ghost danger" data-rmstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">No personal codes yet.</p>'; }
+  try { const r = await api('GET', 'staff/team'); TEAM = r.team; const nm = id => r.clients.find(c => c.id === id)?.name || id;
+    el.innerHTML = r.team.length ? `<table class="t"><tbody>${r.team.map(m => `<tr><td><b>${esc(m.name)}</b> <span class="pillx ${m.role === 'admin' ? 'live' : ''}">${m.role}</span><br><span class="small">${esc(m.email || 'no email')} · ${m.role === 'admin' ? 'sees every client' : m.clients.length ? esc(m.clients.map(nm).join(', ')) : 'no clients assigned yet'}<br>${m.temp ? 'temporary code · has not chosen their own yet' : m.changedAt ? `own code since ${esc(day(m.changedAt))}` : `added ${esc(day(m.at))}`}</span></td><td class="r"><button class="btn sm" data-editstaff="${esc(m.id)}">Access</button> <button class="btn sm" data-newcode="${esc(m.id)}">${ic('key')} New code</button> <button class="btn sm ghost danger" data-rmstaff="${esc(m.id)}">Remove</button></td></tr>`).join('')}</tbody></table>` : '<p class="small">No personal codes yet.</p>'; }
   catch (e) { el.innerHTML = `<p class="small">${esc(e.message)}</p>`; }
 }
 
@@ -636,7 +680,17 @@ async function onClick(e) {
       } });
     return;
   }
-  if (d.addstaff !== undefined) { try { await api('POST', 'staff/team', { name: $('#tm-name').value, code: $('#tm-code').value }); $('#tm-name').value = $('#tm-code').value = ''; toast('Added. Send them the temporary code privately.'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
+  if (d.addstaff !== undefined) {
+    try {
+      const r = await api('POST', 'staff/team', { name: $('#tm-name').value, email: $('#tm-email').value, role: $('#tm-role').value, code: $('#tm-code').value, send: $('#tm-send').checked, clients: $$('[data-tmc]').filter(x => x.checked).map(x => x.dataset.tmc) });
+      const n = $('#tm-name').value; $('#tm-name').value = $('#tm-email').value = $('#tm-code').value = ''; $$('[data-tmc]').forEach(x => x.checked = false); loadTeam(); teamCode(n, r.code, r.mailed);
+    } catch (er) { toast(er.message, true); } return;
+  }
+  if (d.newcode) { const m = TEAM.find(x => x.id === d.newcode); if (!m) return; const send = !!(m.email && O.mail && confirm(`Make a new temporary code for ${m.name} and email it to ${m.email}?\n\nCancel to make one without emailing it.`));
+    if (!send && !confirm(`Make a new temporary code for ${m.name}? Their current code stops working.`)) return;
+    try { const r = await api('POST', 'staff/teamcode', { id: m.id, send }); loadTeam(); teamCode(m.name, r.code, r.mailed); } catch (er) { toast(er.message, true); } return; }
+  if (d.editstaff) return editStaff(d.editstaff);
+  if (d.remind) return remindModal(d.remind);
   if (d.rmstaff) { if (!confirm('Remove this person? Their personal code stops working.')) return; try { await api('DELETE', 'staff/team', { id: d.rmstaff }); toast('Removed'); loadTeam(); } catch (er) { toast(er.message, true); } return; }
   if (d.savesettings !== undefined) { try { O.settings = await api('PUT', 'staff/settings', { studio: $('#st-studio').value, studioEmail: $('#st-email').value, bandBmId: $('#st-bm').value, governingLaw: $('#st-law').value, contractTitle: $('#st-title').value }); toast('Saved'); } catch (er) { toast(er.message, true); } }
 }

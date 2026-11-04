@@ -122,7 +122,9 @@ H.open['POST logout'] = async (req, res) => { clearSession(res); return { ok: tr
 H.open['GET me'] = async (req) => {
   const s = sessionOf(req); if (!s) return { role: null };
   if (s.role === 'client') { const c = await store.get(`client:${s.cid}`); return c ? { role: 'client', name: c.name, brands: c.brands } : { role: null }; }
-  return { role: 'staff', name: s.name, personal: !!s.uid, mustChange: !!s.temp };
+  const u = s.uid ? ((await store.get('staffusers')) || []).find(x => x.id === s.uid) : null;
+  if (s.uid && !u) return { role: null };
+  return { role: 'staff', name: s.name, personal: !!s.uid, mustChange: !!s.temp, admin: !(u && u.role === 'staff') };
 };
 H.open['GET template'] = async (req) => { if (!sessionOf(req)) throw bad(401, 'Sign in first'); return { groups: GROUPS, checklist: CHECKLIST, forms: FORMS, timeline: TIMELINE, contract: CONTRACT }; };
 
@@ -255,8 +257,8 @@ const cleanStaff = (k, v) => {
   }
 };
 
-H.staff['GET overview'] = async () => {
-  const ids = await store.smembers('clients');
+H.staff['GET overview'] = async (req) => {
+  const ids = (await store.smembers('clients')).filter(id => !req.scope || req.scope.includes(id));
   const rows = [];
   for (const id of ids) { try { rows.push(summarize(await bundle(id))); } catch { } }
   rows.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -267,7 +269,7 @@ H.staff['GET overview'] = async () => {
   const today = new Date().toISOString().slice(0, 10), events = [];
   for (const id of ids) for (const e of (await store.get(`events:${id}`)) || []) if ((e.end || e.start) >= today && e.status !== 'done') events.push({ ...e, cid: id, client: rows.find(r => r.id === id)?.name || '' });
   events.sort((a, b) => a.start.localeCompare(b.start));
-  return { clients: rows, log: await store.lrange('log', 0, 59), settings: await settings(), mode, mail: mailReady(), tickets, meetings: upcoming(await meetingsAll()), events };
+  return { clients: rows, log: (await store.lrange('log', 0, 59)).filter(e => !req.scope || (e.cid && req.scope.includes(e.cid))), settings: await settings(), mode, mail: mailReady(), tickets, meetings: upcoming(await meetingsAll()).filter(m => !req.scope || req.scope.includes(m.cid)), events };
 };
 H.staff['POST clients'] = async (req, res, s) => {
   const b = await readBody(req), set = await settings();
@@ -295,7 +297,7 @@ H.staff['POST clients'] = async (req, res, s) => {
 H.staff['GET client'] = async (req, res, s, q) => {
   const { c, answers, st, contract, msgs, tickets, events, ads, payclaims } = await bundle(q.id), set = await settings();
   return { client: pubClient(c), answers, staff: st, contract: contract && { ...contract, rendered: render(contract.text, vars(c, set)) }, msgs, summary: summarize({ c, answers, st, contract, tickets, events, ads, payclaims }), settings: set,
-    tickets, events, ads, payclaims, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
+    tickets, events, ads, payclaims, reminders: (await store.get(`payremind:${q.id}`)) || {}, feed: await feedFor(q.id), meetings: (await meetingsAll()).filter(m => m.cid === q.id).slice(0, 40) };
 };
 H.staff['PATCH client'] = async (req, res, s, q) => {
   const b = await readBody(req), { c } = await bundle(q.id);
@@ -443,17 +445,50 @@ H.staff['DELETE client'] = async (req, res, s, q) => {
   await store.srem('clients', q.id); await log(s.name, `deleted ${c.name}`);
   return { ok: true };
 };
-H.staff['GET team'] = async () => ({ team: ((await store.get('staffusers')) || []).map(({ id, name, at, temp, changedAt }) => ({ id, name, at, temp: !!temp, changedAt })) });
+H.staff['GET team'] = async () => {
+  const ids = await store.smembers('clients'), names = {};
+  for (const id of ids) names[id] = (await store.get(`client:${id}`))?.name || id;
+  return { team: ((await store.get('staffusers')) || []).map(({ id, name, email, role, clients, at, temp, changedAt }) => ({ id, name, email: email || '', role: role === 'staff' ? 'staff' : 'admin', clients: clients || [], at, temp: !!temp, changedAt })), clients: ids.map(id => ({ id, name: names[id] })) };
+};
+const validEmail = x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x);
+const staffMail = (req, set, u, code, why) => send({ to: u.email, replyTo: set.studioEmail, subject: `${set.studio} · your staff login`,
+  ...letter({ title: `${why} ${set.studio} staff login`.trim(), lines: [`Hi ${u.name},`, `Open the portal, choose Staff on the sign-in page, and enter this temporary code. You will be asked to choose your own code straight away.`, u.role === 'staff' ? 'You will see the clients assigned to you.' : 'You have admin access.'],
+    quote: code, button: { label: 'Open the portal', url: portal(req) }, small: 'Did not expect this email? Reply to it and tell us.' }) });
+const cleanScope = async v => { const ids = new Set(await store.smembers('clients')); return [...new Set([].concat(v || []).map(String))].filter(x => ids.has(x)); };
 H.staff['POST team'] = async (req, res, s) => {
-  const b = await readBody(req), name = clip(b.name, 40).trim(), code = clip(b.code, 100);
+  const b = await readBody(req), name = clip(b.name, 40).trim(), email = clip(b.email, 200).trim().toLowerCase(), set = await settings();
   if (name.length < 2) throw bad(400, 'Give the person a name.');
-  if (code.trim().length < 6) throw bad(400, 'The code needs at least 6 characters.');
+  if (email && !validEmail(email)) throw bad(400, 'That email does not look right.');
+  if (b.send && !email) throw bad(400, 'Add their email to send the login.');
+  const code = clip(b.code, 100).trim() || newCode();
+  if (code.length < 6) throw bad(400, 'The code needs at least 6 characters.');
   const users = (await store.get('staffusers')) || [];
   if (users.some(x => x.name.toLowerCase() === name.toLowerCase())) throw bad(409, 'That name already has a code.');
   if (users.some(x => same(hashCode(code, x.salt), x.hash)) || (configured().staffCode && same(sha(code), sha(process.env.STAFF_CODE)))) throw bad(409, 'Pick a different code. This one is already in use.');
-  const salt = newSalt(); users.push({ id: newId(5), name, salt, hash: hashCode(code, salt), at: now(), temp: true });
-  await store.set('staffusers', users.slice(0, 30)); await log(s.name, `added ${name} to the staff with a temporary code`);
+  const salt = newSalt(), role = b.role === 'admin' ? 'admin' : 'staff', u = { id: newId(5), name, email, role, clients: role === 'staff' ? await cleanScope(b.clients) : [], salt, hash: hashCode(code, salt), at: now(), temp: true };
+  users.push(u); await store.set('staffusers', users.slice(0, 30));
+  const mailed = b.send ? await staffMail(req, set, u, code, 'Your') : false;
+  await log(s.name, `added ${name} to the staff as ${role === 'admin' ? 'an admin' : `staff with ${u.clients.length} client${u.clients.length === 1 ? '' : 's'}`}${b.send ? (mailed ? ' and emailed the login' : ' (the email failed)') : ''}`);
+  return { ok: true, code, mailed };
+};
+// change who a person is: email, admin or staff, and which clients a staff member can see
+H.staff['PUT team'] = async (req, res, s) => {
+  const b = await readBody(req), users = (await store.get('staffusers')) || [], u = users.find(x => x.id === b.id); if (!u) throw bad(404, 'Not found');
+  if (b.email !== undefined) { const e = clip(b.email, 200).trim().toLowerCase(); if (e && !validEmail(e)) throw bad(400, 'That email does not look right.'); u.email = e; }
+  if (b.role !== undefined) { if (u.name === s.name && b.role === 'staff') throw bad(400, 'You cannot take admin access from yourself.'); u.role = b.role === 'admin' ? 'admin' : 'staff'; }
+  if (b.clients !== undefined) u.clients = await cleanScope(b.clients);
+  await store.set('staffusers', users); await log(s.name, `changed access for ${u.name}: ${u.role === 'staff' ? `${(u.clients || []).length} assigned client(s)` : 'admin'}`);
   return { ok: true };
+};
+// a new temporary code for a staff member, optionally emailed to them
+H.staff['POST teamcode'] = async (req, res, s) => {
+  const b = await readBody(req), users = (await store.get('staffusers')) || [], u = users.find(x => x.id === b.id), set = await settings(); if (!u) throw bad(404, 'Not found');
+  if (b.send && !u.email) throw bad(400, 'Add their email first.');
+  const code = newCode(); u.salt = newSalt(); u.hash = hashCode(code, u.salt); u.temp = true; delete u.changedAt;
+  await store.set('staffusers', users);
+  const mailed = b.send ? await staffMail(req, set, u, code, 'Your new') : false;
+  await log(s.name, `made a new temporary code for ${u.name}${b.send ? (mailed ? ' and emailed it' : ' (the email failed)') : ''}`);
+  return { ok: true, code, mailed };
 };
 H.staff['DELETE team'] = async (req, res, s) => {
   const b = await readBody(req), users = (await store.get('staffusers')) || [], u = users.find(x => x.id === b.id);
@@ -498,6 +533,36 @@ H.client['POST payclaim'] = async (req, res, s) => {
   await send({ to: set.studioEmail, replyTo: s.email, subject: `Payment reported: ${c.name} · ${inv.no || 'invoice'}`,
     ...letter({ title: `${nameOf(c, s.email)} says invoice ${inv.no || ''} is paid`.replace('  ', ' '), lines: [`${money(inv.amount, inv.currency)}. Check your bank account, then confirm it in the portal.`], quote: payclaims[inv.id].note || undefined, button: { label: 'Open billing', url: `${portal(req)}#client/${s.cid}/billing` } }) });
   return { payclaims };
+};
+// a reminder for one invoice: emailed to the client with the amount, the bank details and a button to their Invoices page
+H.staff['POST remind'] = async (req, res, s, q) => {
+  const b = await readBody(req), { c, st } = await bundle(q.id), set = await settings(), inv = (st.invoices || []).find(i => i.id === b.id);
+  if (!inv || inv.status !== 'due') throw bad(404, 'Only an invoice that is due can be reminded.');
+  const all = emailsOf(c), to = [...new Set([].concat(b.to?.length ? b.to : all).map(x => String(x).trim().toLowerCase()))].filter(x => all.includes(x));
+  if (!to.length) throw bad(400, 'Pick at least one email.');
+  if (!mailReady()) throw bad(409, 'Email is not connected yet.');
+  const B = set.bank || {}, note = clip(b.note, 1000).trim();
+  const ok = await send({ to, replyTo: set.studioEmail, subject: `Reminder: invoice ${inv.no} · ${money(inv.amount, inv.currency)}`,
+    ...letter({ title: `A reminder about invoice ${inv.no}`, lines: [`Hi ${nameOf(c, to[0]) || ''},`.replace('Hi ,', 'Hi,'), `Invoice ${inv.no} for ${money(inv.amount, inv.currency)} is due${inv.due ? ` (${inv.due})` : ''}.`, ...(note ? [note] : []),
+      B.iban ? 'You can pay by bank transfer with the details below. Please put the invoice number in the reference, then press "I have paid" in the portal.' : 'You can see it and tell us when it is paid on your Invoices page.'],
+      quote: B.iban ? [`Bank: ${B.bank}`, `Account holder: ${B.holder}`, `IBAN: ${B.iban}`, `SWIFT: ${B.swift}`, `Amount: ${money(inv.amount, inv.currency)}`, `Reference: ${inv.no}`].join('\n') : undefined,
+      button: { label: 'Open your invoices', url: `${portal(req)}#invoices` } }) });
+  if (!ok) throw bad(502, 'Gmail refused it. Try again in a minute.');
+  const rem = (await store.get(`payremind:${q.id}`)) || {}, r = rem[inv.id] || { count: 0 };
+  rem[inv.id] = { at: now(), by: s.name, count: r.count + 1 }; await store.set(`payremind:${q.id}`, rem);
+  await log(s.name, `sent a payment reminder for invoice ${inv.no} to ${to.join(', ')}`, q.id);
+  return { reminders: rem, to };
+};
+// email a client their login: the code is only known right after it is made, so it must match the stored hash
+H.staff['POST maillogin'] = async (req, res, s, q) => {
+  const b = await readBody(req), { c } = await bundle(q.id), set = await settings();
+  if (!same(hashCode(String(b.code || ''), c.salt), c.codeHash)) throw bad(400, 'That is not the current code. Reset it and email the new one.');
+  if (!mailReady()) throw bad(409, 'Email is not connected yet.');
+  const ok = await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `${set.studio} · your portal login`,
+    ...letter({ title: 'Your portal login', lines: [`Hi ${c.contacts[0]?.name || ''},`.replace('Hi ,', 'Hi,'), `Your ${set.studio} portal is ready. Sign in with ${emailsOf(c).join(' or ')} and this access code:`], quote: String(b.code), button: { label: 'Open the portal', url: portal(req) }, small: 'Everything we need from you is in "Start here".' }) });
+  if (!ok) throw bad(502, 'Gmail refused it. Try again in a minute.');
+  await log(s.name, `emailed the login to ${c.name}`, q.id);
+  return { mailed: true, to: emailsOf(c) };
 };
 H.staff['POST payconfirm'] = async (req, res, s, q) => {
   const b = await readBody(req), { c, st, payclaims } = await bundle(q.id), inv = (st.invoices || []).find(i => i.id === b.id); if (!inv) throw bad(404, 'No such invoice');
@@ -834,7 +899,7 @@ async function feedFor(cid) {
   const [mine, all] = await Promise.all([feedOf(cid), feedOf('all')]);
   return [...mine.map(p => ({ ...p, target: cid })), ...all.map(p => ({ ...p, target: 'all' }))].sort((a, b) => (b.pinned - a.pinned) || b.at.localeCompare(a.at));
 }
-async function checkTarget(t) { if (t === 'all') return null; if (!okId(t)) throw bad(400, 'Pick who the post is for.'); const c = await store.get(`client:${t}`); if (!c) throw bad(404, 'Unknown client'); return c; }
+async function checkTarget(t, req) { if (req?.scope && (t === 'all' || !req.scope.includes(t))) throw bad(403, 'That client is not assigned to you.'); if (t === 'all') return null; if (!okId(t)) throw bad(400, 'Pick who the post is for.'); const c = await store.get(`client:${t}`); if (!c) throw bad(404, 'Unknown client'); return c; }
 const cleanPost = b => {
   const title = clip(b.title, 140).trim(), body = clip(b.body, 6000).trim();
   if (title.length < 2) throw bad(400, 'Give the post a title.'); if (!body) throw bad(400, 'Write something in the post.');
@@ -845,13 +910,13 @@ async function mailPost(req, p, clients, set) {
     ...letter({ title: p.title, lines: p.body.split(/\n{2,}/).slice(0, 6), button: { label: 'Read it in your portal', url: `${portal(req)}#feed` }, small: `Posted by ${p.by} for ${p.target === 'all' ? 'all our clients' : c.name}.` }) });
 }
 
-H.staff['GET feed'] = async () => {
-  const ids = await store.smembers('clients'), posts = (await feedOf('all')).map(p => ({ ...p, target: 'all', client: 'All clients' }));
+H.staff['GET feed'] = async (req) => {
+  const ids = (await store.smembers('clients')).filter(id => !req.scope || req.scope.includes(id)), posts = req.scope ? [] : (await feedOf('all')).map(p => ({ ...p, target: 'all', client: 'All clients' }));
   for (const id of ids) { const c = await store.get(`client:${id}`); for (const p of await feedOf(id)) posts.push({ ...p, target: id, client: c?.name || '' }); }
   return { posts: posts.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 200) };
 };
 H.staff['POST post'] = async (req, res, s) => {
-  const b = await readBody(req), target = String(b.target || ''), c = await checkTarget(target), set = await settings();
+  const b = await readBody(req), target = String(b.target || ''), c = await checkTarget(target, req), set = await settings();
   const p = { id: newId(7), ...cleanPost(b), by: s.name, at: now(), target };
   const all = await feedOf(target); all.push(p); await saveFeed(target, all);
   await log(s.name, `posted "${p.title}" for ${c ? c.name : 'all clients'}`, c?.id);
@@ -859,13 +924,13 @@ H.staff['POST post'] = async (req, res, s) => {
   return { post: p };
 };
 H.staff['PUT post'] = async (req, res, s) => {
-  const b = await readBody(req), target = String(b.target || ''); await checkTarget(target);
+  const b = await readBody(req), target = String(b.target || ''); await checkTarget(target, req);
   const all = await feedOf(target), p = all.find(x => x.id === b.id); if (!p) throw bad(404, 'No such post');
   Object.assign(p, b.pinOnly ? { pinned: !!b.pinned } : cleanPost(b), { edited: now() }); await saveFeed(target, all);
   return { post: p };
 };
 H.staff['DELETE post'] = async (req, res, s) => {
-  const b = await readBody(req), target = String(b.target || ''); await checkTarget(target);
+  const b = await readBody(req), target = String(b.target || ''); await checkTarget(target, req);
   const all = await feedOf(target), p = all.find(x => x.id === b.id); if (!p) throw bad(404, 'No such post');
   await saveFeed(target, all.filter(x => x.id !== b.id)); await log(s.name, `removed the post "${p.title}"`);
   return { ok: true };
@@ -874,6 +939,8 @@ H.client['PUT feedseen'] = async (req, res, s) => {
   const a = (await store.get(`answers:${s.cid}`)) || emptyAnswers(); a.feedSeen = now(); await store.set(`answers:${s.cid}`, a);
   return { feedSeen: a.feedSeen };
 };
+
+const ADMIN_ONLY = new Set(['GET team', 'POST team', 'PUT team', 'DELETE team', 'POST teamcode', 'PUT settings', 'POST legaldoc', 'DELETE legaldoc', 'PUT booking', 'POST testmail', 'GET meta', 'POST clients', 'DELETE client']);
 
 // ---------- router ----------
 export async function handle(req, res) {
@@ -892,6 +959,12 @@ export async function handle(req, res) {
     else if (a === 'staff') {
       if (s?.role !== 'staff') throw bad(401, 'Sign in first');
       if (s.temp && `${m} ${b}` !== 'POST mycode') throw bad(403, 'Choose your own code first.');
+      // staff with a personal code are either admins (see everything) or staff (only the clients assigned to them)
+      const me = s.uid ? ((await store.get('staffusers')) || []).find(x => x.id === s.uid) : null;
+      if (s.uid && !me) throw bad(401, 'Sign in again.');
+      req.scope = me && me.role === 'staff' ? me.clients || [] : null;
+      const key2 = b === 'clients' && c ? `${m} ${parts[3] || 'client'}` : `${m} ${b}`;
+      if (req.scope && (ADMIN_ONLY.has(key2) || (b === 'clients' && c && !req.scope.includes(c)))) throw bad(403, 'That is for admins, or this client is not assigned to you.');
       if (b === 'clients' && c) { const d = parts[3]; q.id = c; if (!okId(c)) throw bad(400, 'Bad id'); h = H.staff[`${m} ${d || 'client'}`]; }
       else h = H.staff[`${m} ${b}`];
     } else { key = `${m} ${parts.join('/')}`; h = H.open[key]; }
