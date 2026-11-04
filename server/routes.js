@@ -810,9 +810,10 @@ H.staff['POST adreopen'] = async (req, res, s, q) => {
   return { ads: all, emailed: sent };
 };
 // ---------- Meta: which ad accounts the token can see, and pulling a client's ads and daily numbers ----------
-H.staff['GET meta'] = async () => {
+H.staff['GET meta'] = async (req) => {
   if (!metaOn()) return { on: false };
-  try { return { on: true, ...(await metaWho()) }; } catch (e) { return { on: true, error: e.message }; }
+  // assigned staff can sync their own client but must not see the studio's other ad accounts
+  try { const w = await metaWho(); return { on: true, ...(req.scope ? { me: w.me, accounts: [] } : w) }; } catch (e) { return { on: true, error: e.message }; }
 };
 const guessBrand = (c, name) => (c.brands.find(b => name.toLowerCase().includes(b.name.toLowerCase())) || c.brands[0] || {}).name || '';
 H.staff['POST metasync'] = async (req, res, s, q) => {
@@ -940,7 +941,7 @@ H.client['PUT feedseen'] = async (req, res, s) => {
   return { feedSeen: a.feedSeen };
 };
 
-const ADMIN_ONLY = new Set(['GET team', 'POST team', 'PUT team', 'DELETE team', 'POST teamcode', 'PUT settings', 'POST legaldoc', 'DELETE legaldoc', 'PUT booking', 'POST testmail', 'GET meta', 'POST clients', 'DELETE client']);
+const ADMIN_ONLY = new Set(['GET team', 'POST team', 'PUT team', 'DELETE team', 'POST teamcode', 'PUT settings', 'POST legaldoc', 'DELETE legaldoc', 'PUT booking', 'POST testmail', 'POST clients', 'DELETE client']);
 
 // ---------- router ----------
 export async function handle(req, res) {
