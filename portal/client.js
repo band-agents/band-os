@@ -26,7 +26,10 @@ const unreadE = e => { const l = (e.replies || []).at(-1); return l?.from === 's
 const msgKey = () => `band.msgSeen.${W.client.id}`;
 const msgSeen = () => { try { return localStorage.getItem(msgKey()) || ''; } catch { return ''; } };
 const unreadM = () => W.msgs.filter(m => m.from === 'staff' && m.at > msgSeen()).length;
+// checklist items we marked "Needs a fix": stays until fixed; a changed note rings again
+const fixes = () => Object.entries(W.staff.verify || {}).filter(([i, v]) => v.state === 'needs-fix' && !(W.staff.hidden || []).includes(i)).map(([i, v]) => ({ id: i, note: v.comment || '', title: [...T.checklist, ...(W.staff.customItems || [])].find(x => x.id === i)?.title || 'A checklist item' }));
 const alerts = () => [
+  ...fixes().map(f => ({ id: 'x' + f.id + f.note, t: `Needs a fix: ${f.title}${f.note ? ` · ${f.note}` : ''}`, i: 'alert', go: 'start' })),
   ...(adsWaitN() ? [{ id: 'ad' + (W.ads || []).filter(a => a.status === 'pending' && !a.approval).map(a => a.id).join(), t: `${adsWaitN()} ad${adsWaitN() > 1 ? 's' : ''} waiting for your approval`, i: 'image', go: 'ads/approve' }] : []),
   ...(W.events || []).filter(unreadE).map(e => ({ id: 'e' + e.id + e.replies.length, t: `New reply on your event "${e.title}"`, i: 'flag', go: `events/${e.id}` })),
   ...(W.tickets || []).filter(unreadC).map(t => ({ id: 't' + t.id + t.thread.length, t: `We answered ticket #${t.no}: ${t.subject}`, i: 'ticket', go: `support/${t.id}` })),

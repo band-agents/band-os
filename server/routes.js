@@ -387,9 +387,19 @@ H.staff['POST resetcode'] = async (req, res, s, q) => {
   return { code, mailed, mailedTo: mailed ? emailsOf(c) : [] };
 };
 H.staff['PUT staffdata'] = async (req, res, s, q) => {
-  const b = await readBody(req), { c, st } = await bundle(q.id);
+  const b = await readBody(req), { c, st } = await bundle(q.id), was = st.verify || {};
   for (const k of Object.keys(b)) { const v = cleanStaff(k, b[k]); if (v !== undefined) st[k] = v; }
   await store.set(`staff:${q.id}`, st);
+  // a checklist item newly marked "Needs a fix" (or with a changed note): tell the client by email; the portal alarms them too
+  if (b.verify && mailReady()) {
+    const fix = Object.entries(st.verify).filter(([i, x]) => x.state === 'needs-fix' && (was[i]?.state !== 'needs-fix' || was[i]?.comment !== x.comment)), all = items(st);
+    if (fix.length) {
+      const set = await settings(), name = i => all.find(x => x.id === i)?.title || 'A checklist item';
+      const ok = await send({ to: emailsOf(c), replyTo: set.studioEmail, subject: `${fix.length > 1 ? `${fix.length} items need a fix` : 'One item needs a fix'} · ${set.studio}`,
+        ...letter({ title: fix.length > 1 ? `${fix.length} checklist items need a fix` : 'One checklist item needs a fix', lines: [`${s.name} at ${set.studio} checked what you sent and needs one change:`, ...fix.map(([i, x]) => `${name(i)}${x.comment ? `\n${x.comment}` : ''}`), 'Open the checklist, fix it and mark it done, and we will check it again.'], button: { label: 'Open your checklist', url: `${portal(req)}#start` } }) });
+      await log(s.name, `told ${c.name} ${fix.length} item(s) need a fix${ok ? ' by email' : ' (the email failed)'}`, q.id);
+    }
+  }
   if (b.note) await log(s.name, clip(b.note, 120), q.id);
   return { staff: st, summary: summarize({ c, answers: (await store.get(`answers:${q.id}`)) || emptyAnswers(), st, contract: await store.get(`contract:${q.id}`), tickets: (await store.get(`tickets:${q.id}`)) || [], events: await eventsOf(q.id), ads: await adsOf(q.id), payclaims: (await store.get(`payclaims:${q.id}`)) || {} }) };
 };
