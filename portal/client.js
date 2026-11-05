@@ -148,10 +148,14 @@ function paint() {
 }
 
 /* phone: the four things you use most live in a bottom bar, the rest under More */
-const PRIMARY = ['overview', 'start', 'ads', 'agreement'], SHORT = { start: 'Start', results: 'Results' };
+// the dock's fourth slot is whatever needs you most: the agreement to sign, then an invoice to pay, then the chat
+let PRIMARY = ['overview', 'start', 'ads', 'messages'];
+const SHORT = { start: 'Start', results: 'Results', agreement: 'Sign', invoices: 'Pay', messages: 'Chat' };
+const dockSlot = () => W.contract.status === 'sent' ? 'agreement' : (W.staff.invoices || []).some(i => i.status === 'due') ? 'invoices' : 'messages';
 function tabbar() {
+  PRIMARY = ['overview', 'start', 'ads', dockSlot()];
   const all = sections(), prim = all.filter(s => PRIMARY.includes(s[0])), more = all.filter(s => !PRIMARY.includes(s[0]));
-  $('#bnav').innerHTML = prim.map(([r, t, i, badge]) => `<button class="${r === route ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${SHORT[r] || t}</span>${r === 'agreement' && W.contract.status === 'sent' ? '<i>!</i>' : ''}</button>`).join('')
+  $('#bnav').innerHTML = prim.map(([r, t, i, badge]) => `<button class="${r === route ? 'on' : ''}" data-nav="${r}" aria-label="${t}">${ic(i)}<span>${SHORT[r] || t}</span>${r === 'agreement' && W.contract.status === 'sent' ? '<i>!</i>' : r === 'invoices' ? '<i>!</i>' : r === 'messages' && unreadM() ? '<i>' + unreadM() + '</i>' : ''}</button>`).join('')
     + `<button class="${more.some(s => s[0] === route) ? 'on' : ''}" data-more aria-label="More">${ic('list')}<span>More</span>${(n => n ? `<i>${n}</i>` : '')(alerts().filter(a => !PRIMARY.includes(a.go.split('/')[0])).length)}</button>`;
   $$('#bnav [data-nav]').forEach(b => b.onclick = () => nav(b.dataset.nav));
   $('#bnav [data-more]').onclick = () => modal(`<h3>More</h3><div style="display:flex;flex-direction:column;gap:6px;margin-top:14px">${more.map(([r, t, i, badge]) => `<button class="btn" style="justify-content:flex-start;height:52px" data-go="${r}">${ic(i)}<span style="flex:1;text-align:left">${t}</span>${badge ? `<span class="mono" style="color:var(--mute)">${esc(badge)}</span>` : ''}</button>`).join('')}<button class="btn" style="justify-content:flex-start;height:52px" data-go="__out">${ic('out')}<span>Sign out</span></button></div>`, {
@@ -262,7 +266,7 @@ function agreement() {
     : `<div class="steps"><div class="ok"><i>${ic('check')}</i>Company details</div><div class="on"><i>2</i>Sign</div></div>${partyCard()}
       <div class="seg2" role="tablist"><button role="tab" data-smode="draw" class="${signMode === 'draw' ? 'on' : ''}">${ic('pen')} Sign here</button><button role="tab" data-smode="hand" class="${signMode === 'hand' ? 'on' : ''}">${ic('print')} Sign by hand</button></div>
       ${signMode === 'draw' ? drawUI() : handUI()}`;
-  return `<div class="page wide"><p class="eyebrow mono">Agreement</p><h1>${esc(c.title)}<span>.</span></h1>
+  return `<div class="page wide"><p class="eyebrow mono">Agreement</p><h1 class="ag">${esc(c.title)}<span>.</span></h1>
     <p class="lead">${signed ? 'Signed. Your copy is below, and you can download it any time.' : editing ? 'First your company details, then read it through and sign.' : 'Read it first. When you are ready, sign on the right: here in the portal, or by hand.'}</p>
     <div class="agr" style="margin-top:28px"><nav class="toc" id="toc" aria-label="Sections">${hs.map((h, n) => `<a data-jump="s${n}">${esc(h.replace(/^(Clause )?\d+[.:]\s*/, ''))}</a>`).join('')}</nav>
     <div>${editing ? partyForm() : ''}<article class="paper" id="paper">${mdA(c.text)}${annex()}${seal}</article></div>
