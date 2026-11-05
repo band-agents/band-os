@@ -492,3 +492,82 @@ body.staff .pf input,body.staff .pf textarea{color:#EDEDE6}
 .ldoc{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid rgba(255,255,255,.08)}
 .ldoc img{width:84px;height:60px;object-fit:cover;border-radius:8px;background:rgba(255,255,255,.06)}.ldoc>div{flex:1;display:flex;flex-direction:column;gap:2px}
 @media (max-width:860px){.pf-grid{grid-template-columns:1fr}.partyf{padding:18px}}
+
+/* ---------- phone: a floating dock, glass bars, big type, cards instead of tables ---------- */
+@media (max-width:860px){
+  html{-webkit-tap-highlight-color:transparent}
+  button,a,.btn{touch-action:manipulation}
+  body::before{background:radial-gradient(130% 70% at 50% 0%,rgba(16,168,98,.18),rgba(6,6,6,.0) 60%),linear-gradient(rgba(6,6,6,.5),rgba(6,6,6,.86))}
+  /* top bar: slim and glassy, icon buttons only */
+  .bar{height:50px;gap:6px;padding:0 12px;background:rgba(8,9,8,.55);border-bottom:1px solid rgba(255,255,255,.06)}
+  .bar .logo b{font-size:17px}.bar .tag{font-size:9.5px;padding:2px 6px;letter-spacing:.02em}
+  .bar .ghostb{width:36px;height:36px;padding:0;font-size:0;border-radius:50%;background:rgba(255,255,255,.08);display:grid;place-items:center;position:relative}
+  .bar .ghostb::before{content:"";width:16px;height:16px;background:currentColor;opacity:.85;-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9'/%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M20 12H9'/%3E%3C/svg%3E") center/contain no-repeat}
+  .bar .pill{background:rgba(255,255,255,.12);color:#fff}
+  .win{inset:50px 0 0 0}
+  /* second row: back, where you are, saved */
+  .tool{height:46px;padding:0 14px;gap:8px;background:transparent;border-bottom:0}
+  .tool .nav-b{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--soft);font-size:19px;line-height:1}
+  .crumbs{font-size:12.5px;letter-spacing:.01em;color:var(--mute)}.crumbs span{color:var(--ink);font-weight:700}
+  .view{padding-bottom:calc(112px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+  /* pages */
+  .page,.page.wide{padding:14px 16px 28px}
+  .page h1{font-size:38px;line-height:.98;letter-spacing:-.045em}
+  .eyebrow{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:99px;background:var(--mint);color:var(--green);letter-spacing:.06em;text-transform:uppercase;font-size:10.5px}
+  body.staff .eyebrow{background:rgba(16,168,98,.14)}
+  .lead{font-size:15px;line-height:1.5;color:var(--ink2)}
+  /* what is new: one calm strip you can swipe, not a green wall */
+  .alertbar{flex-wrap:nowrap;overflow-x:auto;gap:8px;margin:0 -16px 18px;padding:11px 16px;border-radius:0;background:#0F1211;color:#fff;box-shadow:none;border-block:1px solid rgba(255,255,255,.07);scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .alertbar::-webkit-scrollbar{display:none}
+  .alertbar>b{flex:none;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:#9DA39B;margin:0 2px 0 0}
+  .alertbar i.pulse{background:var(--green);box-shadow:0 0 12px var(--green)}
+  .alertbar button{flex:none;max-width:78vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.08);padding:8px 13px}
+  .alertbar button .ic{stroke:var(--green)}
+  /* cards */
+  .card,.item,.next,.stat,.copy{border-radius:20px}
+  .card{padding:18px;border:1px solid var(--rule);box-shadow:0 1px 0 rgba(255,255,255,.7) inset,0 14px 34px -22px rgba(20,22,20,.35)}
+  body.staff .card{box-shadow:0 14px 34px -22px rgba(0,0,0,.8);border-color:#232826}
+  .stat{padding:16px;border:1px solid var(--rule);box-shadow:0 12px 28px -22px rgba(20,22,20,.4)}
+  .stat .v{font-size:30px;letter-spacing:-.04em}
+  .next{padding:22px;background:linear-gradient(160deg,#171B19,#0C0E0D);box-shadow:0 24px 50px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.06) inset}
+  .item{border:1px solid var(--rule);box-shadow:0 10px 26px -22px rgba(20,22,20,.4)}
+  .item>header{min-height:64px;padding:14px 16px}
+  /* buttons: pills, thumb-sized */
+  .btn{height:48px;border-radius:99px;font-weight:700;padding:0 20px}.btn.sm{height:40px;padding:0 15px;border-radius:99px}
+  .acts{gap:10px}.acts .btn:not(.sm):not(.ghost){flex:1 1 100%}
+  .btn:active{transform:scale(.97)}
+  /* copy rows: label on top, value and a compact button below */
+  .copy{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;padding:12px 14px;border-style:solid}
+  .copy span{grid-column:1/-1;flex:none;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+  .copy b{min-width:0;font-size:14px;letter-spacing:.02em}
+  .copy .btn{height:36px;padding:0 12px}
+  /* tables become stacked cards (the editors with inputs keep their table) */
+  .card:has(table.t:not([data-ed])){overflow:visible;padding:4px 16px}
+  table.t:not([data-ed]){min-width:0;display:block}
+  table.t:not([data-ed]) thead{display:none}
+  table.t:not([data-ed]) tbody{display:block}
+  table.t:not([data-ed]) tr{display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;padding:16px 0;border-bottom:1px solid var(--rule)}
+  table.t:not([data-ed]) tr:last-child{border-bottom:0}
+  table.t:not([data-ed]) td{display:block;padding:0;border:0;text-align:left}
+  table.t:not([data-ed]) td:first-child{grid-column:1/-1;font-size:16px}
+  table.t:not([data-ed]) td.r{text-align:right}
+  table.t:not([data-ed]) td:last-child:not(:nth-child(2)){grid-column:1/-1;text-align:left}
+  table.t:not([data-ed]) td:last-child .btn{margin:6px 8px 0 0}
+  /* the dock */
+  .bnav{left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));padding:6px;border-radius:26px;background:rgba(14,16,15,.88);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);border:1px solid rgba(255,255,255,.1);box-shadow:0 22px 50px -14px rgba(0,0,0,.6),0 0 0 1px rgba(0,0,0,.3)}
+  body.staff .bnav{background:rgba(22,26,24,.9)}
+  .bnav button{padding:8px 2px 6px;color:#8B918A;border-radius:20px;gap:3px;font-size:10px;letter-spacing:.02em;transition:background .2s,color .2s}
+  .bnav button.on{color:#fff;background:rgba(255,255,255,.1)}
+  .bnav button.on .ic{stroke:var(--green)}
+  .bnav button.on::before{display:none}
+  .bnav i{background:#E5484D;top:2px}
+  #toast{bottom:calc(96px + env(safe-area-inset-bottom))}
+  /* sheets */
+  .modal{background:rgba(6,8,7,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .modal .box{border-radius:26px 26px 0 0;padding:26px 18px calc(26px + env(safe-area-inset-bottom));position:relative}
+  .modal .box::before{content:"";position:absolute;top:9px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:4px;background:var(--rule)}
+  .tabs button{border-radius:99px}
+}
+@media (max-width:860px){
+  .ldoc{flex-wrap:wrap}.ldoc>div{flex:1 1 100% !important}.ldoc>.btn{flex:1 1 auto}
+}
